@@ -1,0 +1,15 @@
+[submodule "qbs"]
+	path = qbs
+	url = https://github.com/hkarel/QbsExt.git
+[submodule "src/shared/shared"]
+	path = src/shared/shared
+	url = https://github.com/hkarel/SharedTools.git
+[submodule "src/yaml"]
+	path = src/yaml
+	url = https://github.com/hkarel/yaml-cpp.git
+[submodule "src/rapidjson"]
+	path = src/rapidjson
+	url = https://github.com/hkarel/rapidjson.git
+[submodule "src/pproto/pproto"]
+	path = src/pproto/pproto
+	url = https://github.com/hkarel/PProtoCpp.git
