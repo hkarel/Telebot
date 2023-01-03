@@ -34,6 +34,10 @@ bool TriggerLink::isActive(const Update& update, const QString& /*clearText*/) c
         {
             entityUrl = true;
             QString urlStr = message->text.mid(entity.offset, entity.length);
+
+            log_debug_m << log_format("update_id: %?. Trigger '%?'. Input url: %?",
+                                      update.update_id, name, urlStr);
+
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
             QString host = url.host();
             QString path = url.path();
@@ -79,7 +83,29 @@ bool TriggerWord::isActive(const Update& update, const QString& clearText) const
 
 bool TriggerRegexp::isActive(const Update& update, const QString& clearText) const
 {
+    if (clearText.isEmpty())
+        return false;
 
+    for (const QRegularExpression& re : regexpList)
+    {
+        const QRegularExpressionMatch match = re.match(clearText);
+        if (match.hasMatch())
+        {
+            alog::Line logLine = log_verbose_m << log_format(
+                "update_id: %?. Trigger '%?' activated"
+                ". Regular expression '%?' matched. Captured text: ",
+                update.update_id, name, re.pattern());
+            for (const QString& cap : match.capturedTexts())
+                logLine << cap << "; ";
+
+            return true;
+        }
+        else
+        {
+            log_debug_m << log_format("Regular expression pattern %? not match",
+                                      re.pattern());
+        }
+    }
     return false;
 }
 
@@ -183,6 +209,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
             whiteUsers.insert(ywhite.as<int64_t>());
     }
 
+    bool multiline = false;
+    if (ytrigger["multiline"].IsDefined())
+    {
+        checkFiedType("multiline", YAML::NodeType::Scalar);
+        multiline = ytrigger["multiline"].as<bool>();
+    }
+
     Trigger::Ptr trigger;
 
     if (type == "link")
@@ -202,13 +235,29 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     {
         TriggerRegexp::Ptr triggerRegexp {new TriggerRegexp};
         triggerRegexp->caseInsensitive = caseInsensitive;
-        QRegularExpression::PatternOptions pattern {QRegularExpression::NoPatternOption};
+        triggerRegexp->multiline = multiline;
+
+        QRegularExpression::PatternOptions pattern =
+            {QRegularExpression::UseUnicodePropertiesOption};
+
         if (caseInsensitive)
             pattern |= QRegularExpression::CaseInsensitiveOption;
 
-        for (const QString& s : regexpList)
-            triggerRegexp->regexpList.append(QRegularExpression{s, pattern});
+        if (multiline)
+            pattern |= QRegularExpression::MultilineOption;
 
+        for (const QString& s : regexpList)
+        {
+            QRegularExpression re {s, pattern};
+            if (!re.isValid())
+            {
+                log_error_m << "Failed regular expression"
+                            << ". Error: " << re.errorString()
+                            << ". Offset: " << re.patternErrorOffset();
+                continue;
+            }
+            triggerRegexp->regexpList.append(std::move(re));
+        }
         trigger = triggerRegexp;
     }
     if (trigger)
@@ -302,9 +351,10 @@ void printTriggers(Trigger::List& triggers)
         {
             logLine << "; type: regexp"
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
+                    << "; multiline: " << triggerRegexp->multiline
                     << "; regexp_list: [";
             for (const QRegularExpression& re : triggerRegexp->regexpList)
-                logLine << nextComma() << re.pattern();
+                logLine << nextComma() << "'" << re.pattern() << "'";
             logLine << "]";
         }
 

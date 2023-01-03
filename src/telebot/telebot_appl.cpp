@@ -358,7 +358,7 @@ void Application::webhook_readyRead()
     if (wd.data.size() == wd.dataSize)
     {
         wd.data = unicodeDecode(wd.data);
-        log_debug_m << "Webhook TCP data: " << wd.data;
+        log_verbose_m << "Webhook TCP data: " << wd.data;
 
         tbot::Processing::addUpdate(wd.data);
 

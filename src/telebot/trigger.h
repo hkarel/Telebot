@@ -93,6 +93,10 @@ public:
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
 
+    // См. описание опции QRegularExpression::MultilineOption
+    // https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
+    bool multiline = {false};
+
     // Список регулярных выражений
     QList<QRegularExpression> regexpList;
 
