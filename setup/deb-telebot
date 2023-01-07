@@ -1,0 +1,120 @@
+#!/bin/bash
+
+#
+# Формирование deb-пакета telebot
+#
+package_dir=$script_dir/build/${build_subdir}/deb/$package_base
+echo -e "\npackage_dir: $package_dir"
+
+package_name="$package_base-${full_package_vers}-${os_id}${os_ver}-${os_arch}.deb"
+echo "package_name: $package_name"
+
+rm -rf $package_dir
+
+mkdir -p $package_dir/DEBIAN
+mkdir -p $package_dir/etc/$product_dir
+mkdir -p $package_dir/etc/$product_dir/ssl
+mkdir -p $package_dir/etc/systemd/system
+mkdir -p $package_dir/opt/$product_dir/bin
+mkdir -p $package_dir/opt/$product_dir/lib
+mkdir -p $package_dir/var/opt/$product_dir/log
+mkdir -p $package_dir/var/opt/$product_dir/state
+mkdir -p $package_dir/var/opt/$product_dir/video
+
+cp $script_dir/setup/deb/$package_base/DEBIAN/*  $package_dir/DEBIAN
+cp $script_dir/config/telebot.conf               $package_dir/etc/$product_dir
+cp $script_dir/config/telebot.logger.conf        $package_dir/etc/$product_dir
+
+cp $build_dir/bin/telebot                        $package_dir/opt/$product_dir/bin
+cp $script_dir/systemd/telebot.service           $package_dir/etc/systemd/system
+
+# for f in $(cat ${build_dir}/package_build_info); do
+#     [ -n "$f" ] && cp -P $f $package_dir/opt/$product_dir/lib
+# done
+# rm -f $package_dir/opt/$product_dir/lib/*-gdb.py
+
+chmod -R go-w        $package_dir
+chmod    u=rwx,go=rx $package_dir/DEBIAN/post*
+chmod    u=rwx,go=rx $package_dir/DEBIAN/pre*
+chmod    u=rw,go=r   $package_dir/DEBIAN/conffiles
+chmod    u=rwX,go=rX $package_dir/etc/$product_dir
+chmod -R u=rwX,go=rX $package_dir/opt/$product_dir
+#chmod   ugo-x       $package_dir/opt/$product_dir/lib/*
+chmod    u=rwx,go=rx $package_dir/opt/$product_dir/bin/telebot
+
+# Права на директорию /var/opt/$product_dir назначаются в скрипте postinst
+
+if [ "$build_mode" = "release" ]; then
+    set +e
+    echo "Removing debug info ... "
+    for f in $(find $package_dir/opt/$product_dir/bin -type f); do strip_debug_info $f; done
+   #for f in $(find $package_dir/opt/$product_dir/lib -type f); do strip_debug_info $f; done
+    set -e
+fi
+
+# Размер пакета
+installed_size=$(du -s $package_dir | sed -r 's/([0-9]+).*/\1/')
+echo "installed_size: $installed_size"
+
+package_depends=$(cat <<-EOS
+	libc6, systemd, libqt5core5a, libqt5network5
+EOS
+)
+
+os_arch_control=$os_arch
+[ "${os_arch:0:3}" = "arm" ] && os_arch_control=armhf
+
+sed -e "s/%VERSION%/${full_package_vers}/" \
+    -e "s/%ARCHITECTURE%/${os_arch_control}/" \
+    -e "s/%INSTALLED_SIZE%/${installed_size}/" \
+    -e "s/%DEPENDS%/${package_depends}/" \
+    -i $package_dir/DEBIAN/control
+
+# Контрольные суммы файлов пакета
+cd $package_dir
+md5deep -rl -o f etc >> DEBIAN/md5sums
+md5deep -rl -o f opt >> DEBIAN/md5sums
+md5deep -rl -o f var >> DEBIAN/md5sums
+chmod  0644 DEBIAN/md5sums
+cd $script_dir
+
+# Создание deb-пакета
+fakeroot dpkg-deb --build $package_dir ${build_dir}/$package_name
+
+# Проверка deb-пакета
+if [ "$use_lintian" = "yes" ]; then
+    suppress_tags=$(cat <<-EOS
+		hardening-no-relro,
+		binary-or-shlib-defines-rpath,
+		dir-or-file-in-opt,
+		bad-package-name,
+		package-not-lowercase,
+		systemd-service-file-outside-lib,
+		maintainer-script-calls-systemctl,
+		file-in-etc-not-marked-as-conffile,
+		maintainer-script-ignores-errors,
+		maintainer-script-empty,
+		file-in-unusual-dir,
+		maintainer-script-should-not-use-recursive-chown-or-chmod
+	EOS
+    )
+    echo "Start 'lintian'"
+    set +e
+    suppress_tags=$(echo $suppress_tags | tr -d '\n' | tr -d ' ')
+    lintian --suppress-tags $suppress_tags ${build_dir}/$package_name
+    set -e
+fi
+
+cd $script_dir
+if [ "$build_packages" = "yes" ]; then
+    cd $script_dir
+    echo "Copying file $package_name to directory ./packages"
+    cp -f ${build_dir}/$package_name ./packages
+    cp -f ${build_dir}/$package_name ./packages/last
+fi
+
+if [ "$install_base" = "yes" ]; then
+    echo "Install $package_base..."
+    sudo dpkg -i ${build_dir}/$package_name
+    echo "$package_base installation is complete"
+fi

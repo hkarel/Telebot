@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set +e
+
+service_name=telebot.service
+
+systemctl daemon-reload
+
+res=$(systemctl list-unit-files | grep "$service_name")
+if [ -n "$res" ]; then
+    systemctl stop    $service_name
+    systemctl disable $service_name
+    #systemctl mask   $service_name
+fi
+
+exit 0

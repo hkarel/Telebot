@@ -1,0 +1,10 @@
+Package: telebot
+Version: %VERSION%
+Architecture: %ARCHITECTURE%
+Maintainer: Karelin Pavel <hkarel@yandex.ru>
+Installed-Size: %INSTALLED_SIZE%
+Depends: %DEPENDS%
+Section: net
+Priority: standard
+Homepage: https://github.com/hkarel/Telebot
+Description: Engine for Telegram Anti-Spam bot

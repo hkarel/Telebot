@@ -1,0 +1,16 @@
+[Unit]
+Description=Engine for Telegram Anti-Spam bot
+After=network.target multi-user.target
+
+[Service]
+Type=simple
+User=%TARGET_USER%
+Group=telebot
+ExecStart=/opt/telebot/bin/telebot
+TimeoutSec=300
+KillMode=process
+Restart=on-failure
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

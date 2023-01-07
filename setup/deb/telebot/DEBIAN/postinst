@@ -1,0 +1,60 @@
+#!/bin/bash
+
+set +e
+
+product_dir=telebot
+group_name=telebot
+
+service_name=telebot.service
+
+need_reboot=
+
+#
+# Создание пользовательских групп
+#
+#--- Group '$group_name' ---
+res=$(cat /etc/group | grep "$group_name")
+if [ -z "$res" ]; then
+    groupadd -f $group_name
+    echo "The group $group_name is created"
+fi
+
+res=$(groups $SUDO_USER | grep "$group_name")
+if [ -z "$res" ]; then
+    usermod -aG $group_name $SUDO_USER
+    need_reboot=yes
+fi
+
+if [ "$need_reboot" = "yes" ]; then
+    echo "====================================================== "
+    echo "! The user $SUDO_USER added to groups: ${group_name}.  "
+    echo "! Need relogin user and repeat installation.           "
+    echo "====================================================== "
+    exit 1
+fi
+
+#
+# Назначение прав на рабочие директории
+#
+chown -R root:$group_name  /etc/$product_dir
+chmod -R ug=rwX,o=rX       /etc/$product_dir
+
+chown -R root:$group_name  /var/opt/$product_dir
+chmod -R ug=rwX,o=rX       /var/opt/$product_dir
+
+#
+# Регистрация systemd-сервиса
+#
+sed -e "s/%TARGET_USER%/$SUDO_USER/" \
+    -i /etc/systemd/system/$service_name
+    
+# sed -e "s/%TARGET_USER%/root/" \
+#     -i /etc/systemd/system/$service_name
+
+systemctl daemon-reload
+
+systemctl unmask $service_name
+systemctl enable $service_name
+systemctl start  $service_name
+
+exit 0

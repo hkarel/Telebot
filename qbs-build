@@ -1,0 +1,230 @@
+#!/bin/bash
+
+set -u
+
+product_name=telebot
+product_dir=telebot
+
+SUDO=
+rebuild=
+print_help=
+build_mode=release
+need_packages=
+
+build_packages=
+
+install_base=
+install_ctl=
+install_term=
+
+remove_base=
+remove_ctl=
+remove_term=
+
+package_base=telebot
+package_ctl=
+package_term=
+
+use_lintian=yes
+clang_checkers=no
+
+# Директория этого скрипта
+script_dir=$(dirname $(readlink -f $0))
+echo "script_dir: $script_dir"
+
+# Определение параметров host-системы
+if [ ! -e $script_dir/setup/scripts/os_detect ]; then
+    echo "Error: os_detect script not found"
+    exit 1
+fi
+. $script_dir/setup/scripts/os_detect
+
+# Функция удаления отладочной информации
+if [ ! -e $script_dir/setup/scripts/strip_debug_info ]; then
+    echo "Error: strip_debug_info script not found"
+    exit 1
+fi
+. $script_dir/setup/scripts/strip_debug_info
+# ---
+
+jobs=$(nproc)
+[ "$jobs" -gt 24 ] && jobs=$(($jobs - 6))
+echo "jobs: $jobs"
+
+if [ "$os_id" = "neon" ]; then
+    os_id="ubuntu"
+fi
+
+function display_help()
+{
+cat << EOF
+Usage: ${0##*/}
+  -h   display this help and exit
+  -r   full rebuild the project
+  -d   build in 'debug' mode
+  -D   build deb package
+  -i   install deb package $package_base
+  -R   remove installation $package_base and exit
+  -L   use 'lintian' utility to check deb-packages
+EOF
+}
+
+# Обработка позиционных параметров:
+#    http://wiki.bash-hackers.org/scripting/posparams
+while test -n ${1:-""}
+do
+    case "$1" in
+        -h)
+            print_help=yes
+            shift
+            ;;
+        -r)
+            rebuild=yes
+            shift
+            ;;
+        -d)
+            build_mode=debug
+            shift
+            ;;
+        -D)
+            build_packages=yes
+            shift
+            ;;
+        -i)
+            install_base=yes
+            shift
+            ;;
+        -R)
+            remove_base=yes
+            shift
+            ;;
+        -L)
+           use_lintian=yes
+           shift
+           ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)  # No more options
+            #break
+            echo "Error: Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$print_help" = "yes" ]; then
+    display_help
+    exit 0
+fi
+
+if [ "$remove_base" = "yes" ]; then
+    echo -e "\nRemove $package_base..."
+
+    set +e
+    res=$(dpkg -l | grep -P "^ii\s+$package_base ")
+    set -e
+    if [ -z "$res" ]; then
+        echo "Nothing to remove, $package_base not installed"
+    else
+        sudo dpkg -r $package_base
+        echo "$package_base was removed"
+    fi
+    exit 0
+fi
+
+function check_need_package()
+{
+    dpkg -s $1 &> /dev/null
+    [ "$?" -ne 0 ] && need_packages="$need_packages $1"
+}
+
+need_packages=
+#check_need_package 'libpq-dev'
+
+if [ "$build_packages"  = "yes" \
+     -o "$install_base" = "yes" \
+     -o "$install_ctl"  = "yes" \
+     -o "$install_term" = "yes" ]
+then
+    # Необходимые пакеты
+    check_need_package 'fakeroot'
+    check_need_package 'debconf'
+    check_need_package 'debhelper'
+    check_need_package 'lintian'
+    check_need_package 'hashdeep'
+fi
+
+if [ -n "$need_packages" ]; then
+    echo "Error: Need to install packages:$need_packages"
+    echo "    Use: sudo apt-get install $need_packages"
+    echo ""
+    exit 1
+fi
+
+if [ ! -x /usr/bin/md5deep ]; then
+    if [ ! -L /usr/local/bin/md5deep ]; then
+        echo "Need create symlink for md5deep"
+        sudo ln -sf /usr/bin/hashdeep /usr/local/bin/md5deep
+    fi
+fi
+
+git_branch=$(git status -b -s | head -n1 | sed 's/\./ /' | cut -d' ' -f2 | sed 's/\//_/g')
+build_config=${build_mode}-${git_branch}
+build_subdir=${build_config}
+build_dir=$script_dir/build/$build_subdir
+
+[ "$rebuild" = "yes"  ] && rm -rf $build_dir
+
+#
+# Сборка проекта
+#
+set -e
+qbs build \
+    --file telebot_project.qbs \
+    --build-directory ./build \
+    --command-echo-mode command-line \
+    --jobs $jobs \
+    --no-install \
+    --products TeleBot \
+    qbs.buildVariant:$build_mode \
+    config:$build_config
+
+echo "Build is complete (configuration: ${build_config})"
+
+if [ "$build_packages" != "yes" ]; then
+    [ "$install_base"  != "yes" \
+    -a "$install_ctl"  != "yes" \
+    -a "$install_term" != "yes" ] && exit 0
+fi
+
+#
+# Создание deb-пакетов
+#
+package_vers=$(head -n1 VERSION)
+package_date=$(date +%Y%m%d)
+gitrev=$(git log -1 --pretty=%h)
+package_release=${package_date}git${gitrev}
+full_package_vers=${package_vers}-${package_release}
+
+echo "---"
+echo "product_name ........ $product_name"
+echo "product_dir ......... $product_dir"
+echo "package_vers ........ $package_vers"
+echo "package_date ........ $package_date"
+echo "gitrev .............. $gitrev"
+echo "package_release ..... $package_release"
+echo "full_package_vers ... $full_package_vers"
+
+mkdir -p $script_dir/packages/last
+rm -rf   $script_dir/packages/last/*
+
+#
+# Формирование deb-пакета $package_base
+#
+if [ "$build_packages" = "yes" \
+     -o "$install_base" = "yes" ]
+then
+    . $script_dir/setup/deb-$package_base
+fi

@@ -37,25 +37,20 @@ static QByteArray unicodeDecode(const QByteArray& data)
     QString source = QString::fromUtf8(data);
     QString dest; dest.reserve(source.length());
 
-    auto get_uint8 = [](uchar h, uchar l) -> uchar
+    auto getUint8 = [](uchar h, uchar l) -> uchar
     {
-        uint8_t ret;
+        uint8_t ret = 0;
 
-        if (h - '0' < 10)
-            ret = h - '0';
-        else if (h - 'A' < 6)
-            ret = h - 'A' + 0x0A;
-        else if (h - 'a' < 6)
-            ret = h - 'a' + 0x0A;
+        if      (h - '0' < 10) ret = h - '0';
+        else if (h - 'A' < 6 ) ret = h - 'A' + 0x0A;
+        else if (h - 'a' < 6 ) ret = h - 'a' + 0x0A;
 
         ret = ret << 4;
 
-        if (l - '0' < 10)
-            ret |= l - '0';
-        else if (l - 'A' < 6)
-            ret |= l - 'A' + 0x0A;
-        else if (l - 'a' < 6)
-            ret |= l - 'a' + 0x0A;
+        if      (l - '0' < 10) ret |= l - '0';
+        else if (l - 'A' < 6 ) ret |= l - 'A' + 0x0A;
+        else if (l - 'a' < 6 ) ret |= l - 'a' + 0x0A;
+
         return  ret;
     };
 
@@ -66,8 +61,8 @@ static QByteArray unicodeDecode(const QByteArray& data)
         {
             if (*(it + 1) == QChar('u'))
             {
-                uchar c1 = get_uint8((it + 2)->cell(), (it + 3)->cell());
-                uchar c2 = get_uint8((it + 4)->cell(), (it + 5)->cell());
+                uchar c1 = getUint8((it + 2)->cell(), (it + 3)->cell());
+                uchar c2 = getUint8((it + 4)->cell(), (it + 5)->cell());
 
                 quint16 v = (c1 << 8) | c2;
                 dest.append(QChar(v));
