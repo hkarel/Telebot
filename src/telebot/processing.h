@@ -26,6 +26,9 @@ public:
 signals:
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&);
 
+public slots:
+    void configChanged();
+
 private:
     Q_OBJECT
     DISABLE_DEFAULT_COPY(Processing)
@@ -36,6 +39,11 @@ private:
     static QMutex _threadLock;
     static QWaitCondition _threadCond;
     static QList<QByteArray> _updates;
+
+    volatile bool _configChanged = {true};
+
+    bool _spamIsActive;
+    QString _spamMessage;
 
     //QString _botId;
 };

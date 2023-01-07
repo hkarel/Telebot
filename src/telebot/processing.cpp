@@ -31,10 +31,7 @@ Processing::Processing()
 
 bool Processing::init()
 {
-//    _botId.clear();
-//    if (!config::base().getValue("bot.id", _botId))
-//        return false;
-
+    _configChanged = true;
     return true;
 }
 
@@ -48,6 +45,11 @@ void Processing::addUpdate(const QByteArray& data)
     _threadCond.wakeOne();
 }
 
+void Processing::configChanged()
+{
+    _configChanged = true;
+}
+
 void Processing::run()
 {
     log_info_m << "Started";
@@ -56,6 +58,17 @@ void Processing::run()
     {
         CHECK_QTHREADEX_STOP
         QByteArray data;
+
+        if (_configChanged)
+        {
+            _spamIsActive = false;
+            config::base().getValue("bot.spam_message.active", _spamIsActive);
+
+            _spamMessage.clear();
+            config::base().getValue("bot.spam_message.text", _spamMessage);
+
+            _configChanged = false;
+        }
 
         { //Block for QMutexLocker
             QMutexLocker locker {&_threadLock}; (void) locker;
@@ -108,8 +121,13 @@ void Processing::run()
         lst::FindResult fr = groupChats.findRef(chatId);
         if (fr.failed())
         {
-            // TODO Отправить спам-сообщение в чат, который не определен в конфиге
-
+            if (_spamIsActive && !_spamMessage.isEmpty())
+            {
+                tbot::HttpParams params;
+                params["chat_id"] = chatId;
+                params["text"] = _spamMessage;
+                emit sendTgCommand("sendMessage", params);
+            }
             continue;
         }
 

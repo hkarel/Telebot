@@ -181,6 +181,9 @@ bool Application::init()
         chk_connect_q(p, &tbot::Processing::sendTgCommand,
                       this, &Application::sendTgCommand);
 
+        chk_connect_d(&config::changeChecker(), &config::ChangeChecker::changed,
+                      p, &tbot::Processing::configChanged)
+
         _procList.add(p);
     }
     for (tbot::Processing* p : _procList)

@@ -102,7 +102,7 @@ bool TriggerRegexp::isActive(const Update& update, const QString& clearText) con
         }
         else
         {
-            log_debug_m << log_format("Regular expression pattern %? not match",
+            log_debug_m << log_format("Regular expression pattern '%?' not match",
                                       re.pattern());
         }
     }
