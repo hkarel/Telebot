@@ -141,7 +141,14 @@ function check_need_package()
 }
 
 need_packages=
+check_need_package 'build-essential'
 #check_need_package 'libpq-dev'
+
+check_need_package 'qt5-default'
+check_need_package 'qt5-qmake'
+check_need_package 'qtbase5-dev'
+check_need_package 'qtbase5-dev-tools'
+check_need_package 'qtbase5-private-dev'
 
 if [ "$build_packages"  = "yes" \
      -o "$install_base" = "yes" \
