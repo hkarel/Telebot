@@ -46,7 +46,7 @@ bool TriggerLink::isActive(const Update& update, const QString& /*clearText*/) c
                 if (str.startsWith(item, Qt::CaseInsensitive))
                 {
                     log_verbose_m << log_format("update_id: %?. Trigger '%?' is skipped"
-                                                ". Link belongs to whitelist (%?)",
+                                                ". Link belong to whitelist [%?]",
                                                 update.update_id, name, item);
                     return false;
                 }
