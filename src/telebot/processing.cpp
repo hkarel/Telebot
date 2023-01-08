@@ -138,6 +138,15 @@ void Processing::run()
                 clearText.remove(entity.offset, entity.length);
         }
         clearText = clearText.trimmed();
+
+        if (!message->caption.isEmpty())
+        {
+            if (clearText.isEmpty())
+                clearText = message->caption;
+            else
+                clearText = message->caption + '\n' + clearText;
+        }
+
         log_verbose_m << log_format("update_id: %?. Clear text: %?",
                                     update.update_id, clearText);
 

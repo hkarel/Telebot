@@ -237,7 +237,9 @@ struct Message : public clife_base
 //    video 	Video 	Optional. Message is a video, information about the video
 //    video_note 	VideoNote 	Optional. Message is a video note, information about the video message
 //    voice 	Voice 	Optional. Message is a voice message, information about the file
-//    caption 	String 	Optional. Caption for the animation, audio, document, photo, video or voice
+
+    QString caption; // Optional. Caption for the animation, audio, document, photo, video or voice
+
 //    caption_entities 	Array of MessageEntity 	Optional. For messages with a caption, special entities like usernames, URLs, bot commands, etc. that appear in the caption
 //    contact 	Contact 	Optional. Message is a shared contact, information about the contact
 //    dice 	Dice 	Optional. Message is a dice with random value
@@ -295,6 +297,7 @@ struct Message : public clife_base
         J_SERIALIZE_OPT ( author_signature        )
         J_SERIALIZE_OPT ( text                    )
         J_SERIALIZE_OPT ( entities                )
+        J_SERIALIZE_OPT ( caption                 )
     J_SERIALIZE_END
 };
 
