@@ -86,9 +86,18 @@ bool TriggerRegexp::isActive(const Update& update, const QString& clearText) con
     if (clearText.isEmpty())
         return false;
 
+    QString text = clearText;
+    for (const QRegularExpression& re : regexpRemove)
+        text.remove(re);
+
+    if (text.length() != clearText.length())
+        log_verbose_m << log_format(
+            "update_id: %?. Trigger '%?'. Clear text after regexp remove: %?",
+            update.update_id, name, text);
+
     for (const QRegularExpression& re : regexpList)
     {
-        const QRegularExpressionMatch match = re.match(clearText);
+        const QRegularExpressionMatch match = re.match(text);
         if (match.hasMatch())
         {
             alog::Line logLine = log_verbose_m << log_format(
@@ -177,6 +186,15 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
             wordList.append(QString::fromStdString(yword.as<string>()));
     }
 
+    QStringList regexpRemove;
+    if (ytrigger["regexp_remove"].IsDefined())
+    {
+        checkFiedType("regexp_remove", YAML::NodeType::Sequence);
+        const YAML::Node& yregexp_remove = ytrigger["regexp_remove"];
+        for (const YAML::Node& yregexp : yregexp_remove)
+            regexpRemove.append(QString::fromStdString(yregexp.as<string>()));
+    }
+
     QStringList regexpList;
     if (ytrigger["regexp_list"].IsDefined())
     {
@@ -246,12 +264,27 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         if (multiline)
             pattern |= QRegularExpression::MultilineOption;
 
+        for (const QString& s : regexpRemove)
+        {
+            QRegularExpression re {s, pattern};
+            if (!re.isValid())
+            {
+                log_error_m << "Trigger '" << name << "'"
+                            << ". Failed regular expression in regexp_remove"
+                            << ". Error: " << re.errorString()
+                            << ". Offset: " << re.patternErrorOffset();
+                continue;
+            }
+            triggerRegexp->regexpRemove.append(std::move(re));
+        }
+
         for (const QString& s : regexpList)
         {
             QRegularExpression re {s, pattern};
             if (!re.isValid())
             {
-                log_error_m << "Failed regular expression"
+                log_error_m << "Trigger '" << name << "'"
+                            << ". Failed regular expression in regexp_list"
                             << ". Error: " << re.errorString()
                             << ". Offset: " << re.patternErrorOffset();
                 continue;
@@ -351,8 +384,16 @@ void printTriggers(Trigger::List& triggers)
         {
             logLine << "; type: regexp"
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
-                    << "; multiline: " << triggerRegexp->multiline
-                    << "; regexp_list: [";
+                    << "; multiline: " << triggerRegexp->multiline;
+
+            nextCommaVal = false;
+            logLine << "; regexp_remove: [";
+            for (const QRegularExpression& re : triggerRegexp->regexpRemove)
+                logLine << nextComma() << "'" << re.pattern() << "'";
+            logLine << "]";
+
+            nextCommaVal = false;
+            logLine << "; regexp_list: [";
             for (const QRegularExpression& re : triggerRegexp->regexpList)
                 logLine << nextComma() << "'" << re.pattern() << "'";
             logLine << "]";

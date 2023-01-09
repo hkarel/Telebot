@@ -93,9 +93,14 @@ public:
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
 
-    // См. описание опции QRegularExpression::MultilineOption
-    // https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
+    // Использовать многострочный режим, где ^ и $ соответствуют началу и концу
+    // строки текста (а не началу и концу входной строки).
+    // См. описание опции QRegularExpression::MultilineOption:
+    //   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
     bool multiline = {false};
+
+    // Список регулярных выражений для сокращения исходного текста
+    QList<QRegularExpression> regexpRemove;
 
     // Список регулярных выражений
     QList<QRegularExpression> regexpList;
