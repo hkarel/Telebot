@@ -22,7 +22,7 @@ public:
     Trigger() = default;
     virtual ~Trigger() = default;
 
-    // Имя фильтра
+    // Имя триггера
     QString name;
 
     // Действия триггера не распространяются на администраторов группы если

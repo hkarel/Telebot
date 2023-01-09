@@ -155,21 +155,41 @@ void Processing::run()
 
         // Проверка пользователя на принадлежность к списку администраторов
         if (chat->skipAdmins && adminIds.contains(userId))
+        {
+            log_verbose_m << log_format(
+                "update_id: %?. Triggers skipped, user '%?' is admin of group '%?'",
+                update.update_id, message->from->username, chat->name);
             continue;
+        }
 
         // Проверка пользователя на принадлежность к белому списку
         if (chat->whiteUsers.contains(userId))
+        {
+            log_verbose_m << log_format(
+                "update_id: %?. Triggers skipped, user '%?' in whitelist of group '%?'",
+                update.update_id, message->from->username, chat->name);
             continue;
+        }
 
         for (tbot::Trigger* trigger : chat->triggers)
         {
             // Проверка пользователя на принадлежность к списку администраторов
             if (trigger->skipAdmins && adminIds.contains(userId))
+            {
+                log_verbose_m << log_format(
+                    "update_id: %?. Trigger '%?' skipped, user '%?' is admin of group '%?'",
+                    update.update_id, trigger->name, message->from->username, chat->name);
                 continue;
+            }
 
             // Проверка пользователя на принадлежность к белому списку
             if (trigger->whiteUsers.contains(userId))
+            {
+                log_verbose_m << log_format(
+                    "update_id: %?. Trigger '%?' skipped, user '%?' in whitelist of trigger",
+                    update.update_id, trigger->name, message->from->username);
                 continue;
+            }
 
             if (trigger->isActive(update, clearText))
             {
