@@ -14,6 +14,8 @@
 
 namespace tbot {
 
+struct GroupChat;
+
 struct Trigger : public clife_base
 {
 public:
@@ -35,7 +37,8 @@ public:
 
     // Проверяет сообщение на соответствие критериям фильтрации.
     // Параметр clearText содержит текстовое сообщение с удаленными линками
-    virtual bool isActive(const tbot::Update&, const QString& clearText) const = 0;
+    virtual bool isActive(const tbot::Update&, GroupChat*,
+                          const QString& clearText) const = 0;
 
     struct Find
     {
@@ -58,7 +61,8 @@ public:
     // Список исключений
     QStringList whiteList;
 
-    bool isActive(const tbot::Update&, const QString& clearText) const override;
+    bool isActive(const tbot::Update&, GroupChat*,
+                  const QString& clearText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerLink)
@@ -77,7 +81,8 @@ public:
     // Список слов
     QStringList wordList;
 
-    bool isActive(const tbot::Update&, const QString& clearText) const override;
+    bool isActive(const tbot::Update&, GroupChat*,
+                  const QString& clearText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerWord)
@@ -105,7 +110,8 @@ public:
     // Список регулярных выражений
     QList<QRegularExpression> regexpList;
 
-    bool isActive(const tbot::Update&, const QString& clearText) const override;
+    bool isActive(const tbot::Update&, GroupChat*,
+                  const QString& clearText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerRegexp)

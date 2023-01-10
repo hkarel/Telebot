@@ -95,19 +95,19 @@ void Processing::run()
         }
         if (message.empty())
         {
-            log_error_m << log_format("update_id: %?. Message struct is empty",
+            log_error_m << log_format(R"("update_id":%?. Message struct is empty)",
                                       update.update_id);
             continue;
         }
         if (message->chat.empty())
         {
-            log_error_m << log_format("update_id: %?. Chat struct is empty",
+            log_error_m << log_format(R"("update_id":%?. Chat struct is empty)",
                                       update.update_id);
             continue;
         }
         if (message->from.empty())
         {
-            log_error_m << log_format("update_id: %?. User struct is empty",
+            log_error_m << log_format(R"("update_id":%?. User struct is empty)",
                                       update.update_id);
             continue;
         }
@@ -147,18 +147,18 @@ void Processing::run()
                 clearText = message->caption + '\n' + clearText;
         }
 
-        log_verbose_m << log_format("update_id: %?. Clear text: %?",
-                                    update.update_id, clearText);
-
         GroupChat* chat = groupChats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
+
+        log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text: %?)",
+                                    update.update_id, chat->name, clearText);
 
         // Проверка пользователя на принадлежность к списку администраторов
         if (chat->skipAdmins && adminIds.contains(userId))
         {
             log_verbose_m << log_format(
-                "update_id: %?. Triggers skipped, user '%?' is admin of group '%?'",
-                update.update_id, message->from->username, chat->name);
+                R"("update_id":%?. Chat: %?. Triggers skipped, user '%?' is admin)",
+                update.update_id, chat->name, message->from->username);
             continue;
         }
 
@@ -166,8 +166,8 @@ void Processing::run()
         if (chat->whiteUsers.contains(userId))
         {
             log_verbose_m << log_format(
-                "update_id: %?. Triggers skipped, user '%?' in whitelist of group '%?'",
-                update.update_id, message->from->username, chat->name);
+                R"("update_id":%?. Chat: %?. Triggers skipped, user '%?' in whitelist of group)",
+                update.update_id, chat->name, message->from->username);
             continue;
         }
 
@@ -177,8 +177,8 @@ void Processing::run()
             if (trigger->skipAdmins && adminIds.contains(userId))
             {
                 log_verbose_m << log_format(
-                    "update_id: %?. Trigger '%?' skipped, user '%?' is admin of group '%?'",
-                    update.update_id, trigger->name, message->from->username, chat->name);
+                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user '%?' is admin of group)",
+                    update.update_id, chat->name, trigger->name, message->from->username);
                 continue;
             }
 
@@ -186,17 +186,17 @@ void Processing::run()
             if (trigger->whiteUsers.contains(userId))
             {
                 log_verbose_m << log_format(
-                    "update_id: %?. Trigger '%?' skipped, user '%?' in whitelist of trigger",
-                    update.update_id, trigger->name, message->from->username);
+                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user '%?' in whitelist of trigger)",
+                    update.update_id, chat->name, trigger->name, message->from->username);
                 continue;
             }
 
-            if (trigger->isActive(update, clearText))
+            if (trigger->isActive(update, chat, clearText))
             {
                 // Если триггер активирован - удаляем сообщение
                 log_verbose_m << log_format(
-                    "update_id: %?. Delete message. chat_id: %?. message_id: %?",
-                    update.update_id, chatId, messageId);
+                    R"("update_id":%?. Chat: %?. Delete message (chat_id: %?; message_id: %?))",
+                    update.update_id, chat->name, chatId, messageId);
 
                 HttpParams params;
                 params["chat_id"] = chatId;

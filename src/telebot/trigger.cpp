@@ -1,4 +1,5 @@
 #include "trigger.h"
+#include "group_chat.h"
 
 #include "shared/break_point.h"
 #include "shared/logger/logger.h"
@@ -18,7 +19,8 @@ namespace tbot {
 
 using namespace std;
 
-bool TriggerLink::isActive(const Update& update, const QString& /*clearText*/) const
+bool TriggerLink::isActive(const Update& update, GroupChat* chat,
+                           const QString& /*clearText*/) const
 {
     Message::Ptr message = update.message;
     if (message.empty())
@@ -35,8 +37,9 @@ bool TriggerLink::isActive(const Update& update, const QString& /*clearText*/) c
             entityUrl = true;
             QString urlStr = message->text.mid(entity.offset, entity.length);
 
-            log_debug_m << log_format("update_id: %?. Trigger '%?'. Input url: %?",
-                                      update.update_id, name, urlStr);
+            log_debug_m << log_format(
+                R"("update_id":%?. Chat: %?. Trigger %?. Input url: %?)",
+                update.update_id, chat->name, name, urlStr);
 
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
             QString host = url.host();
@@ -45,23 +48,26 @@ bool TriggerLink::isActive(const Update& update, const QString& /*clearText*/) c
             for (const QString& item : whiteList)
                 if (str.startsWith(item, Qt::CaseInsensitive))
                 {
-                    log_verbose_m << log_format("update_id: %?. Trigger '%?' is skipped"
-                                                ". Link belong to whitelist [%?]",
-                                                update.update_id, name, item);
+                    log_verbose_m << log_format(
+                        R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
+                        ". Link belong to whitelist [%?]",
+                        update.update_id, chat->name, name, item);
                     return false;
                 }
         }
     }
     if (entityUrl)
     {
-        log_verbose_m << log_format("update_id: %?. Trigger '%?' activated",
-                                    update.update_id, name);
+        log_verbose_m << log_format(
+            R"("update_id":%?. Chat: %?. Trigger %? activated)",
+            update.update_id, chat->name, name);
         return true;
     }
     return false;
 }
 
-bool TriggerWord::isActive(const Update& update, const QString& clearText) const
+bool TriggerWord::isActive(const Update& update, GroupChat* chat,
+                           const QString& clearText) const
 {
     if (clearText.isEmpty())
         return false;
@@ -73,15 +79,17 @@ bool TriggerWord::isActive(const Update& update, const QString& clearText) const
         if (clearText.contains(word, caseSens))
         {
             log_verbose_m << log_format(
-                "update_id: %?. Trigger '%?' activated. The word '%?' was found",
-                update.update_id, name, word);
+                R"("update_id":%?. Chat: %?. Trigger %? activated)"
+                ". The word '%?' was found",
+                update.update_id, chat->name, name, word);
             return true;
         }
 
     return false;
 }
 
-bool TriggerRegexp::isActive(const Update& update, const QString& clearText) const
+bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
+                             const QString& clearText) const
 {
     if (clearText.isEmpty())
         return false;
@@ -92,8 +100,9 @@ bool TriggerRegexp::isActive(const Update& update, const QString& clearText) con
 
     if (text.length() != clearText.length())
         log_verbose_m << log_format(
-            "update_id: %?. Trigger '%?'. Clear text after regexp remove: %?",
-            update.update_id, name, text);
+            R"("update_id":%?. Chat: %?. Trigger %?)"
+            ". Clear text after regexp remove: %?",
+            update.update_id, chat->name, name, text);
 
     for (const QRegularExpression& re : regexpList)
     {
@@ -101,9 +110,9 @@ bool TriggerRegexp::isActive(const Update& update, const QString& clearText) con
         if (match.hasMatch())
         {
             alog::Line logLine = log_verbose_m << log_format(
-                "update_id: %?. Trigger '%?' activated"
+                R"("update_id":%?. Chat: %?. Trigger %? activated)"
                 ". Regular expression '%?' matched. Captured text: ",
-                update.update_id, name, re.pattern());
+                update.update_id, chat->name, name, re.pattern());
             for (const QString& cap : match.capturedTexts())
                 logLine << cap << "; ";
 
@@ -111,8 +120,10 @@ bool TriggerRegexp::isActive(const Update& update, const QString& clearText) con
         }
         else
         {
-            log_debug_m << log_format("Regular expression pattern '%?' not match",
-                                      re.pattern());
+            log_debug_m << log_format(
+                R"("update_id":%?. Chat: %?. Trigger %?)"
+                ". Regular expression pattern '%?' not match",
+                update.update_id, chat->name, name, re.pattern());
         }
     }
     return false;
