@@ -44,15 +44,36 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
             QString host = url.host();
             QString path = url.path();
-            QString str = host + path;
-            for (const QString& item : whiteList)
-                if (str.startsWith(item, Qt::CaseInsensitive))
+            for (const ItemLink& item : whiteList)
+                if (host.endsWith(item.host, Qt::CaseInsensitive))
                 {
-                    log_verbose_m << log_format(
-                        R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
-                        ". Link belong to whitelist [%?]",
-                        update.update_id, chat->name, name, item);
-                    return false;
+                    if (item.paths.isEmpty())
+                    {
+                        log_verbose_m << log_format(
+                            R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
+                            ". Link belong to whitelist [host: %?; path: empty]",
+                                             update.update_id, chat->name, name,
+                                             item.host);
+                        return false;
+                    }
+                    for (QString ipath: item.paths)
+                    {
+                        if (ipath.isEmpty())
+                            continue;
+
+                        if (ipath[0] != QChar('/'))
+                            ipath.prepend(QChar('/'));
+
+                        if (path.startsWith(ipath, Qt::CaseInsensitive))
+                        {
+                            log_verbose_m << log_format(
+                                R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
+                                ". Link belong to whitelist [host: %?; path: %?]",
+                                                 update.update_id, chat->name, name,
+                                                 item.host, ipath);
+                            return false;
+                        }
+                    }
                 }
         }
     }
@@ -142,22 +163,23 @@ const char* yamlTypeName(YAML::NodeType::value type)
 
 Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
 {
-    auto checkFiedType = [&ytrigger](const string& field, YAML::NodeType::value type)
+    auto checkFiedType = [](const YAML::Node& ynode, const string& field,
+                            YAML::NodeType::value type)
     {
-        if (ytrigger[field].IsNull())
+        if (ynode[field].IsNull())
             throw std::logic_error(
-                "For trigger-node a field '" + field + "' can not be null");
+                "For 'trigger' node a field '" + field + "' can not be null");
 
-        if (ytrigger[field].Type() != type)
+        if (ynode[field].Type() != type)
             throw std::logic_error(
-                "For trigger-node a field '" + field + "' "
+                "For 'trigger' node a field '" + field + "' "
                 "must have type '" + yamlTypeName(type) + "'");
     };
 
     QString name;
     if (ytrigger["name"].IsDefined())
     {
-        checkFiedType("name", YAML::NodeType::Scalar);
+        checkFiedType(ytrigger, "name", YAML::NodeType::Scalar);
         name = QString::fromStdString(ytrigger["name"].as<string>());
     }
     if (name.isEmpty())
@@ -166,7 +188,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     string type;
     if (ytrigger["type"].IsDefined())
     {
-        checkFiedType("type", YAML::NodeType::Scalar);
+        checkFiedType(ytrigger, "type", YAML::NodeType::Scalar);
         type = ytrigger["type"].as<string>();
     }
     if (type != "link"
@@ -179,19 +201,42 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
             "Current value: " + type);
     }
 
-    QStringList whiteList;
+    TriggerLink::WhiteList linkWhiteList;
     if (ytrigger["white_list"].IsDefined())
     {
-        checkFiedType("white_list", YAML::NodeType::Sequence);
+        checkFiedType(ytrigger, "white_list", YAML::NodeType::Sequence);
         const YAML::Node& ywhite_list = ytrigger["white_list"];
-        for (const YAML::Node& yitem : ywhite_list)
-            whiteList.append(QString::fromStdString(yitem.as<string>()));
+        for (const YAML::Node& ywhite_item : ywhite_list)
+        {
+            checkFiedType(ywhite_item, "host", YAML::NodeType::Scalar);
+            TriggerLink::ItemLink itemLink;
+
+            const YAML::Node yhost = ywhite_item["host"];
+            itemLink.host = QString::fromStdString(yhost.as<string>()).trimmed();
+
+            if (itemLink.host.isEmpty())
+                continue;
+
+            const YAML::Node ypath_list = ywhite_item["paths"];
+            if (ypath_list.IsDefined())
+            {
+                checkFiedType(ywhite_item, "paths", YAML::NodeType::Sequence);
+                for (const YAML::Node& ypath : ypath_list)
+                {
+                    QString path = QString::fromStdString(ypath.as<string>()).trimmed();
+                    if (path.isEmpty())
+                        continue;
+                    itemLink.paths.append(path);
+                }
+            }
+            linkWhiteList.append(itemLink);
+        }
     }
 
     QStringList wordList;
     if (ytrigger["word_list"].IsDefined())
     {
-        checkFiedType("word_list", YAML::NodeType::Sequence);
+        checkFiedType(ytrigger, "word_list", YAML::NodeType::Sequence);
         const YAML::Node& yword_list = ytrigger["word_list"];
         for (const YAML::Node& yword : yword_list)
             wordList.append(QString::fromStdString(yword.as<string>()));
@@ -200,7 +245,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     QStringList regexpRemove;
     if (ytrigger["regexp_remove"].IsDefined())
     {
-        checkFiedType("regexp_remove", YAML::NodeType::Sequence);
+        checkFiedType(ytrigger, "regexp_remove", YAML::NodeType::Sequence);
         const YAML::Node& yregexp_remove = ytrigger["regexp_remove"];
         for (const YAML::Node& yregexp : yregexp_remove)
             regexpRemove.append(QString::fromStdString(yregexp.as<string>()));
@@ -209,7 +254,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     QStringList regexpList;
     if (ytrigger["regexp_list"].IsDefined())
     {
-        checkFiedType("regexp_list", YAML::NodeType::Sequence);
+        checkFiedType(ytrigger, "regexp_list", YAML::NodeType::Sequence);
         const YAML::Node& yregexp_list = ytrigger["regexp_list"];
         for (const YAML::Node& yregexp : yregexp_list)
             regexpList.append(QString::fromStdString(yregexp.as<string>()));
@@ -218,21 +263,21 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     bool caseInsensitive = true;
     if (ytrigger["case_insensitive"].IsDefined())
     {
-        checkFiedType("case_insensitive", YAML::NodeType::Scalar);
+        checkFiedType(ytrigger, "case_insensitive", YAML::NodeType::Scalar);
         caseInsensitive = ytrigger["case_insensitive"].as<bool>();
     }
 
     bool skipAdmins = false;
     if (ytrigger["skip_admins"].IsDefined())
     {
-        checkFiedType("skip_admins", YAML::NodeType::Scalar);
+        checkFiedType(ytrigger, "skip_admins", YAML::NodeType::Scalar);
         skipAdmins = ytrigger["skip_admins"].as<bool>();
     }
 
     QSet<qint64> whiteUsers;
     if (ytrigger["white_users"].IsDefined())
     {
-        checkFiedType("white_users", YAML::NodeType::Sequence);
+        checkFiedType(ytrigger, "white_users", YAML::NodeType::Sequence);
         const YAML::Node& ywhite_users = ytrigger["white_users"];
         for (const YAML::Node& ywhite : ywhite_users)
             whiteUsers.insert(ywhite.as<int64_t>());
@@ -241,7 +286,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     bool multiline = false;
     if (ytrigger["multiline"].IsDefined())
     {
-        checkFiedType("multiline", YAML::NodeType::Scalar);
+        checkFiedType(ytrigger, "multiline", YAML::NodeType::Scalar);
         multiline = ytrigger["multiline"].as<bool>();
     }
 
@@ -250,7 +295,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     if (type == "link")
     {
         TriggerLink::Ptr triggerLink {new TriggerLink};
-        triggerLink->whiteList = whiteList;
+        triggerLink->whiteList = linkWhiteList;
         trigger = triggerLink;
     }
     else if (type == "word")
@@ -368,25 +413,49 @@ void printTriggers(Trigger::List& triggers)
         return "";
     };
 
+    bool nextCommaVal2;
+    auto nextComma2 = [&nextCommaVal2]()
+    {
+        if (nextCommaVal2)
+            return ", ";
+
+        nextCommaVal2 = true;
+        return "";
+    };
+
     for (Trigger* trigger : triggers)
     {
         alog::Line logLine = log_info_m << "Trigger : ";
         logLine << "name: " << trigger->name;
 
-        nextCommaVal = false;
         if (TriggerLink* triggerLink = dynamic_cast<TriggerLink*>(trigger))
         {
-            logLine << "; type: link"
-                    << "; white_list: [";
-            for (const QString& item : triggerLink->whiteList)
-                logLine << nextComma() << item;
+            logLine << "; type: link";
+
+            nextCommaVal = false;
+            logLine << "; white_list: [";
+            for (const TriggerLink::ItemLink& item : triggerLink->whiteList)
+            {
+                logLine << nextComma() << "{host: " << item.host;
+                if (!item.paths.isEmpty())
+                {
+                    nextCommaVal2 = false;
+                    logLine << ", paths: [";
+                    for (const QString& path : item.paths)
+                        logLine << nextComma2() << path;
+                    logLine << "]";
+                }
+                logLine << "}";
+            }
             logLine << "]";
         }
         else if (TriggerWord* triggerWord = dynamic_cast<TriggerWord*>(trigger))
         {
             logLine << "; type: word"
-                    << "; case_insensitive: " << triggerWord->caseInsensitive
-                    << "; word_list: [";
+                    << "; case_insensitive: " << triggerWord->caseInsensitive;
+
+            nextCommaVal = false;
+            logLine << "; word_list: [";
             for (const QString& item : triggerWord->wordList)
                 logLine << nextComma() << item;
             logLine << "]";

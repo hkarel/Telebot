@@ -58,8 +58,15 @@ public:
 
     TriggerLink() = default;
 
+    struct ItemLink
+    {
+        QString host;
+        QStringList paths;
+    };
+    typedef QList<ItemLink> WhiteList;
+
     // Список исключений
-    QStringList whiteList;
+    WhiteList whiteList;
 
     bool isActive(const tbot::Update&, GroupChat*,
                   const QString& clearText) const override;
