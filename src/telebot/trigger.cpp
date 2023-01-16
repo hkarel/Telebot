@@ -311,22 +311,23 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         triggerRegexp->caseInsensitive = caseInsensitive;
         triggerRegexp->multiline = multiline;
 
-        QRegularExpression::PatternOptions pattern =
+        QRegularExpression::PatternOptions patternOpt =
             {QRegularExpression::UseUnicodePropertiesOption};
 
         if (caseInsensitive)
-            pattern |= QRegularExpression::CaseInsensitiveOption;
+            patternOpt |= QRegularExpression::CaseInsensitiveOption;
 
         if (multiline)
-            pattern |= QRegularExpression::MultilineOption;
+            patternOpt |= QRegularExpression::MultilineOption;
 
-        for (const QString& s : regexpRemove)
+        for (const QString& pattern : regexpRemove)
         {
-            QRegularExpression re {s, pattern};
+            QRegularExpression re {pattern, patternOpt};
             if (!re.isValid())
             {
                 log_error_m << "Trigger '" << name << "'"
                             << ". Failed regular expression in regexp_remove"
+                            << ". Pattren '" << pattern << "'"
                             << ". Error: " << re.errorString()
                             << ". Offset: " << re.patternErrorOffset();
                 continue;
@@ -334,13 +335,14 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
             triggerRegexp->regexpRemove.append(std::move(re));
         }
 
-        for (const QString& s : regexpList)
+        for (const QString& pattern : regexpList)
         {
-            QRegularExpression re {s, pattern};
+            QRegularExpression re {pattern, patternOpt};
             if (!re.isValid())
             {
                 log_error_m << "Trigger '" << name << "'"
                             << ". Failed regular expression in regexp_list"
+                            << ". Pattren '" << pattern << "'"
                             << ". Error: " << re.errorString()
                             << ". Offset: " << re.patternErrorOffset();
                 continue;
