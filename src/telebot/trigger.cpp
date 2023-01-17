@@ -29,14 +29,27 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
     if (message.empty())
         return false;
 
-    bool entityUrl = false;
+    bool urlExists = false;
     for (const MessageEntity& entity : message->entities)
     {
+        QString urlStr;
+        bool entityUrl = false;
+
         if (entity.type == "url")
         {
             entityUrl = true;
-            QString urlStr = message->text.mid(entity.offset, entity.length);
+            urlExists = true;
+            urlStr = message->text.mid(entity.offset, entity.length);
+        }
+        else if (entity.type == "text_link")
+        {
+            entityUrl = true;
+            urlExists = true;
+            urlStr = entity.url;
+        }
 
+        if (entityUrl)
+        {
             log_debug_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger %?. Input url: %?)",
                 update.update_id, chat->name, name, urlStr);
@@ -77,7 +90,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                 }
         }
     }
-    if (entityUrl)
+    if (urlExists)
     {
         log_verbose_m << log_format(
             R"("update_id":%?. Chat: %?. Trigger %? activated)",

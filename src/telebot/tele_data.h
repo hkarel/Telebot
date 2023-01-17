@@ -159,7 +159,7 @@ struct MessageEntity /*: public clife_base*/
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( type             )
         J_SERIALIZE_ITEM( offset           )
-        J_SERIALIZE_OPT ( length           )
+        J_SERIALIZE_ITEM( length           )
         J_SERIALIZE_OPT ( url              )
         J_SERIALIZE_OPT ( user             )
         J_SERIALIZE_OPT ( language         )
