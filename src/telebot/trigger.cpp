@@ -154,7 +154,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         }
         else
         {
-            log_debug_m << log_format(
+            log_debug2_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger %?)"
                 ". Regular expression pattern '%?' not match",
                 update.update_id, chat->name, name, re.pattern());
