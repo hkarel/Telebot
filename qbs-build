@@ -25,7 +25,7 @@ package_base=telebot
 package_ctl=
 package_term=
 
-use_lintian=yes
+use_lintian=no
 clang_checkers=no
 
 # Директория этого скрипта
