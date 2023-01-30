@@ -186,8 +186,6 @@ int main(int argc, char *argv[])
         alog::logger().removeSaverStdOut();
         alog::logger().removeSaverStdErr();
 
-        //QMetaObject::invokeMethod(&appl, "startRequest",  Qt::QueuedConnection);
-
         ret = appl.exec();
         appl.deinit();
 

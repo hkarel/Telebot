@@ -31,7 +31,6 @@ std::atomic_int Application::_exitCode = {0};
 
 static quint64 httpReplyNumber = {0};
 
-
 static QByteArray unicodeDecode(const QByteArray& data)
 {
     QString source = QString::fromUtf8(data);
@@ -189,7 +188,8 @@ bool Application::init()
     for (tbot::Processing* p : _procList)
         p->start();
 
-    configChanged();
+    QMetaObject::invokeMethod(this, "startRequest",  Qt::QueuedConnection);
+
     return true;
 }
 
@@ -470,9 +470,8 @@ void Application::http_sslErrors(const QList<QSslError>&)
 
 void Application::startRequest()
 {
-//    tbot::HttpParams params;
-//    params["chat_id"] = qint64(-1001685795263);
-//    sendTgCommand("getChatAdministrators", params);
+    tbot::HttpParams params;
+    sendTgCommand("getMe", params);
 }
 
 void Application::configChanged()
@@ -538,7 +537,23 @@ void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams&
 
 void Application::httpResultHandler(const ReplyData& rd)
 {
-    if ( rd.funcName == "getChat")
+    if ( rd.funcName == "getMe")
+    {
+        tbot::HttpResult httpResult;
+        if (httpResult.fromJson(rd.data) && httpResult.ok)
+        {
+            tbot::GetMe_Result result;
+            if (result.fromJson(rd.data))
+            {
+                log_info_m << "--- Bot account info ---";
+                log_info_m << result.user.first_name
+                           << " (@" << result.user.username << ")";
+                log_info_m << "---";
+            }
+        }
+        configChanged();
+    }
+    else if ( rd.funcName == "getChat")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))

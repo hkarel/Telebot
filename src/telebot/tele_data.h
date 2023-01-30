@@ -383,6 +383,14 @@ struct ChatMemberAdministrator
 };
 
 
+/**
+  Результат вызова функции getMe()
+*/
+struct GetMe_Result
+{
+    User user;
+    J_SERIALIZE_MAP_ONE( "result", user )
+};
 
 /**
   Результат вызова функции getChat()
