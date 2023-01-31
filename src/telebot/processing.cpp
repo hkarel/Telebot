@@ -121,6 +121,9 @@ void Processing::run()
         lst::FindResult fr = groupChats.findRef(chatId);
         if (fr.failed())
         {
+            log_warn_m << log_format("Group chat %? not belong to list chats"
+                                     " in config. It skipped", chatId);
+
             if (_spamIsActive && !_spamMessage.isEmpty())
             {
                 tbot::HttpParams params;
