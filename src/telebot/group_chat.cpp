@@ -30,6 +30,18 @@ void GroupChat::setAdminIds(const QSet<qint64>& val)
     _adminIds = val;
 }
 
+QSet<qint64> GroupChat::ownerIds() const
+{
+    QMutexLocker locker(&_ownerIdsLock); (void) locker;
+    return _ownerIds;
+}
+
+void GroupChat::setOwnerIds(const QSet<qint64>& val)
+{
+    QMutexLocker locker(&_ownerIdsLock); (void) locker;
+    _ownerIds = val;
+}
+
 GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
 {
     auto checkFiedType = [&ychat](const string& field, YAML::NodeType::value type)
@@ -85,11 +97,19 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
             whiteUsers.insert(ywhite.as<int64_t>());
     }
 
+    qint32 userSpamLimit = 5;
+    if (ychat["user_spam_limit"].IsDefined())
+    {
+        checkFiedType("user_spam_limit", YAML::NodeType::Scalar);
+        userSpamLimit = ychat["user_spam_limit"].as<int>();
+    }
+
     GroupChat::Ptr chat {new GroupChat};
     chat->id = id;
     chat->name = name;
     chat->skipAdmins = skipAdmins;
     chat->whiteUsers = whiteUsers;
+    chat->userSpamLimit = userSpamLimit;
 
     Trigger::List triggers = tbot::triggers();
     for (const QString& triggerName : triggerNames)
@@ -181,6 +201,8 @@ void printGroupChats(GroupChat::List& chats)
         for (qint64 item : chat->whiteUsers)
             logLine << nextComma() << item;
         logLine << "]";
+
+        logLine << "; user_spam_limit: " << chat->userSpamLimit;
     }
     log_info_m << "---";
 }

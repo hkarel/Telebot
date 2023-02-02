@@ -29,9 +29,17 @@ public:
     // действие триггеров
     QSet<qint64> whiteUsers;
 
+    // Количество спам-сообщений по достижении которого пользователь блокируется.
+    // Если параметр равен 0 пользователь блокироваться не будет
+    qint32 userSpamLimit = {5};
+
     // Список идентификаторов администраторов группы
     QSet<qint64> adminIds() const;
     void setAdminIds(const QSet<qint64>&);
+
+    // Список владельцев группы
+    QSet<qint64> ownerIds() const;
+    void setOwnerIds(const QSet<qint64>&);
 
     struct Compare
     {
@@ -48,6 +56,9 @@ private:
 
     QSet<qint64> _adminIds;
     mutable QMutex _adminIdsLock;
+
+    QSet<qint64> _ownerIds;
+    mutable QMutex _ownerIdsLock;
 };
 
 bool loadGroupChats(GroupChat::List&);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tele_data.h"
+
 #include "shared/list.h"
 #include "shared/defmac.h"
 #include "shared/steady_timer.h"
@@ -20,11 +22,12 @@ public:
 
     Processing();
 
-    bool init();
+    bool init(qint64 botUserId);
     static void addUpdate(const QByteArray&);
 
 signals:
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&);
+    void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
 public slots:
     void configChanged();
@@ -45,7 +48,7 @@ private:
     bool _spamIsActive;
     QString _spamMessage;
 
-    //QString _botId;
+    qint64 _botUserId = {0};
 };
 
 } // namespace tbot

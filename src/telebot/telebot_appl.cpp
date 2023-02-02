@@ -96,6 +96,7 @@ Application::Application(int& argc, char** argv)
 
     qRegisterMetaType<ReplyData>("ReplyData");
     qRegisterMetaType<tbot::HttpParams>("tbot::HttpParams");
+    qRegisterMetaType<tbot::User::Ptr>("tbot::User::Ptr");
 }
 
 bool Application::init()
@@ -168,26 +169,6 @@ bool Application::init()
         return false;
     }
 
-    int procCount = 1;
-    config::base().getValue("bot.processing_count", procCount);
-
-    for (int i = 0; i < procCount; ++i)
-    {
-        tbot::Processing* p = new tbot::Processing;
-        if (!p->init())
-            return false;
-
-        chk_connect_q(p, &tbot::Processing::sendTgCommand,
-                      this, &Application::sendTgCommand);
-
-        chk_connect_d(&config::changeChecker(), &config::ChangeChecker::changed,
-                      p, &tbot::Processing::configChanged)
-
-        _procList.add(p);
-    }
-    for (tbot::Processing* p : _procList)
-        p->start();
-
     QMetaObject::invokeMethod(this, "startRequest",  Qt::QueuedConnection);
 
     return true;
@@ -239,7 +220,7 @@ void Application::timerEvent(QTimerEvent* event)
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
-        // Обновляем весь конфиг и с ним список атуальных админов
+        // Обновляем весь конфиг и список актуальных админов
         configChanged();
     }
 }
@@ -540,17 +521,63 @@ void Application::httpResultHandler(const ReplyData& rd)
     if ( rd.funcName == "getMe")
     {
         tbot::HttpResult httpResult;
-        if (httpResult.fromJson(rd.data) && httpResult.ok)
+        if (!httpResult.fromJson(rd.data))
         {
-            tbot::GetMe_Result result;
-            if (result.fromJson(rd.data))
-            {
-                log_info_m << "--- Bot account info ---";
-                log_info_m << result.user.first_name
-                           << " (@" << result.user.username << ")";
-                log_info_m << "---";
-            }
+            log_error_m << "Failed parsing response for function getMe()"
+                        << ". Program will be stopped";
+            Application::stop();
+            return;
         }
+        if (!httpResult.ok)
+        {
+            log_error_m << "Failed result for function getMe()"
+                        << ". Program will be stopped";
+            Application::stop();
+            return;
+        }
+
+        tbot::GetMe_Result result;
+        if (!result.fromJson(rd.data))
+        {
+            log_error_m << "Failed parsing data for function getMe()"
+                        << ". Program will be stopped";
+            Application::stop();
+            return;
+        }
+
+        _botUserId = result.user.id;
+        log_info_m << "--- Bot account info ---";
+        log_info_m << result.user.first_name
+                   << " (@" << result.user.username << ", " << _botUserId << ")";
+        log_info_m << "---";
+
+        int procCount = 1;
+        config::base().getValue("bot.processing_count", procCount);
+
+        for (int i = 0; i < procCount; ++i)
+        {
+            tbot::Processing* p = new tbot::Processing;
+            if (!p->init(_botUserId))
+            {
+                log_error_m << "Failed init 'tbot::Processing' instance"
+                            << ". Program will be stopped";
+                Application::stop();
+                return;
+            }
+            chk_connect_q(p, &tbot::Processing::sendTgCommand,
+                          this, &Application::sendTgCommand);
+
+            chk_connect_q(p, &tbot::Processing::reportSpam,
+                          this, &Application::reportSpam);
+
+            chk_connect_d(&config::changeChecker(), &config::ChangeChecker::changed,
+                          p, &tbot::Processing::configChanged)
+
+            _procList.add(p);
+        }
+        for (tbot::Processing* p : _procList)
+            p->start();
+
         configChanged();
     }
     else if ( rd.funcName == "getChat")
@@ -618,13 +645,153 @@ void Application::httpResultHandler(const ReplyData& rd)
             if (result.fromJson(rd.data))
             {
                 QSet<qint64> adminIds;
+                QSet<qint64> ownerIds;
                 for (const tbot::ChatMemberAdministrator& item : result.items)
                     if (item.user)
+                    {
                         adminIds.insert(item.user->id);
+                        if (item.status == "creator")
+                            ownerIds.insert(item.user->id);
+                    }
 
                 tbot::GroupChat* chat = chats.item(fr.index());
                 chat->setAdminIds(adminIds);
+                chat->setOwnerIds(ownerIds);
             }
         }
+    }
+    else if (rd.funcName == "banChatMember")
+    {
+        tbot::HttpResult httpResult;
+        if (!httpResult.fromJson(rd.data))
+            return;
+
+        qint64 chatId = rd.params["chat_id"].toLongLong();
+        qint64 userId = rd.params["user_id"].toLongLong();
+
+        tbot::GroupChat::List chats = tbot::groupChats();
+        tbot::GroupChat* chat = chats.findItem(&chatId);
+
+        lst::FindResult fr = _spammers.findRef(qMakePair(chatId, userId));
+
+        { //Block for alog::Line
+            alog::Line logLine = log_error_m;
+
+            if (!httpResult.ok)
+                logLine << "Failed ban user";
+            else
+                logLine << "User is banned";
+
+            logLine << ", first/last/uname/id: ";
+
+            if (fr.success())
+            {
+                Spammer* spammer = _spammers.item(fr.index());
+                logLine << spammer->user->first_name;
+
+                logLine << "/";
+                if (!spammer->user->last_name.isEmpty())
+                    logLine << spammer->user->last_name;
+
+                logLine << "/";
+                if (!spammer->user->username.isEmpty())
+                    logLine << "@" << spammer->user->username;
+            }
+            else
+                logLine << "//";
+
+            logLine << "/" << userId;
+
+            if (chat)
+                logLine << ". Chat name/id: " << chat->name << "/" << chatId;
+            else
+                logLine << ". Chat id: " << chatId;
+
+            if (!httpResult.ok)
+            {
+                logLine << ". Perhaps bot has not rights to block users";
+                return;
+            }
+        }
+        if (fr.success())
+            _spammers.remove(fr.index());
+    }
+}
+
+void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
+{
+    if (user.empty())
+    {
+        log_error_m << "Function reportSpam(), param 'user' is empty";
+        return;
+    }
+
+    if (lst::FindResult fr = _spammers.findRef(qMakePair(chatId, user->id)))
+    {
+        Spammer* spammer = _spammers.item(fr.index());
+        spammer->user = user; // Переприсваиваем, потому что параметры имени
+                              // могут измениться
+        ++spammer->spamCount;
+    }
+    else
+    {
+        Spammer* spammer = _spammers.add();
+        spammer->chatId = chatId;
+        spammer->user = user;
+        spammer->spamCount = 1;
+        _spammers.sort();
+    }
+
+    tbot::GroupChat::List chats = tbot::groupChats();
+    for (int i = 0; i < _spammers.count(); ++i)
+    {
+        Spammer* spammer = _spammers.item(i);
+        if (lst::FindResult fr = chats.findRef(spammer->chatId))
+        {
+            tbot::GroupChat* chat = chats.item(fr.index());
+            if (chat->userSpamLimit <= 0)
+            {
+                _spammers.remove(i--);
+                continue;
+            }
+
+            if (spammer->spamCount >= chat->userSpamLimit)
+            {
+                QSet<qint64> ownerIds = chat->ownerIds();
+                if (ownerIds.contains(spammer->user->id))
+                {
+                    { //Block for alog::Line
+                        alog::Line logLine = log_verbose_m
+                            << "Owner of chat cannot be banned"
+                            << ", first/last/uname/id: "
+                            << spammer->user->first_name;
+
+                        logLine << "/";
+                        if (!spammer->user->last_name.isEmpty())
+                            logLine << spammer->user->last_name;
+
+                        logLine << "/";
+                        if (!spammer->user->username.isEmpty())
+                            logLine << "@" << spammer->user->username;
+
+                        logLine << "/" << spammer->user->id;
+
+                        logLine << ". Chat name/id: "
+                                << chat->name << "/" << chat->id;
+                    }
+                    _spammers.remove(i--);
+                    continue;
+                }
+
+                tbot::HttpParams params;
+                params["chat_id"] = chat->id;
+                params["user_id"] = spammer->user->id;
+                params["until_date"] = qint64(std::time(nullptr));
+                params["revoke_messages"] = false;
+                emit signalSendTgCommand("banChatMember", params);
+            }
+        }
+        else
+            _spammers.remove(i--);
     }
 }

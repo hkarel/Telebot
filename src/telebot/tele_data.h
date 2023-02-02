@@ -382,7 +382,6 @@ struct ChatMemberAdministrator
     J_SERIALIZE_END
 };
 
-
 /**
   Результат вызова функции getMe()
 */

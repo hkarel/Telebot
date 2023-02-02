@@ -29,8 +29,9 @@ QList<QByteArray> Processing::_updates;
 Processing::Processing()
 {}
 
-bool Processing::init()
+bool Processing::init(qint64 botUserId)
 {
+    _botUserId = botUserId;
     _configChanged = true;
     return true;
 }
@@ -116,9 +117,19 @@ void Processing::run()
         qint64 userId = message->from->id;
         qint32 messageId = message->message_id;
 
-        GroupChat::List groupChats = tbot::groupChats();
+        // Удаляем служебные сообщения Телеграм от имени бота
+        if (_botUserId == userId)
+        {
+            HttpParams params;
+            params["chat_id"] = chatId;
+            params["message_id"] = messageId;
+            emit sendTgCommand("deleteMessage", params);
+            continue;
+        }
 
-        lst::FindResult fr = groupChats.findRef(chatId);
+        GroupChat::List chats = tbot::groupChats();
+
+        lst::FindResult fr = chats.findRef(chatId);
         if (fr.failed())
         {
             log_warn_m << log_format("Group chat %? not belong to list chats"
@@ -150,7 +161,7 @@ void Processing::run()
                 clearText = message->caption + '\n' + clearText;
         }
 
-        GroupChat* chat = groupChats.item(fr.index());
+        GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
 
         log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text: %?)",
@@ -204,8 +215,10 @@ void Processing::run()
                 HttpParams params;
                 params["chat_id"] = chatId;
                 params["message_id"] = messageId;
-
                 emit sendTgCommand("deleteMessage", params);
+
+                // Отправляем отчет о спаме
+                emit reportSpam(chatId, message->from);
                 break;
             }
         }

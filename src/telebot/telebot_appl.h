@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tele_data.h"
 #include "processing.h"
 
 #include "shared/container_ptr.h"
@@ -88,6 +89,8 @@ public slots:
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
 
+    void reportSpam(qint64 chatId, const tbot::User::Ptr&);
+
 private:
     Q_OBJECT
     void timerEvent(QTimerEvent* event) override;
@@ -101,12 +104,40 @@ private:
     int _updateAdminsTimerId = {-1};
 
     QString _botId;
+    qint64  _botUserId = {0};
 
     QSslKey _sslKey;
     QSslCertificate _sslCert;
     SslServer::Ptr _webhookServer;
 
     tbot::Processing::List _procList;
+
+    struct Spammer
+    {
+        qint64 chatId = {0};
+        tbot::User::Ptr user;
+        qint32 spamCount = {0};
+
+        struct Compare
+        {
+            int operator() (const Spammer* item1, const Spammer* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(item1->chatId,  item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(item2->user->id, item1->user->id);
+                return 0;
+            }
+            int operator() (const QPair<qint64 /*chat id*/, qint64 /*user id*/>* pair,
+                            const Spammer* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(pair->first  /*chat id*/, item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(pair->second /*user id*/, item2->user->id);
+                return 0;
+            }
+        };
+        typedef lst::List<Spammer, Compare> List;
+    };
+
+    Spammer::List _spammers;
 
     struct WebhookData
     {
