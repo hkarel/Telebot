@@ -731,14 +731,14 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         Spammer* spammer = _spammers.item(fr.index());
         spammer->user = user; // Переприсваиваем, потому что параметры имени
                               // могут измениться
-        ++spammer->spamCount;
+        spammer->spamLifeTimers.append(simple_timer{});
     }
     else
     {
         Spammer* spammer = _spammers.add();
         spammer->chatId = chatId;
         spammer->user = user;
-        spammer->spamCount = 1;
+        spammer->spamLifeTimers.append(simple_timer{});
         _spammers.sort();
     }
 
@@ -755,7 +755,39 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 continue;
             }
 
-            if (spammer->spamCount >= chat->userSpamLimit)
+            // Удаляем штрафы за спам если они были более суток назад,
+            // предполагаем что пользователь сделал это ненамеренно и
+            // за последующие сутки больше не спамил
+            for (int j = 0; j < spammer->spamLifeTimers.count(); ++j)
+            {
+                const int64_t elapsedTime =
+                    spammer->spamLifeTimers.at(j).elapsed<std::chrono::seconds>();
+                if (elapsedTime > 60*60*24 /*1 сутки*/)
+                {
+                    { //Block for alog::Line
+                        alog::Line logLine = log_debug_m
+                            << "Spam penalty has expired (1 day)"
+                            << ". User first/last/uname/id: "
+                            << spammer->user->first_name;
+
+                        logLine << "/";
+                        if (!spammer->user->last_name.isEmpty())
+                            logLine << spammer->user->last_name;
+
+                        logLine << "/";
+                        if (!spammer->user->username.isEmpty())
+                            logLine << "@" << spammer->user->username;
+
+                        logLine << "/" << spammer->user->id;
+
+                        logLine << ". Chat name/id: "
+                                << chat->name << "/" << chat->id;
+                    }
+                    spammer->spamLifeTimers.removeAt(j--);
+                }
+            }
+
+            if (spammer->spamLifeTimers.count() >= chat->userSpamLimit)
             {
                 QSet<qint64> ownerIds = chat->ownerIds();
                 if (ownerIds.contains(spammer->user->id))
