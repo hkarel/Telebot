@@ -587,6 +587,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             return;
 
         qint64 chatId = rd.params["chat_id"].toLongLong();
+        tbot::GroupChat::List chats = tbot::groupChats();
+        lst::FindResult fr = chats.findRef(chatId);
+
         if (httpResult.ok)
         {
             tbot::GetChat_Result result;
@@ -595,6 +598,16 @@ void Application::httpResultHandler(const ReplyData& rd)
                 if (result.chat.type == "group"
                     || result.chat.type == "supergroup")
                 {
+                    // Корректируем наименование чата
+                    if (fr.success())
+                    {
+                        QString username = result.chat.username.trimmed();
+                        if (!username.isEmpty())
+                        {
+                            chats[fr.index()].setName(username);
+                            tbot::groupChats(&chats);
+                        }
+                    }
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
                     emit signalSendTgCommand("getChatAdministrators", params);
@@ -602,8 +615,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 else
                 {
                     // Удаляем из списка чатов неподдерживаемый чат
-                    tbot::GroupChat::List chats = tbot::groupChats();
-                    if (lst::FindResult fr = chats.findRef(chatId))
+                    if (fr.success())
                     {
                         chats.remove(fr.index());
                         tbot::groupChats(&chats);
@@ -617,8 +629,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         else
         {
             // Удаляем из списка чатов неподдерживаемый чат
-            tbot::GroupChat::List chats = tbot::groupChats();
-            if (lst::FindResult fr = chats.findRef(chatId))
+            if (fr.success())
             {
                 chats.remove(fr.index());
                 tbot::groupChats(&chats);
@@ -703,7 +714,7 @@ void Application::httpResultHandler(const ReplyData& rd)
             logLine << "/" << userId;
 
             if (chat)
-                logLine << ". Chat name/id: " << chat->name << "/" << chatId;
+                logLine << ". Chat name/id: " << chat->name() << "/" << chatId;
             else
                 logLine << ". Chat id: " << chatId;
 
@@ -781,7 +792,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                         logLine << "/" << spammer->user->id;
 
                         logLine << ". Chat name/id: "
-                                << chat->name << "/" << chat->id;
+                                << chat->name() << "/" << chat->id;
                     }
                     spammer->spamLifeTimers.removeAt(j--);
                 }
@@ -809,7 +820,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                         logLine << "/" << spammer->user->id;
 
                         logLine << ". Chat name/id: "
-                                << chat->name << "/" << chat->id;
+                                << chat->name() << "/" << chat->id;
                     }
                     _spammers.remove(i--);
                     continue;

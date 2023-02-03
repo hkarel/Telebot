@@ -18,27 +18,39 @@ namespace tbot {
 
 using namespace std;
 
+QString GroupChat::name() const
+{
+    QMutexLocker locker(&_lock); (void) locker;
+    return _name;
+}
+
+void GroupChat::setName(const QString& val)
+{
+    QMutexLocker locker(&_lock); (void) locker;
+    _name = val;
+}
+
 QSet<qint64> GroupChat::adminIds() const
 {
-    QMutexLocker locker(&_adminIdsLock); (void) locker;
+    QMutexLocker locker(&_lock); (void) locker;
     return _adminIds;
 }
 
 void GroupChat::setAdminIds(const QSet<qint64>& val)
 {
-    QMutexLocker locker(&_adminIdsLock); (void) locker;
+    QMutexLocker locker(&_lock); (void) locker;
     _adminIds = val;
 }
 
 QSet<qint64> GroupChat::ownerIds() const
 {
-    QMutexLocker locker(&_ownerIdsLock); (void) locker;
+    QMutexLocker locker(&_lock); (void) locker;
     return _ownerIds;
 }
 
 void GroupChat::setOwnerIds(const QSet<qint64>& val)
 {
-    QMutexLocker locker(&_ownerIdsLock); (void) locker;
+    QMutexLocker locker(&_lock); (void) locker;
     _ownerIds = val;
 }
 
@@ -106,7 +118,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
 
     GroupChat::Ptr chat {new GroupChat};
     chat->id = id;
-    chat->name = name;
+    chat->setName(name);
     chat->skipAdmins = skipAdmins;
     chat->whiteUsers = whiteUsers;
     chat->userSpamLimit = userSpamLimit;
@@ -186,7 +198,7 @@ void printGroupChats(GroupChat::List& chats)
     {
         alog::Line logLine = log_info_m << "Chat : ";
         logLine << "id: " << chat->id;
-        logLine << "; name: " << chat->name;
+        logLine << "; name: " << chat->name();
 
         nextCommaVal = false;
         logLine << "; triggers: [";

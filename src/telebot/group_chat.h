@@ -16,7 +16,8 @@ public:
     qint64 id = {0};
 
     // Информационная подпись для чата, используется при выводе в лог
-    QString name;
+    QString name() const;
+    void setName(const QString&);
 
     // Список триггеров
     Trigger::List triggers;
@@ -54,11 +55,11 @@ public:
 private:
     DISABLE_DEFAULT_COPY(GroupChat)
 
+    QString _name;
     QSet<qint64> _adminIds;
-    mutable QMutex _adminIdsLock;
-
     QSet<qint64> _ownerIds;
-    mutable QMutex _ownerIdsLock;
+
+    mutable QMutex _lock {QMutex::Recursive};
 };
 
 bool loadGroupChats(GroupChat::List&);
