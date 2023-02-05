@@ -51,7 +51,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
         if (entityUrl)
         {
             log_debug_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger %?. Input url: %?)",
+                R"("update_id":%?. Chat: %?. Trigger '%?'. Input url: %?)",
                 update.update_id, chat->name(), name, urlStr);
 
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
@@ -63,7 +63,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                     if (item.paths.isEmpty())
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
+                            R"("update_id":%?. Chat: %?. Trigger '%?' is skipped)"
                             ". Link belong to whitelist [host: %?; path: empty]",
                                              update.update_id, chat->name(), name,
                                              item.host);
@@ -80,7 +80,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                         if (path.startsWith(ipath, Qt::CaseInsensitive))
                         {
                             log_verbose_m << log_format(
-                                R"("update_id":%?. Chat: %?. Trigger %? is skipped)"
+                                R"("update_id":%?. Chat: %?. Trigger '%?' is skipped)"
                                 ". Link belong to whitelist [host: %?; path: %?]",
                                                  update.update_id, chat->name(), name,
                                                  item.host, ipath);
@@ -93,7 +93,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
     if (urlExists)
     {
         log_verbose_m << log_format(
-            R"("update_id":%?. Chat: %?. Trigger %? activated)",
+            R"("update_id":%?. Chat: %?. Trigger '%?' activated)",
             update.update_id, chat->name(), name);
         return true;
     }
@@ -113,7 +113,7 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
         if (clearText.contains(word, caseSens))
         {
             log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger %? activated)"
+                R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". The word '%?' was found",
                 update.update_id, chat->name(), name, word);
             return true;
@@ -134,7 +134,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
 
     if (text.length() != clearText.length())
         log_verbose_m << log_format(
-            R"("update_id":%?. Chat: %?. Trigger %?)"
+            R"("update_id":%?. Chat: %?. Trigger '%?')"
             ". Clear text after regexp remove: %?",
             update.update_id, chat->name(), name, text);
 
@@ -144,7 +144,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         if (match.hasMatch())
         {
             alog::Line logLine = log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger %? activated)"
+                R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". Regular expression '%?' matched. Captured text: ",
                 update.update_id, chat->name(), name, re.pattern());
             for (const QString& cap : match.capturedTexts())
@@ -155,7 +155,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         else
         {
             log_debug2_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger %?)"
+                R"("update_id":%?. Chat: %?. Trigger '%?')"
                 ". Regular expression pattern '%?' not match",
                 update.update_id, chat->name(), name, re.pattern());
         }

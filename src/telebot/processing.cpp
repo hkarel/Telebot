@@ -171,7 +171,7 @@ void Processing::run()
         if (chat->skipAdmins && adminIds.contains(userId))
         {
             log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Triggers skipped, user '%?' is admin)",
+                R"("update_id":%?. Chat: %?. Triggers skipped, user @%? is admin)",
                 update.update_id, chat->name(), message->from->username);
             continue;
         }
@@ -180,7 +180,7 @@ void Processing::run()
         if (chat->whiteUsers.contains(userId))
         {
             log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Triggers skipped, user '%?' in whitelist of group)",
+                R"("update_id":%?. Chat: %?. Triggers skipped, user @%? in whitelist of group)",
                 update.update_id, chat->name(), message->from->username);
             continue;
         }
@@ -191,7 +191,7 @@ void Processing::run()
             if (trigger->skipAdmins && adminIds.contains(userId))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user '%?' is admin of group)",
+                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user @%? is admin)",
                     update.update_id, chat->name(), trigger->name, message->from->username);
                 continue;
             }
@@ -200,7 +200,7 @@ void Processing::run()
             if (trigger->whiteUsers.contains(userId))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user '%?' in whitelist of trigger)",
+                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user @%? in whitelist of trigger)",
                     update.update_id, chat->name(), trigger->name, message->from->username);
                 continue;
             }
