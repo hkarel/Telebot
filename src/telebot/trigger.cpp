@@ -296,6 +296,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
             whiteUsers.insert(ywhite.as<int64_t>());
     }
 
+    bool inverse = false;
+    if (ytrigger["inverse"].IsDefined())
+    {
+        checkFiedType(ytrigger, "inverse", YAML::NodeType::Scalar);
+        inverse = ytrigger["inverse"].as<bool>();
+    }
+
     bool multiline = false;
     if (ytrigger["multiline"].IsDefined())
     {
@@ -369,6 +376,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         trigger->name = name;
         trigger->skipAdmins = skipAdmins;
         trigger->whiteUsers = whiteUsers;
+        trigger->inverse = inverse;
     }
     return trigger;
 }
@@ -501,6 +509,8 @@ void printTriggers(Trigger::List& triggers)
         for (qint64 item : trigger->whiteUsers)
             logLine << nextComma() << item;
         logLine << "]";
+
+        logLine << "; inverse: " << trigger->inverse;
     }
     log_info_m << "---";
 }

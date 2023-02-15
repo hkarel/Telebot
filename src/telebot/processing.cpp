@@ -205,7 +205,12 @@ void Processing::run()
                 continue;
             }
 
-            if (trigger->isActive(update, chat, clearText))
+            bool triggerActive = trigger->isActive(update, chat, clearText);
+
+            if (trigger->inverse)
+                triggerActive = !triggerActive;
+
+            if (triggerActive)
             {
                 // Если триггер активирован - удаляем сообщение
                 log_verbose_m << log_format(

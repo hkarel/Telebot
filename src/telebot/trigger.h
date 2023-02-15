@@ -35,6 +35,9 @@ public:
     // действие триггера
     QSet<qint64> whiteUsers;
 
+    // Инвертирует результат работы триггера
+    bool inverse = {false};
+
     // Проверяет сообщение на соответствие критериям фильтрации.
     // Параметр clearText содержит текстовое сообщение с удаленными линками
     virtual bool isActive(const tbot::Update&, GroupChat*,
