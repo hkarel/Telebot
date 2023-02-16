@@ -135,7 +135,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
     if (text.length() != clearText.length())
         log_verbose_m << log_format(
             R"("update_id":%?. Chat: %?. Trigger '%?')"
-            ". Clear text after regexp remove: %?",
+            ". Text after rx-remove: %?",
             update.update_id, chat->name(), name, text);
 
     for (const QRegularExpression& re : regexpList)
@@ -197,6 +197,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     }
     if (name.isEmpty())
         throw std::logic_error("In a filter-node a field 'name' can not be empty");
+
+    bool active = true;
+    if (ytrigger["active"].IsDefined())
+    {
+        checkFiedType(ytrigger, "active", YAML::NodeType::Scalar);
+        active = ytrigger["active"].as<bool>();
+    }
 
     string type;
     if (ytrigger["type"].IsDefined())
@@ -374,6 +381,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     if (trigger)
     {
         trigger->name = name;
+        trigger->active = active;
         trigger->skipAdmins = skipAdmins;
         trigger->whiteUsers = whiteUsers;
         trigger->inverse = inverse;
@@ -453,7 +461,8 @@ void printTriggers(Trigger::List& triggers)
 
         if (TriggerLink* triggerLink = dynamic_cast<TriggerLink*>(trigger))
         {
-            logLine << "; type: link";
+            logLine << "; type: link"
+                    << "; active: " << trigger->active;
 
             nextCommaVal = false;
             logLine << "; white_list: [";
@@ -475,6 +484,7 @@ void printTriggers(Trigger::List& triggers)
         else if (TriggerWord* triggerWord = dynamic_cast<TriggerWord*>(trigger))
         {
             logLine << "; type: word"
+                    << "; active: " << trigger->active
                     << "; case_insensitive: " << triggerWord->caseInsensitive;
 
             nextCommaVal = false;
@@ -486,6 +496,7 @@ void printTriggers(Trigger::List& triggers)
         else if (TriggerRegexp* triggerRegexp = dynamic_cast<TriggerRegexp*>(trigger))
         {
             logLine << "; type: regexp"
+                    << "; active: " << trigger->active
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
                     << "; multiline: " << triggerRegexp->multiline;
 

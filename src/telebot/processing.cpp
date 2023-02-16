@@ -187,6 +187,14 @@ void Processing::run()
 
         for (tbot::Trigger* trigger : chat->triggers)
         {
+            if (!trigger->active)
+            {
+                log_verbose_m << log_format(
+                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, it not active)",
+                    update.update_id, chat->name(), trigger->name);
+                continue;
+            }
+
             // Проверка пользователя на принадлежность к списку администраторов
             if (trigger->skipAdmins && adminIds.contains(userId))
             {
