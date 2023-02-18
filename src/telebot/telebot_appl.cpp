@@ -305,7 +305,6 @@ void Application::webhook_readyRead()
         {
             log_error_m << "HTTP atribyte 'Content-Length' not found";
             socket->close();
-            socket->deleteLater();
             return;
         }
         pos1 += 15;
@@ -318,7 +317,6 @@ void Application::webhook_readyRead()
         {
             log_error_m << "Failed get 'Content-Length' atribyte";
             socket->close();
-            socket->deleteLater();
             return;
         }
 
@@ -357,7 +355,6 @@ void Application::webhook_readyRead()
     {
         log_error_m << "Input data larger than 'Content-Length'";
         socket->close();
-        socket->deleteLater();
     }
 }
 
