@@ -230,6 +230,28 @@ void Processing::run()
                 params["message_id"] = messageId;
                 emit sendTgCommand("deleteMessage", params);
 
+                // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
+                QString botMsh =
+                    u8"Бот удалил сообщение"
+                    u8"\r\n---"
+                    u8"\r\n%1"
+                    u8"\r\n---"
+                    u8"\r\nПричина удаления сообщения"
+                    u8"\r\n%2"
+                    u8"\r\nТриггер: %3";
+
+                botMsh = botMsh.arg(message->text)
+                               .arg(trigger->activationReasonMessage)
+                               .arg(trigger->name);
+
+                if (!trigger->description.isEmpty())
+                    botMsh += QString(" (%1)").arg(trigger->description);
+
+                tbot::HttpParams params2;
+                params2["chat_id"] = chatId;
+                params2["text"] = botMsh;
+                emit sendTgCommand("sendMessage", params2);
+
                 // Отправляем отчет о спаме
                 emit reportSpam(chatId, message->from);
                 break;

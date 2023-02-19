@@ -636,6 +636,32 @@ void Application::httpResultHandler(const ReplyData& rd)
             }
         }
     }
+    else if (rd.funcName == "sendMessage")
+    {
+        tbot::HttpResult httpResult;
+        if (!httpResult.fromJson(rd.data))
+            return;
+
+        if (!httpResult.ok)
+            return;
+
+        // Удаляем служебные сообщения бота
+        tbot::SendMessage_Result result;
+        if (result.fromJson(rd.data))
+        {
+            qint64 chatId = result.message.chat->id;
+            qint64 userId = result.message.from->id;
+            qint32 messageId = result.message.message_id;
+
+            if (_botUserId == userId)
+            {
+                tbot::HttpParams params;
+                params["chat_id"] = chatId;
+                params["message_id"] = messageId;
+                emit signalSendTgCommand("deleteMessage", params);
+            }
+        }
+    }
     else if (rd.funcName == "getChatAdministrators")
     {
         tbot::HttpResult httpResult;

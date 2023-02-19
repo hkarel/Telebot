@@ -22,6 +22,8 @@ using namespace std;
 bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                            const QString& /*clearText*/) const
 {
+    activationReasonMessage.clear();
+
     Message::Ptr message = update.message;
     if (message.empty())
         message = update.edited_message;
@@ -50,6 +52,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
 
         if (entityUrl)
         {
+            activationReasonMessage = u8"Ссылка: " + urlStr;
             log_debug_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?'. Input url: %?)",
                 update.update_id, chat->name(), name, urlStr);
@@ -103,6 +106,8 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
 bool TriggerWord::isActive(const Update& update, GroupChat* chat,
                            const QString& clearText) const
 {
+    activationReasonMessage.clear();
+
     if (clearText.isEmpty())
         return false;
 
@@ -112,6 +117,7 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
     for (const QString& word : wordList)
         if (clearText.contains(word, caseSens))
         {
+            activationReasonMessage = u8"Слово: " + word;
             log_verbose_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". The word '%?' was found",
@@ -125,6 +131,8 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
 bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
                              const QString& clearText) const
 {
+    activationReasonMessage.clear();
+
     if (clearText.isEmpty())
         return false;
 
@@ -143,6 +151,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         const QRegularExpressionMatch match = re.match(text);
         if (match.hasMatch())
         {
+            activationReasonMessage = u8"Фраза: " + match.capturedTexts()[0];
             alog::Line logLine = log_verbose_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". Regular expression '%?' matched. Captured text: ",
@@ -203,6 +212,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     {
         checkFiedType(ytrigger, "active", YAML::NodeType::Scalar);
         active = ytrigger["active"].as<bool>();
+    }
+
+    QString description;
+    if (ytrigger["description"].IsDefined())
+    {
+        checkFiedType(ytrigger, "description", YAML::NodeType::Scalar);
+        description = QString::fromStdString(ytrigger["description"].as<string>());
     }
 
     string type;
@@ -382,6 +398,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
     {
         trigger->name = name;
         trigger->active = active;
+        trigger->description = description;
         trigger->skipAdmins = skipAdmins;
         trigger->whiteUsers = whiteUsers;
         trigger->inverse = inverse;
@@ -522,6 +539,9 @@ void printTriggers(Trigger::List& triggers)
         logLine << "]";
 
         logLine << "; inverse: " << trigger->inverse;
+
+        if (!trigger->description.isEmpty())
+            logLine << "; description: " << trigger->description;
     }
     log_info_m << "---";
 }

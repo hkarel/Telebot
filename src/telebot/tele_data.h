@@ -401,6 +401,15 @@ struct GetChat_Result
 };
 
 /**
+  Результат вызова функции sendMessage()
+*/
+struct SendMessage_Result
+{
+    Message message;
+    J_SERIALIZE_MAP_ONE( "result", message )
+};
+
+/**
   Результат вызова функции getChatAdministrators()
 */
 struct GetChatAdministrators_Result
