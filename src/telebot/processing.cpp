@@ -237,8 +237,8 @@ void Processing::run()
                     u8"\r\n%1"
                     u8"\r\n---"
                     u8"\r\nПричина удаления сообщения"
-                    u8"\r\n%2"
-                    u8"\r\nТриггер: %3";
+                    u8"\r\n%2;"
+                    u8"\r\nтриггер: %3";
 
                 botMsh = botMsh.arg(message->text)
                                .arg(trigger->activationReasonMessage)

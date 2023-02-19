@@ -52,7 +52,8 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
 
         if (entityUrl)
         {
-            activationReasonMessage = u8"Ссылка: " + urlStr;
+            activationReasonMessage = u8"ссылка: " + urlStr;
+
             log_debug_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?'. Input url: %?)",
                 update.update_id, chat->name(), name, urlStr);
@@ -117,11 +118,12 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
     for (const QString& word : wordList)
         if (clearText.contains(word, caseSens))
         {
-            activationReasonMessage = u8"Слово: " + word;
             log_verbose_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". The word '%?' was found",
                 update.update_id, chat->name(), name, word);
+
+            activationReasonMessage = u8"слово: " + word;
             return true;
         }
 
@@ -151,7 +153,6 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         const QRegularExpressionMatch match = re.match(text);
         if (match.hasMatch())
         {
-            activationReasonMessage = u8"Фраза: " + match.capturedTexts()[0];
             alog::Line logLine = log_verbose_m << log_format(
                 R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
                 ". Regular expression '%?' matched. Captured text: ",
@@ -159,6 +160,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
             for (const QString& cap : match.capturedTexts())
                 logLine << cap << "; ";
 
+            activationReasonMessage = u8"фраза: " + match.capturedTexts()[0];
             return true;
         }
         else
