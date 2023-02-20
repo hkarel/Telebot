@@ -244,12 +244,15 @@ void Processing::run()
                                .arg(trigger->activationReasonMessage)
                                .arg(trigger->name);
 
+                botMsh.replace("+", "&#43;");
+
                 if (!trigger->description.isEmpty())
                     botMsh += QString(" (%1)").arg(trigger->description);
 
                 tbot::HttpParams params2;
                 params2["chat_id"] = chatId;
                 params2["text"] = botMsh;
+                params2["parse_mode"] = "HTML";
                 emit sendTgCommand("sendMessage", params2);
 
                 // Отправляем отчет о спаме
