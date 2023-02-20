@@ -31,7 +31,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
     if (message.empty())
         return false;
 
-    bool urlExists = false;
+    bool urlGood = true;
     for (const MessageEntity& entity : message->entities)
     {
         QString urlStr;
@@ -40,18 +40,17 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
         if (entity.type == "url")
         {
             entityUrl = true;
-            urlExists = true;
             urlStr = message->text.mid(entity.offset, entity.length);
         }
         else if (entity.type == "text_link")
         {
             entityUrl = true;
-            urlExists = true;
             urlStr = entity.url;
         }
 
         if (entityUrl)
         {
+            urlGood = false;
             activationReasonMessage = u8"ссылка: " + urlStr;
 
             log_debug_m << log_format(
@@ -67,11 +66,11 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                     if (item.paths.isEmpty())
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Trigger '%?' is skipped)"
-                            ". Link belong to whitelist [host: %?; path: empty]",
-                                             update.update_id, chat->name(), name,
-                                             item.host);
-                        return false;
+                            R"("update_id":%?. Chat: %?. Trigger '%?', link  skipped)"
+                            ". It belong to whitelist [host: %?; path: empty]",
+                            update.update_id, chat->name(), name, item.host);
+                        urlGood = true;
+                        break;
                     }
                     for (QString ipath: item.paths)
                     {
@@ -84,17 +83,20 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                         if (path.startsWith(ipath, Qt::CaseInsensitive))
                         {
                             log_verbose_m << log_format(
-                                R"("update_id":%?. Chat: %?. Trigger '%?' is skipped)"
-                                ". Link belong to whitelist [host: %?; path: %?]",
-                                                 update.update_id, chat->name(), name,
-                                                 item.host, ipath);
-                            return false;
+                                R"("update_id":%?. Chat: %?. Trigger '%?', link skipped)"
+                                ". It belong to whitelist [host: %?; path: %?]",
+                                update.update_id, chat->name(), name, item.host, ipath);
+                            urlGood = true;
+                            break;
                         }
                     }
                 }
+
+            if (!urlGood)
+                break;
         }
     }
-    if (urlExists)
+    if (!urlGood)
     {
         log_verbose_m << log_format(
             R"("update_id":%?. Chat: %?. Trigger '%?' activated)",
