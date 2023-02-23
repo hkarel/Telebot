@@ -240,7 +240,15 @@ void Processing::run()
                     u8"\r\n%2;"
                     u8"\r\nтриггер: %3";
 
-                botMsh = botMsh.arg(message->text)
+                QString messageText = message->text;
+                if (!message->caption.isEmpty())
+                {
+                    if (messageText.isEmpty())
+                        messageText = message->caption;
+                    else
+                        messageText = message->caption + '\n' + messageText;
+                }
+                botMsh = botMsh.arg(messageText)
                                .arg(trigger->activationReasonMessage)
                                .arg(trigger->name);
 
