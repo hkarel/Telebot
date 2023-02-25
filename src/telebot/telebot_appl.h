@@ -3,8 +3,6 @@
 #include "tele_data.h"
 #include "processing.h"
 
-#include "shared/simple_timer.h"
-
 #include <QtCore>
 #include <QCoreApplication>
 #include <QSslKey>
@@ -114,9 +112,9 @@ private:
         qint64 chatId = {0};
         tbot::User::Ptr user;
 
-        // Таймеры для контроля времени жизни штрафа за спам и одновременно
-        // счетчик количества спама
-        QList<simple_timer> spamLifeTimers;
+        // Время регистрации штрафа (в секундах) и одновременно счетчик
+        // количества спама
+        QList<std::time_t> spamTimes;
 
         struct Compare
         {
