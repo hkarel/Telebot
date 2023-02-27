@@ -818,7 +818,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             for (int j = 0; j < spammer->spamTimes.count(); ++j)
             {
                 const int64_t elapsedTime = curTime - spammer->spamTimes.at(j);
-                if (qAbs(elapsedTime) > 60*60*24 /*1 сутки*/)
+                if (qAbs(elapsedTime) > 60*60*24*2 /*двое суток*/)
                 {
                     log_debug_m << log_format(
                         "Report spam 4. Id chat/spammer: %?/%?. Times: [%?]",
