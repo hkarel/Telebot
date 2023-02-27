@@ -760,9 +760,6 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         return;
     }
 
-    log_debug_m << log_format("Report spam 0. Id chat/spammer: %?/%?",
-                              chatId, user->id);
-
     auto times = [](const QList<std::time_t>& spamTimes) -> QString
     {
         QString tm;
@@ -770,6 +767,18 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             tm += QString::number(qint64(t)) + " ";
         return tm.trimmed();
     };
+
+    log_debug_m << "Report spam --- begin ---";
+    for (Spammer* spammer : _spammers)
+    {
+        log_debug_m << log_format(
+            "Report spam Id chat/spammer: %?/%?. Times: [%?]",
+            spammer->chatId, spammer->user->id, times(spammer->spamTimes));
+    }
+    log_debug_m << "Report spam ---";
+
+    log_debug_m << log_format("Report spam (0) Id chat/spammer: %?/%?",
+                              chatId, user->id);
 
     if (lst::FindResult fr = _spammers.findRef(qMakePair(chatId, user->id)))
     {
@@ -779,8 +788,8 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         std::time_t curTime = std::time(nullptr);
         spammer->spamTimes.append(curTime);
 
-        log_debug_m << log_format("Report spam 1. Id chat/spammer %?/%?. Times: [%?]",
-                                  chatId, spammer->user->id, qint64(curTime));
+        log_debug_m << log_format("Report spam (1) Id chat/spammer: %?/%?. Times: [%?]",
+                                  chatId, spammer->user->id, times(spammer->spamTimes));
     }
     else
     {
@@ -792,7 +801,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
         _spammers.sort();
 
-        log_debug_m << log_format("Report spam 2. Id chat/spammer %?/%?. Times: [%?]",
+        log_debug_m << log_format("Report spam (2) Id chat/spammer: %?/%?. Times: [%?]",
                                   chatId, spammer->user->id, times(spammer->spamTimes));
     }
 
@@ -805,7 +814,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             tbot::GroupChat* chat = chats.item(fr.index());
             if (chat->userSpamLimit <= 0)
             {
-                log_debug_m << log_format("Report spam 3. Id chat/spammer: %?/%?",
+                log_debug_m << log_format("Report spam (3) Id chat/spammer: %?/%?",
                                           chat->id, spammer->user->id);
                 _spammers.remove(i--);
                 continue;
@@ -821,7 +830,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 if (qAbs(elapsedTime) > 60*60*24*2 /*двое суток*/)
                 {
                     log_debug_m << log_format(
-                        "Report spam 4. Id chat/spammer: %?/%?. Times: [%?]",
+                        "Report spam (4) Id chat/spammer: %?/%?. Times: [%?]",
                         chat->id, spammer->user->id, times(spammer->spamTimes));
 
                     { //Block for alog::Line
@@ -855,8 +864,9 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 if (ownerIds.contains(spammer->user->id))
                 {
                     log_debug_m << log_format(
-                        "Report spam 5. Id chat/spammer: %?/%?. Times: [%?]",
+                        "Report spam (5) Id chat/spammer: %?/%?. Times: [%?]",
                         chat->id, spammer->user->id, times(spammer->spamTimes));
+
                     { //Block for alog::Line
                         alog::Line logLine = log_verbose_m
                             << "Owner of chat cannot be banned"
@@ -881,7 +891,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 }
 
                 log_debug_m << log_format(
-                    "Report spam 6. Id chat/spammer: %?/%?. Times: [%?]",
+                    "Report spam (6) Id chat/spammer: %?/%?. Times: [%?]",
                     chat->id, spammer->user->id, times(spammer->spamTimes));
 
                 tbot::HttpParams params;
@@ -895,9 +905,18 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         else
         {
             log_debug_m << log_format(
-                "Report spam 7. Id chat/spammer: %?/%?. Times: [%?]",
+                "Report spam (7) Id chat/spammer: %?/%?. Times: [%?]",
                 chatId, spammer->user->id, times(spammer->spamTimes));
             _spammers.remove(i--);
         }
     }
+
+    log_debug_m << "Report spam --- end ---";
+    for (Spammer* spammer : _spammers)
+    {
+        log_debug_m << log_format(
+            "Report spam Id chat/spammer: %?/%?. Times: [%?]",
+            spammer->chatId, spammer->user->id, times(spammer->spamTimes));
+    }
+    log_debug_m << "Report spam ---";
 }
