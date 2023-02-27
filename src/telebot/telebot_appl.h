@@ -120,8 +120,8 @@ private:
         {
             int operator() (const Spammer* item1, const Spammer* item2) const
             {
-                LIST_COMPARE_MULTI_ITEM(item1->chatId,  item2->chatId)
-                LIST_COMPARE_MULTI_ITEM(item2->user->id, item1->user->id);
+                LIST_COMPARE_MULTI_ITEM(item1->chatId,   item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(item1->user->id, item2->user->id);
                 return 0;
             }
             int operator() (const QPair<qint64 /*chat id*/, qint64 /*user id*/>* pair,
