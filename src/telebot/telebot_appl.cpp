@@ -169,6 +169,9 @@ bool Application::init()
         return false;
     }
 
+    loadReportSpam();
+    reportSpam(0, {});
+
     QMetaObject::invokeMethod(this, "startRequest",  Qt::QueuedConnection);
 
     return true;
@@ -203,6 +206,8 @@ void Application::deinit()
 
     _webhookServer.reset();
     _networkAccManager.reset();
+
+    saveReportSpam();
 }
 
 void Application::timerEvent(QTimerEvent* event)
@@ -754,12 +759,6 @@ void Application::httpResultHandler(const ReplyData& rd)
 
 void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 {
-    if (user.empty())
-    {
-        log_error_m << "Function reportSpam(), param 'user' is empty";
-        return;
-    }
-
     auto times = [](const QList<std::time_t>& spamTimes) -> QString
     {
         QString tm;
@@ -777,6 +776,15 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     }
     log_debug_m << "Report spam ---";
 
+    if (chatId == 0)
+        return;
+
+    if (user.empty())
+    {
+        log_error_m << "Function reportSpam(), param 'user' is empty";
+        return;
+    }
+
     log_debug_m << log_format("Report spam (0) Id chat/spammer: %?/%?",
                               chatId, user->id);
 
@@ -785,8 +793,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         Spammer* spammer = _spammers.item(fr.index());
         spammer->user = user; // Переприсваиваем, потому что параметры имени
                               // могут измениться
-        std::time_t curTime = std::time(nullptr);
-        spammer->spamTimes.append(curTime);
+        spammer->spamTimes.append(std::time(nullptr));
 
         log_debug_m << log_format("Report spam (1) Id chat/spammer: %?/%?. Times: [%?]",
                                   chatId, spammer->user->id, times(spammer->spamTimes));
@@ -796,8 +803,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         Spammer* spammer = _spammers.add();
         spammer->chatId = chatId;
         spammer->user = user;
-        std::time_t curTime = std::time(nullptr);
-        spammer->spamTimes.append(curTime);
+        spammer->spamTimes.append(std::time(nullptr));
 
         _spammers.sort();
 
@@ -926,4 +932,50 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             spammer->chatId, spammer->user->id, times(spammer->spamTimes));
     }
     log_debug_m << "Report spam ---";
+
+    saveReportSpam();
+}
+
+void Application::loadReportSpam()
+{
+    YamlConfig::Func loadFunc = [this](YamlConfig* conf, YAML::Node& nodes, bool)
+    {
+        for (const YAML::Node& node : nodes)
+        {
+            Spammer* spammer = _spammers.add();
+            conf->getValue(node, "chat_id", spammer->chatId);
+
+            QString user;
+            conf->getValue(node, "user", user);
+            spammer->user = tbot::User::Ptr(new tbot::User);
+            spammer->user->fromJson(user.toUtf8());
+
+            conf->getValue(node, "spam_times", spammer->spamTimes);
+        }
+        return true;
+    };
+    config::state().getValue("spammers", loadFunc, false);
+    _spammers.sort();
+}
+
+void Application::saveReportSpam()
+{
+    YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
+    {
+        for (Spammer* spammer : _spammers)
+        {
+            QString user {spammer->user->toJson()};
+
+            YAML::Node spmr;
+            conf->setValue(spmr, "chat_id", spammer->chatId);
+            conf->setValue(spmr, "user", user);
+            conf->setValue(spmr, "spam_times", spammer->spamTimes);
+
+            node.push_back(spmr);
+        }
+        return true;
+    };
+    config::state().remove("spammers");
+    config::state().setValue("spammers", saveFunc);
+    config::state().saveFile();
 }

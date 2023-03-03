@@ -90,6 +90,9 @@ private:
     Q_OBJECT
     void timerEvent(QTimerEvent* event) override;
 
+    void loadReportSpam();
+    void saveReportSpam();
+
 private:
     static QUuidEx _applId;
     static volatile bool _stop;

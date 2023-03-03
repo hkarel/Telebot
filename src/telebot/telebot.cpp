@@ -131,12 +131,12 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-//        // Путь к конфиг-файлу текущих настроек
-//        QString configFileS;
-//        config::base().getValue("state.file", configFileS);
+        // Путь к конфиг-файлу текущих настроек
+        QString configFileS;
+        config::base().getValue("state.file", configFileS);
 
-//        config::dirExpansion(configFileS);
-//        config::state().readFile(configFileS.toStdString());
+        config::dirExpansion(configFileS);
+        config::state().readFile(configFileS.toStdString());
 
         // Создаем дефолтный сэйвер для логгера
         if (!alog::configDefaultSaver())
