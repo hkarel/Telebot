@@ -835,7 +835,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
                     { //Block for alog::Line
                         alog::Line logLine = log_debug_m
-                            << "Spam penalty has expired (1 day)"
+                            << "Spam penalty has expired (2 day)"
                             << ". User first/last/uname/id: "
                             << spammer->user->first_name;
 
@@ -856,6 +856,13 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                     }
                     spammer->spamTimes.removeAt(j--);
                 }
+            }
+
+            // Удаляем из списка спамеров без штрафов
+            if (spammer->spamTimes.isEmpty())
+            {
+                _spammers.remove(i--);
+                continue;
             }
 
             if (spammer->spamTimes.count() >= chat->userSpamLimit)
