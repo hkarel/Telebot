@@ -170,7 +170,7 @@ bool Application::init()
     }
 
     loadReportSpam();
-    reportSpam(0, {});
+    reportSpam(0, {}); // Выводим в лог текущий спам-список
 
     QMetaObject::invokeMethod(this, "startRequest",  Qt::QueuedConnection);
 
@@ -525,25 +525,25 @@ void Application::httpResultHandler(const ReplyData& rd)
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
         {
-            log_error_m << "Failed parsing response for function getMe()"
-                        << ". Program will be stopped";
-            Application::stop();
+            log_error_m << "Failed parsing response for function 'getMe'"
+                        << ". Re-call 'getMe' through one minute";
+            QTimer::singleShot(60*1000 /*1 мин*/, this, &Application::startRequest);
             return;
         }
         if (!httpResult.ok)
         {
-            log_error_m << "Failed result for function getMe()"
-                        << ". Program will be stopped";
-            Application::stop();
+            log_error_m << "Failed result for function 'getMe'"
+                        << ". Re-call 'getMe' through one minute";
+            QTimer::singleShot(60*1000 /*1 мин*/, this, &Application::startRequest);
             return;
         }
 
         tbot::GetMe_Result result;
         if (!result.fromJson(rd.data))
         {
-            log_error_m << "Failed parsing data for function getMe()"
-                        << ". Program will be stopped";
-            Application::stop();
+            log_error_m << "Failed parsing data for function 'getMe'"
+                        << ". Re-call 'getMe' through one minute";
+            QTimer::singleShot(60*1000 /*1 мин*/, this, &Application::startRequest);
             return;
         }
 
