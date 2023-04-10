@@ -105,8 +105,8 @@ bool Application::init()
     if (!config::base().getValue("bot.id", _botId))
         return false;
 
-    _webhookServer = SslServer::Ptr::create_ptr();
-    _networkAccManager = QNetworkAccessManagerPtr::create_ptr();
+    _webhookServer = SslServer::Ptr::create();
+    _networkAccManager = QNetworkAccessManagerPtr::create();
 
     chk_connect_a(_webhookServer.get(), &QTcpServer::newConnection,
                   this, &Application::webhook_newConnection)
