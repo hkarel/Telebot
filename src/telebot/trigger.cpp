@@ -359,7 +359,8 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         triggerRegexp->multiline = multiline;
 
         QRegularExpression::PatternOptions patternOpt =
-            {QRegularExpression::UseUnicodePropertiesOption};
+            {QRegularExpression::DotMatchesEverythingOption
+            |QRegularExpression::UseUnicodePropertiesOption};
 
         if (caseInsensitive)
             patternOpt |= QRegularExpression::CaseInsensitiveOption;
