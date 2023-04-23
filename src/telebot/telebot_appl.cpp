@@ -91,9 +91,6 @@ Application::Application(int& argc, char** argv)
     chk_connect_a(&config::changeChecker(), &config::ChangeChecker::changed,
                   this, &Application::configChanged)
 
-    chk_connect_q(this, &Application::signalSendTgCommand,
-                  this, &Application::sendTgCommand);
-
     qRegisterMetaType<ReplyData>("ReplyData");
     qRegisterMetaType<tbot::HttpParams>("tbot::HttpParams");
     qRegisterMetaType<tbot::User::Ptr>("tbot::User::Ptr");
@@ -172,8 +169,7 @@ bool Application::init()
     loadReportSpam();
     reportSpam(0, {}); // Выводим в лог текущий спам-список
 
-    QMetaObject::invokeMethod(this, "startRequest",  Qt::QueuedConnection);
-
+    startRequest();
     return true;
 }
 
@@ -478,44 +474,48 @@ void Application::configChanged()
     {
         tbot::HttpParams params;
         params["chat_id"] = chat->id;
-        emit signalSendTgCommand("getChat", params);
+        sendTgCommand("getChat", params);
     }
 }
 
-void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams& params)
+void Application::sendTgCommand(const QString& funcName,
+                                const tbot::HttpParams& params, int delay)
 {
-    QString urlStr = "https://api.telegram.org/bot%1/%2";
-    urlStr = urlStr.arg(_botId).arg(funcName);
+    QTimer::singleShot(delay, [this, funcName, params, delay]()
+    {
+        QString urlStr = "https://api.telegram.org/bot%1/%2";
+        urlStr = urlStr.arg(_botId).arg(funcName);
 
-    QUrlQuery query;
-    for (auto&& it = params.cbegin(); it != params.cend(); ++it)
-        query.addQueryItem(it.key(), it.value().toString());
+        QUrlQuery query;
+        for (auto&& it = params.cbegin(); it != params.cend(); ++it)
+            query.addQueryItem(it.key(), it.value().toString());
 
-    QUrl url {urlStr};
-    url.setQuery(query);
+        QUrl url {urlStr};
+        url.setQuery(query);
 
-    QNetworkRequest request {url};
-    QNetworkReply* reply = _networkAccManager->get(request);
+        QNetworkRequest request {url};
+        QNetworkReply* reply = _networkAccManager->get(request);
 
-    chk_connect_a(reply, &QIODevice::readyRead,    this, &Application::http_readyRead);
-    chk_connect_a(reply, &QNetworkReply::finished, this, &Application::http_finished);
+        chk_connect_a(reply, &QIODevice::readyRead,    this, &Application::http_readyRead);
+        chk_connect_a(reply, &QNetworkReply::finished, this, &Application::http_finished);
 
-    chk_connect_a(reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::error),
-                  this,  &Application::http_error);
+        chk_connect_a(reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::error),
+                      this,  &Application::http_error);
 
-    chk_connect_a(reply, &QNetworkReply::sslErrors, this, &Application::http_sslErrors);
-    chk_connect_a(reply, &QNetworkReply::encrypted, this, &Application::http_encrypted);
+        chk_connect_a(reply, &QNetworkReply::sslErrors, this, &Application::http_sslErrors);
+        chk_connect_a(reply, &QNetworkReply::encrypted, this, &Application::http_encrypted);
 
-    quint64 replyId = reinterpret_cast<quint64>(reply);
-    ReplyData& rd = _httpReplyMap[replyId];
+        quint64 replyId = reinterpret_cast<quint64>(reply);
+        ReplyData& rd = _httpReplyMap[replyId];
 
-    rd.reply = reply;
-    rd.replyNumer = ++httpReplyNumber;
-    rd.funcName = funcName;
-    rd.params = params;
+        rd.reply = reply;
+        rd.replyNumer = ++httpReplyNumber;
+        rd.funcName = funcName;
+        rd.params = params;
 
-    log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
-                              rd.funcName, rd.replyNumer, url.toString());
+        log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
+                                  rd.funcName, rd.replyNumer, url.toString());
+    });
 }
 
 void Application::httpResultHandler(const ReplyData& rd)
@@ -612,7 +612,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                     }
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
-                    emit signalSendTgCommand("getChatAdministrators", params);
+                    sendTgCommand("getChatAdministrators", params);
                 }
                 else
                 {
@@ -663,7 +663,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 tbot::HttpParams params;
                 params["chat_id"] = chatId;
                 params["message_id"] = messageId;
-                emit signalSendTgCommand("deleteMessage", params);
+                sendTgCommand("deleteMessage", params);
             }
         }
     }
@@ -912,7 +912,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 params["user_id"] = spammer->user->id;
                 params["until_date"] = qint64(std::time(nullptr));
                 params["revoke_messages"] = false;
-                emit signalSendTgCommand("banChatMember", params);
+                sendTgCommand("banChatMember", params, 6*1000 /*6 сек*/);
             }
         }
         else

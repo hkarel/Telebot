@@ -56,9 +56,6 @@ public:
         QByteArray data;
     };
 
-signals:
-    void signalSendTgCommand(const QString& funcName, const tbot::HttpParams&);
-
 public slots:
     void stop(int exitCode);
 
@@ -79,7 +76,8 @@ public slots:
     void configChanged();
 
     // Функция для отправки http команды
-    void sendTgCommand(const QString& funcName, const tbot::HttpParams&);
+    void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
+                       int delay = 0);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);

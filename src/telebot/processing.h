@@ -26,7 +26,8 @@ public:
     static void addUpdate(const QByteArray&);
 
 signals:
-    void sendTgCommand(const QString& funcName, const tbot::HttpParams&);
+    void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
+                       int delay = 0);
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
 public slots:

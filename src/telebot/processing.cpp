@@ -261,7 +261,7 @@ void Processing::run()
                 params2["chat_id"] = chatId;
                 params2["text"] = botMsh;
                 params2["parse_mode"] = "HTML";
-                emit sendTgCommand("sendMessage", params2);
+                emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
 
                 // Отправляем отчет о спаме
                 emit reportSpam(chatId, message->from);
