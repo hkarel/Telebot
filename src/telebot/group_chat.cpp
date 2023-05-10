@@ -20,37 +20,37 @@ using namespace std;
 
 QString GroupChat::name() const
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     return _name;
 }
 
 void GroupChat::setName(const QString& val)
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     _name = val;
 }
 
 QSet<qint64> GroupChat::adminIds() const
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     return _adminIds;
 }
 
 void GroupChat::setAdminIds(const QSet<qint64>& val)
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     _adminIds = val;
 }
 
 QSet<qint64> GroupChat::ownerIds() const
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     return _ownerIds;
 }
 
 void GroupChat::setOwnerIds(const QSet<qint64>& val)
 {
-    QMutexLocker locker(&_lock); (void) locker;
+    QMutexLocker locker {&_lock}; (void) locker;
     _ownerIds = val;
 }
 

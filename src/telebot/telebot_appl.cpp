@@ -88,8 +88,8 @@ Application::Application(int& argc, char** argv)
     _stopTimerId = startTimer(1000);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
-    chk_connect_a(&config::changeChecker(), &config::ChangeChecker::changed,
-                  this, &Application::configChanged)
+    chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
+                  this, &Application::reloadConfig)
 
     qRegisterMetaType<ReplyData>("ReplyData");
     qRegisterMetaType<tbot::HttpParams>("tbot::HttpParams");
@@ -222,7 +222,7 @@ void Application::timerEvent(QTimerEvent* event)
     else if (event->timerId() == _updateAdminsTimerId)
     {
         // Обновляем весь конфиг и список актуальных админов
-        configChanged();
+        reloadConfig();
     }
 }
 
@@ -453,7 +453,7 @@ void Application::startRequest()
     sendTgCommand("getMe", params);
 }
 
-void Application::configChanged()
+void Application::reloadConfig()
 {
     { //Block for tbot::Trigger::List
         tbot::Trigger::List triggers;
@@ -572,15 +572,15 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::reportSpam,
                           this, &Application::reportSpam);
 
-            chk_connect_d(&config::changeChecker(), &config::ChangeChecker::changed,
-                          p, &tbot::Processing::configChanged)
+            chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
+                          p, &tbot::Processing::reloadConfig)
 
             _procList.add(p);
         }
         for (tbot::Processing* p : _procList)
             p->start();
 
-        configChanged();
+        reloadConfig();
     }
     else if ( rd.funcName == "getChat")
     {

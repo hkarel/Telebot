@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        config::changeChecker().start();
+        config::observerBase().start();
 
         alog::logger().removeSaverStdOut();
         alog::logger().removeSaverStdErr();
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
         ret = appl.exec();
         appl.deinit();
 
-        config::changeChecker().stop();
+        config::observerBase().stop();
 
         if (config::state().changed())
             config::state().saveFile();

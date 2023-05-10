@@ -73,7 +73,7 @@ public slots:
     void http_sslErrors(const QList<QSslError>&);
 
     void startRequest();
-    void configChanged();
+    void reloadConfig();
 
     // Функция для отправки http команды
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,

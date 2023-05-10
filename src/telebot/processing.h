@@ -31,7 +31,7 @@ signals:
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
 public slots:
-    void configChanged();
+    void reloadConfig();
 
 private:
     Q_OBJECT

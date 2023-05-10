@@ -46,7 +46,7 @@ void Processing::addUpdate(const QByteArray& data)
     _threadCond.wakeOne();
 }
 
-void Processing::configChanged()
+void Processing::reloadConfig()
 {
     _configChanged = true;
 }
