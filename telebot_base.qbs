@@ -35,6 +35,8 @@ Project {
             "PPROTO_JSON_SERIALIZE",
             "CONFIG_DIR=\"/etc/telebot\"",
             "VAROPT_DIR=\"/var/opt/telebot\"",
+            //"CONFIG_BASE=\"/etc/telebot\telebot.conf\"",
+            //"CONFIG_WORK=\"/etc/telebot\telebot.work.conf\"",
         ];
 
         return def;

@@ -1,2 +1,3 @@
 /etc/telebot/telebot.conf
+/etc/telebot/telebot.groups
 /etc/telebot/telebot.logger.conf

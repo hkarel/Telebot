@@ -138,6 +138,13 @@ int main(int argc, char *argv[])
         config::dirExpansion(configFileS);
         config::state().readFile(configFileS.toStdString());
 
+        // Путь конфиг-файлу с телеграм-группами
+        QString configFileG = config::qdir() + "/telebot.groups";
+
+        config::work().setReadOnly(true);
+        config::work().setSaveDisabled(true);
+        config::work().readFile(configFileG.toStdString());
+
         // Создаем дефолтный сэйвер для логгера
         if (!alog::configDefaultSaver())
         {
@@ -157,6 +164,9 @@ int main(int argc, char *argv[])
         // Создаем дополнительные сэйверы для логгера
         alog::configExtendedSavers();
         alog::printSaversInfo();
+
+        // Добавляем файл телеграм-групп в механизм наблюдения
+        config::observer().addFile(configFileG);
 
         Application appl {argc, argv};
 
@@ -182,6 +192,7 @@ int main(int argc, char *argv[])
         }
 
         config::observerBase().start();
+        config::observer().start();
 
         alog::logger().removeSaverStdOut();
         alog::logger().removeSaverStdErr();
@@ -190,6 +201,7 @@ int main(int argc, char *argv[])
         appl.deinit();
 
         config::observerBase().stop();
+        config::observer().stop();
 
         if (config::state().changed())
             config::state().saveFile();

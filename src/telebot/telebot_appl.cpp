@@ -91,6 +91,9 @@ Application::Application(int& argc, char** argv)
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
                   this, &Application::reloadConfig)
 
+    chk_connect_a(&config::observer(), &config::Observer::changed,
+                  this, &Application::reloadGroups)
+
     qRegisterMetaType<ReplyData>("ReplyData");
     qRegisterMetaType<tbot::HttpParams>("tbot::HttpParams");
     qRegisterMetaType<tbot::User::Ptr>("tbot::User::Ptr");
@@ -222,7 +225,7 @@ void Application::timerEvent(QTimerEvent* event)
     else if (event->timerId() == _updateAdminsTimerId)
     {
         // Обновляем весь конфиг и список актуальных админов
-        reloadConfig();
+        reloadGroups();
     }
 }
 
@@ -455,6 +458,12 @@ void Application::startRequest()
 
 void Application::reloadConfig()
 {
+}
+
+void Application::reloadGroups()
+{
+    config::work().rereadFile();
+
     { //Block for tbot::Trigger::List
         tbot::Trigger::List triggers;
         tbot::loadTriggers(triggers);
@@ -580,7 +589,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         for (tbot::Processing* p : _procList)
             p->start();
 
-        reloadConfig();
+        reloadGroups();
     }
     else if ( rd.funcName == "getChat")
     {

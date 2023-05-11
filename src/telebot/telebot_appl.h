@@ -74,6 +74,7 @@ public slots:
 
     void startRequest();
     void reloadConfig();
+    void reloadGroups();
 
     // Функция для отправки http команды
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,

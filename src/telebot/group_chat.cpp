@@ -144,12 +144,12 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
 
 bool loadGroupChats(GroupChat::List& chats)
 {
-    auto locker {config::base().locker()}; (void) locker;
+    auto locker {config::work().locker()}; (void) locker;
 
     bool result = false;
     try
     {
-        YAML::Node ychats = config::base().nodeGet("group_chats");
+        YAML::Node ychats = config::work().nodeGet("group_chats");
         if (ychats.IsDefined())
         {
             if (!ychats.IsSequence())
@@ -165,17 +165,17 @@ bool loadGroupChats(GroupChat::List& chats)
     catch (YAML::ParserException& e)
     {
         log_error_m << "YAML error. Detail: " << e.what()
-                    << ". Config file: " << config::base().filePath();
+                    << ". Config file: " << config::work().filePath();
     }
     catch (std::exception& e)
     {
         log_error_m << "Configuration error. Detail: " << e.what()
-                    << ". Config file: " << config::base().filePath();
+                    << ". Config file: " << config::work().filePath();
     }
     catch (...)
     {
         log_error_m << "Unknown error"
-                    << ". Config file: " << config::base().filePath();
+                    << ". Config file: " << config::work().filePath();
     }
     return result;
 }
