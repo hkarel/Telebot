@@ -20,8 +20,10 @@ namespace tbot {
 using namespace std;
 
 bool TriggerLink::isActive(const Update& update, GroupChat* chat,
-                           const QString& /*clearText*/) const
+                           const QString& clearText, const QString& alterText) const
 {
+    (void) clearText;
+    (void) alterText;
     activationReasonMessage.clear();
 
     Message::Ptr message = update.message;
@@ -107,8 +109,9 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
 }
 
 bool TriggerWord::isActive(const Update& update, GroupChat* chat,
-                           const QString& clearText) const
+                           const QString& clearText, const QString& alterText) const
 {
+    (void) alterText;
     activationReasonMessage.clear();
 
     if (clearText.isEmpty())
@@ -133,18 +136,19 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
 }
 
 bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
-                             const QString& clearText) const
+                             const QString& clearText, const QString& alterText) const
 {
     activationReasonMessage.clear();
 
-    if (clearText.isEmpty())
+    QString text = (analyze == "username") ? alterText : clearText;
+    int textLen = text.length();
+    if (textLen == 0)
         return false;
 
-    QString text = clearText;
     for (const QRegularExpression& re : regexpRemove)
         text.remove(re);
 
-    if (text.length() != clearText.length())
+    if (text.length() != textLen)
         log_verbose_m << log_format(
             R"("update_id":%?. Chat: %?. Trigger '%?')"
             ". Text after rx-remove: %?",
@@ -337,6 +341,18 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         multiline = ytrigger["multiline"].as<bool>();
     }
 
+    QString analyze;
+    if (ytrigger["analyze"].IsDefined())
+    {
+        checkFiedType(ytrigger, "analyze", YAML::NodeType::Scalar);
+        analyze = QString::fromStdString(ytrigger["analyze"].as<string>());
+    }
+
+    // Параметр analyze может принимать только два значения: content и username.
+    // Значение параметра по умолчанию равно content
+    if (analyze != "username")
+        analyze = "content";
+
     Trigger::Ptr trigger;
 
     if (type == "link")
@@ -357,6 +373,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         TriggerRegexp::Ptr triggerRegexp {new TriggerRegexp};
         triggerRegexp->caseInsensitive = caseInsensitive;
         triggerRegexp->multiline = multiline;
+        triggerRegexp->analyze = analyze;
 
         QRegularExpression::PatternOptions patternOpt =
             {QRegularExpression::DotMatchesEverythingOption
@@ -520,7 +537,8 @@ void printTriggers(Trigger::List& triggers)
             logLine << "; type: regexp"
                     << "; active: " << trigger->active
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
-                    << "; multiline: " << triggerRegexp->multiline;
+                    << "; multiline: " << triggerRegexp->multiline
+                    << "; analyze: " << triggerRegexp->analyze;
 
             nextCommaVal = false;
             logLine << "; regexp_remove: [";

@@ -161,6 +161,11 @@ void Processing::run()
                 clearText = message->caption + '\n' + clearText;
         }
 
+        QString usernameText = {"%1 %2 %3"};
+        usernameText = usernameText.arg(message->from->first_name)
+                                   .arg(message->from->last_name)
+                                   .arg(message->from->username).trimmed();
+
         GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
 
@@ -213,7 +218,7 @@ void Processing::run()
                 continue;
             }
 
-            bool triggerActive = trigger->isActive(update, chat, clearText);
+            bool triggerActive = trigger->isActive(update, chat, clearText, usernameText);
 
             if (trigger->inverse)
                 triggerActive = !triggerActive;

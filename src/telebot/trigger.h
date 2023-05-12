@@ -51,8 +51,9 @@ public:
 
     // Проверяет сообщение на соответствие критериям фильтрации.
     // Параметр clearText содержит текстовое сообщение с удаленными линками
-    virtual bool isActive(const tbot::Update&, GroupChat*,
-                          const QString& clearText) const = 0;
+    virtual bool isActive(
+                   const tbot::Update& update, GroupChat* chat,
+                   const QString& clearText, const QString& alterText) const = 0;
 
     struct Find
     {
@@ -82,8 +83,9 @@ public:
     // Список исключений
     WhiteList whiteList;
 
-    bool isActive(const tbot::Update&, GroupChat*,
-                  const QString& clearText) const override;
+    bool isActive(
+           const tbot::Update& update, GroupChat* chat,
+           const QString& clearText, const QString& alterText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerLink)
@@ -102,8 +104,9 @@ public:
     // Список слов
     QStringList wordList;
 
-    bool isActive(const tbot::Update&, GroupChat*,
-                  const QString& clearText) const override;
+    bool isActive(
+           const tbot::Update& update, GroupChat* chat,
+           const QString& clearText, const QString& alterText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerWord)
@@ -125,14 +128,21 @@ public:
     //   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
     bool multiline = {false};
 
+    // Определяет что будет анализироваться: контент сообщения (content) или имя
+    // пользователя (username).
+    // Параметр может принимать значения: content, username. Значение параметра
+    // по умолчанию равно content
+    QString analyze = {"content"};
+
     // Список регулярных выражений для сокращения исходного текста
     QList<QRegularExpression> regexpRemove;
 
     // Список регулярных выражений
     QList<QRegularExpression> regexpList;
 
-    bool isActive(const tbot::Update&, GroupChat*,
-                  const QString& clearText) const override;
+    bool isActive(
+           const tbot::Update& update, GroupChat* chat,
+           const QString& clearText, const QString& alterText) const override;
 
 private:
     DISABLE_DEFAULT_COPY(TriggerRegexp)

@@ -165,9 +165,6 @@ int main(int argc, char *argv[])
         alog::configExtendedSavers();
         alog::printSaversInfo();
 
-        // Добавляем файл телеграм-групп в механизм наблюдения
-        config::observer().addFile(configFileG);
-
         Application appl {argc, argv};
 
         // Устанавливаем текущую директорию. Эта конструкция работает только
@@ -192,10 +189,10 @@ int main(int argc, char *argv[])
         }
 
         config::observerBase().start();
-        config::observer().start();
 
-        alog::logger().removeSaverStdOut();
-        alog::logger().removeSaverStdErr();
+        // Добавляем файл телеграм-групп в механизм наблюдения
+        config::observer().addFile(configFileG);
+        config::observer().start();
 
         ret = appl.exec();
         appl.deinit();

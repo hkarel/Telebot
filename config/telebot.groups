@@ -84,6 +84,12 @@ triggers:
     #   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
     multiline: false
 
+    # Определяет что будет анализироваться: контент сообщения (content) или имя
+    # пользователя (username).
+    # Параметр может принимать значения: content, username. Значение параметра
+    # по умолчанию равно content
+    analyze: content
+
     # Удаляет в исходном тексте фрагменты соответствующие регулярным выражениям
     # секции regexp_remove, что позволяет избавиться от нежелательных  срабаты-
     # ваний выражений из секции regexp_list.
@@ -115,6 +121,17 @@ triggers:
         "^ *\\b(\\w)\\1*\\b *$", # Выражения вида Аааа, Оооо
     ]
 
+  - name: user_name
+    type: regexp
+    description: "Имя пользователя"
+    case_insensitive: true
+    multiline: false
+    analyze: username
+
+    regexp_list: [
+        "User.*Name",
+    ]
+
 group_chats:
     # Идентификатор чата @My_Group_Chat
   - id: -1001735679262
@@ -123,7 +140,7 @@ group_chats:
     name: My_Group_Chat
 
     # Список триггеров
-    triggers: [link1, word1, regexp1, one_symbol]
+    triggers: [link1, word1, regexp1, one_symbol, user_name]
 
     # Действия триггеров не распространяются на администраторов группы если
     # параметр установлен в TRUE. Значение параметра по умолчанию равно TRUE
