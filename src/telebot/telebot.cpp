@@ -14,6 +14,9 @@
 #include "shared/qt/logger_operators.h"
 #include "shared/qt/version_number.h"
 
+#include "pproto/commands/base.h"
+#include "pproto/commands/pool.h"
+
 #include <QtCore>
 #include <QUrl>
 #include <QNetworkProxy>
@@ -116,6 +119,10 @@ int main(int argc, char *argv[])
 
         // Путь к основному конфиг-файлу
         QString configFile = config::qdir() + "/telebot.conf";
+
+#ifdef SLAVE_MODE
+        configFile += ".slave";
+#endif
         if (!QFile::exists(configFile))
         {
             log_error << "Config file " << configFile << " not exists";
@@ -138,12 +145,8 @@ int main(int argc, char *argv[])
         config::dirExpansion(configFileS);
         config::state().readFile(configFileS.toStdString());
 
-        // Путь конфиг-файлу с телеграм-группами
-        QString configFileG = config::qdir() + "/telebot.groups";
-
         config::work().setReadOnly(true);
         config::work().setSaveDisabled(true);
-        config::work().readFile(configFileG.toStdString());
 
         // Создаем дефолтный сэйвер для логгера
         if (!alog::configDefaultSaver())
@@ -164,6 +167,18 @@ int main(int argc, char *argv[])
         // Создаем дополнительные сэйверы для логгера
         alog::configExtendedSavers();
         alog::printSaversInfo();
+
+        if (!pproto::command::checkUnique())
+        {
+            stopProgram();
+            return 1;
+        }
+
+        if (!pproto::error::checkUnique())
+        {
+            stopProgram();
+            return 1;
+        }
 
         Application appl {argc, argv};
 
@@ -189,9 +204,6 @@ int main(int argc, char *argv[])
         }
 
         config::observerBase().start();
-
-        // Добавляем файл телеграм-групп в механизм наблюдения
-        config::observer().addFile(configFileG);
         config::observer().start();
 
         ret = appl.exec();

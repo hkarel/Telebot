@@ -19,7 +19,6 @@ mkdir -p $package_dir/opt/$product_dir/bin
 mkdir -p $package_dir/opt/$product_dir/lib
 mkdir -p $package_dir/var/opt/$product_dir/log
 mkdir -p $package_dir/var/opt/$product_dir/state
-mkdir -p $package_dir/var/opt/$product_dir/video
 
 cp $script_dir/setup/deb/$package_base/DEBIAN/*  $package_dir/DEBIAN
 cp $script_dir/config/telebot.conf               $package_dir/etc/$product_dir

@@ -11,6 +11,10 @@
 #include "shared/qt/logger_operators.h"
 #include "shared/qt/version_number.h"
 
+#include "pproto/commands/pool.h"
+#include "pproto/logger_operators.h"
+
+#include <QHostInfo>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string>
@@ -86,6 +90,7 @@ Application::Application(int& argc, char** argv)
     : QCoreApplication(argc, argv)
 {
     _stopTimerId = startTimer(1000);
+    _slaveTimerId = startTimer(10*1000 /*10 сек*/);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -93,6 +98,14 @@ Application::Application(int& argc, char** argv)
 
     chk_connect_a(&config::observer(), &config::Observer::changed,
                   this, &Application::reloadGroups)
+
+    #define FUNC_REGISTRATION(COMMAND) \
+        _funcInvoker.registration(command:: COMMAND, &Application::command_##COMMAND, this);
+
+    FUNC_REGISTRATION(SlaveAuth)
+    FUNC_REGISTRATION(ConfSync)
+
+    #undef FUNC_REGISTRATION
 
     qRegisterMetaType<ReplyData>("ReplyData");
     qRegisterMetaType<tbot::HttpParams>("tbot::HttpParams");
@@ -178,6 +191,12 @@ bool Application::init()
 
 void Application::deinit()
 {
+    if (_listenerInit)
+        tcp::listener().close();
+
+    if (_slaveSocket)
+        _slaveSocket->disconnect();
+
     for (tbot::Processing* p : _procList)
         p->stop();
 
@@ -216,11 +235,57 @@ void Application::timerEvent(QTimerEvent* event)
         if (_stop)
         {
             KILL_TIMER(_stopTimerId)
+            KILL_TIMER(_slaveTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
             exit(_exitCode);
             return;
         }
+
+        // Закрываем сокеты не прошедшие авторизацию за отведенное время
+        for (int i = 0; i < _waitAuthSockets.count(); ++i)
+            if (_waitAuthSockets[i].second.elapsed() > 3.1*1000 /*3.1 сек*/)
+            {
+                tcp::Socket::Ptr socket =
+                    tcp::listener().socketByDescriptor(_waitAuthSockets[i].first)
+                                   .dynamic_cast_to<tcp::Socket::Ptr>();
+                if (socket)
+                {
+                    data::CloseConnection closeConnection;
+                    closeConnection.description = "Authorization timeout expired";
+
+                    Message::Ptr m = createJsonMessage(closeConnection);
+                    m->appendDestinationSocket(socket->socketDescriptor());
+                    tcp::listener().send(m);
+
+                    log_error_m << "Authorization timeout expired"
+                                << ". Remote host: " << socket->peerPoint()
+                                << ". Connection will be closed";
+
+                    _waitAuthSockets[i].second.reset();
+                    _waitCloseSockets.append(_waitAuthSockets[i]);
+                }
+                _waitAuthSockets.remove(i--);
+            }
+
+        for (int i = 0; i < _waitCloseSockets.count(); ++i)
+            if (_waitCloseSockets[i].second.elapsed() > 2.5*1000 /*2.5 сек*/)
+            {
+                tcp::Socket::Ptr socket =
+                    tcp::listener().socketByDescriptor(_waitCloseSockets[i].first)
+                                   .dynamic_cast_to<tcp::Socket::Ptr>();
+                if (socket)
+                {
+                    log_error_m << "Force close of connection"
+                                << ". Remote host: " << socket->peerPoint();
+                    socket->disconnect();
+                }
+                _waitCloseSockets.remove(i--);
+            }
+    }
+    else if (event->timerId() == _slaveTimerId)
+    {
+        reloadBotMode();
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
@@ -233,6 +298,202 @@ void Application::stop(int exitCode)
 {
     _exitCode = exitCode;
     stop();
+}
+
+void Application::message(const Message::Ptr& message)
+{
+    // Не обрабатываем сообщения если приложение получило команду на остановку
+    if (_stop)
+        return;
+
+    if (message->processed())
+        return;
+
+    if (message->command() != command::SlaveAuth)
+    {
+        // Не обрабатываем сообщения от сокетов не прошедших авторизацию
+        for (int i = 0; i < _waitAuthSockets.count(); ++i)
+            if (_waitAuthSockets[i].first == message->socketDescriptor())
+                return;
+
+        for (int i = 0; i < _waitCloseSockets.count(); ++i)
+            if (_waitCloseSockets[i].first == message->socketDescriptor())
+                return;
+    }
+
+    if (lst::FindResult fr = _funcInvoker.findCommand(message->command()))
+    {
+        if (command::pool().commandIsSinglproc(message->command()))
+            message->markAsProcessed();
+        _funcInvoker.call(message, fr);
+    }
+}
+
+void Application::socketConnected(SocketDescriptor socketDescr)
+{
+    if (!_masterMode)
+    {
+        QString password;
+        config::base().getValue("bot.slave.password", password);
+
+        Message::Ptr m = createJsonMessage(command::SlaveAuth);
+        m->setAccessId(password.toUtf8());
+
+        _slaveSocket->send(m);
+        return;
+    }
+
+    // Master mode
+    _waitAuthSockets.append({socketDescr, steady_timer()});
+}
+
+void Application::socketDisconnected(SocketDescriptor socketDescr)
+{
+    for (int i = 0; i < _waitAuthSockets.count(); ++i)
+        if (_waitAuthSockets[i].first == socketDescr)
+            _waitAuthSockets.remove(i--);
+
+    for (int i = 0; i < _waitCloseSockets.count(); ++i)
+        if (_waitCloseSockets[i].first == socketDescr)
+            _waitCloseSockets.remove(i--);
+}
+
+void Application::command_SlaveAuth(const Message::Ptr& message)
+{
+    if (!_masterMode && (message->type() == Message::Type::Answer))
+    {
+        if (message->execStatus() != Message::ExecStatus::Success)
+        {
+            QString msg = errorDescription(message);
+            log_error_m << msg;
+        }
+        else
+            log_info_m << "Success authorization on master-bot"
+                       << ". Remote host: " << message->sourcePoint();
+
+        // Отправляем запрос на получение конфигурационного файла
+        Message::Ptr m = createJsonMessage(command::ConfSync);
+        if (_slaveSocket)
+            _slaveSocket->send(m);
+
+        return;
+    }
+
+    // Master mode
+    Message::Ptr answer = message->cloneForAnswer();
+
+    QString password;
+    config::base().getValue("bot.master.password", password);
+
+    if (password == QString::fromUtf8(message->accessId()))
+    {
+        for (int i = 0; i < _waitAuthSockets.count(); ++i)
+            if (_waitAuthSockets[i].first == message->socketDescriptor())
+                _waitAuthSockets.remove(i--);
+
+        // Отправляем подтверждение об успешной операции: пустое сообщение
+        tcp::listener().send(answer);
+
+        log_info_m << "Success authorization slave-bot"
+                   << ". Remote host: " << message->sourcePoint();
+        return;
+    }
+
+    // Ошибка авторизации
+    data::MessageFailed failed;
+    failed.description = "Failed authorization";
+
+    writeToJsonMessage(failed, answer);
+    tcp::listener().send(answer);
+
+    data::CloseConnection closeConnection;
+    closeConnection.description = failed.description;
+
+    Message::Ptr m = createJsonMessage(closeConnection);
+    m->appendDestinationSocket(message->socketDescriptor());
+    tcp::listener().send(m);
+
+    for (int i = 0; i < _waitAuthSockets.count(); ++i)
+        if (_waitAuthSockets[i].first == message->socketDescriptor())
+        {
+            _waitAuthSockets[i].second.reset();
+            _waitCloseSockets.append(_waitAuthSockets[i]);
+            _waitAuthSockets.remove(i--);
+        }
+
+    log_error_m << "Failed authorization"
+                << ". Remote host: " << message->sourcePoint()
+                << ". Connection will be closed";
+}
+
+void Application::command_ConfSync(const Message::Ptr& message)
+{
+    // Путь к конфиг-файлу (master/slave) с телеграм-группами
+    QString configFileM = QString(CONFIG_DIR) + "/telebot.groups";
+    QString configFileS = QString(VAROPT_DIR) + "/state/telebot.groups";
+
+    if (_masterMode)
+    {
+        Message::Ptr answer = message->cloneForAnswer();
+
+        if (!QFile::exists(configFileM))
+        {
+            writeToJsonMessage(error::config_not_exists, answer);
+            tcp::listener().send(answer);
+            return;
+        }
+
+        QFile file {configFileM};
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            writeToJsonMessage(error::config_not_read, answer);
+            tcp::listener().send(answer);
+            return;
+        }
+        QByteArray conf = file.readAll();
+        file.close();
+
+        data::ConfSync confSync;
+        confSync.config = QString::fromUtf8(conf);
+
+        writeToJsonMessage(confSync, answer);
+        tcp::listener().send(answer);
+        return;
+    }
+
+    // Slave mode
+    data::ConfSync confSync;
+    readFromMessage(message, confSync);
+
+    if (confSync.config.isEmpty())
+    {
+        log_error_m << "Groups config file is empty";
+        return;
+    }
+
+    // Проверяем структуру config-файла
+    YamlConfig yconfig;
+    if (!yconfig.readString(confSync.config.toStdString()))
+    {
+        log_error_m << "Groups config file structure is corrupted";
+        return;
+    }
+
+    config::observer().stop();
+
+    if (!yconfig.saveFile(configFileS.toStdString()))
+    {
+        log_error_m << "Failed save config file";
+        config::observer().start();
+        return;
+    }
+
+    log_verbose_m << "Groups config file updated from master-bot: " << configFileS;
+
+    config::work().readFile(configFileS.toStdString());
+    reloadGroups();
+
+    config::observer().start();
 }
 
 void Application::webhook_newConnection()
@@ -341,7 +602,21 @@ void Application::webhook_readyRead()
         wd.data = unicodeDecode(wd.data);
         log_verbose_m << "Webhook TCP data: " << wd.data;
 
-        tbot::Processing::addUpdate(wd.data);
+        if (!_masterMode)
+        {
+            if (_slaveSocket && !_slaveSocket->isConnected())
+            {
+                // Slave mode
+                tbot::Processing::addUpdate(wd.data);
+            }
+            else
+                log_verbose_m << "Bot in slave mode, message processing skipped";
+        }
+        else
+        {
+            // Master mode
+            tbot::Processing::addUpdate(wd.data);
+        }
 
         wd.dataSize = -1;
         wd.data.clear();
@@ -450,14 +725,119 @@ void Application::http_sslErrors(const QList<QSslError>&)
     log_error_m << "http_sslErrors()";
 }
 
-void Application::startRequest()
-{
-    tbot::HttpParams params;
-    sendTgCommand("getMe", params);
-}
-
 void Application::reloadConfig()
 {
+    QString masterModeStr;
+    config::base().getValue("bot.work_mode", masterModeStr);
+
+    _masterMode = !(masterModeStr == "slave");
+    log_info_m << "Bot mode: " << (_masterMode ? "master" : "slave");
+
+    // Путь к конфиг-файлу (master/slave) с телеграм-группами
+    QString configFileM = QString(CONFIG_DIR) + "/telebot.groups";
+    QString configFileS = QString(VAROPT_DIR) + "/state/telebot.groups";
+    if (_masterMode)
+    {
+        config::work().readFile(configFileM.toStdString());
+        config::observer().removeFile(configFileS);
+        config::observer().addFile(configFileM);
+    }
+    else
+    {
+        config::work().readFile(configFileS.toStdString());
+        config::observer().removeFile(configFileM);
+        config::observer().addFile(configFileS);
+    }
+
+    reloadBotMode();
+    reloadGroups();
+}
+
+void Application::reloadBotMode()
+{
+    if (_masterMode)
+    {
+        if (_slaveSocket)
+        {
+            _slaveSocket->disconnect();
+            QObject::disconnect(_slaveSocket.get(), nullptr, this, nullptr);
+            _slaveSocket.reset();
+        }
+
+        if (!_listenerInit)
+        {
+            chk_connect_q(&tcp::listener(), &tcp::Listener::message,
+                          this, &Application::message)
+
+            chk_connect_q(&tcp::listener(), &tcp::Listener::socketConnected,
+                          this, &Application::socketConnected)
+
+            chk_connect_q(&tcp::listener(), &tcp::Listener::socketDisconnected,
+                          this, &Application::socketDisconnected)
+
+            QHostAddress hostAddress = QHostAddress::AnyIPv4;
+            config::readHostAddress("bot.master.address", hostAddress);
+
+            int port = DEFAULT_PORT;
+            config::base().getValue("bot.master.port", port);
+
+#ifdef NDEBUG
+            tcp::listener().setOnlyEncrypted(true);
+#endif
+            _listenerInit = tcp::listener().init({hostAddress, port});
+        }
+    }
+    else
+    {
+        if (_listenerInit)
+        {
+            tcp::listener().close();
+            QObject::disconnect(&tcp::listener(), nullptr, this, nullptr);
+            _listenerInit = false;
+        }
+
+        if (_slaveSocket.empty())
+        {
+            _slaveSocket = tcp::Socket::Ptr(new tcp::Socket);
+
+            chk_connect_q(_slaveSocket.get(), &tcp::Socket::message,
+                          this, &Application::message)
+
+            chk_connect_q(_slaveSocket.get(), &tcp::Socket::connected,
+                          this, &Application::socketConnected)
+
+            chk_connect_q(_slaveSocket.get(), &tcp::Socket::disconnected,
+                          this, &Application::socketDisconnected)
+        }
+
+        if (!_slaveSocket->isConnected())
+        {
+            QString strAddr;
+            config::base().getValue("bot.slave.address", strAddr);
+
+            int port = DEFAULT_PORT;
+            config::base().getValue("bot.slave.port", port);
+
+            QHostInfo hostInfo = QHostInfo::fromName(strAddr);
+            if (hostInfo.error() != QHostInfo::NoError
+                || hostInfo.addresses().isEmpty())
+            {
+                log_error_m << "Failed resolve network address " << strAddr;
+                return;
+            }
+            QHostAddress addr = hostInfo.addresses()[0];
+
+            if (!_slaveSocket->init({addr, port}))
+                return;
+
+#ifdef NDEBUG
+            _slaveSocket->setEncryption(true);
+            _slaveSocket->setEchoTimeout(5);
+#endif
+            _slaveSocket->setMessageFormat(SerializeFormat::Json);
+            _slaveSocket->connect();
+        }
+    }
 }
 
 void Application::reloadGroups()
@@ -485,6 +865,31 @@ void Application::reloadGroups()
         params["chat_id"] = chat->id;
         sendTgCommand("getChat", params);
     }
+
+    if (_masterMode)
+    {
+        QString configFileM = QString(CONFIG_DIR) + "/telebot.groups";
+
+        QFile file {configFileM};
+        if (file.open(QIODevice::ReadOnly))
+        {
+            QByteArray conf = file.readAll();
+            file.close();
+
+            data::ConfSync confSync;
+            confSync.config = QString::fromUtf8(conf);
+
+            // Отправляем событие с измененным конфигурационным файлом
+            Message::Ptr m = createJsonMessage(confSync, {Message::Type::Event});
+            tcp::listener().send(m);
+        }
+    }
+}
+
+void Application::startRequest()
+{
+    tbot::HttpParams params;
+    sendTgCommand("getMe", params);
 }
 
 void Application::sendTgCommand(const QString& funcName,
@@ -589,7 +994,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         for (tbot::Processing* p : _procList)
             p->start();
 
-        reloadGroups();
+        reloadConfig();
     }
     else if ( rd.funcName == "getChat")
     {
@@ -988,3 +1393,4 @@ void Application::saveReportSpam()
     config::state().setValue("spammers", saveFunc);
     config::state().saveFile();
 }
+

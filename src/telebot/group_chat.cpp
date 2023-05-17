@@ -150,15 +150,16 @@ bool loadGroupChats(GroupChat::List& chats)
     try
     {
         YAML::Node ychats = config::work().nodeGet("group_chats");
-        if (ychats.IsDefined())
-        {
-            if (!ychats.IsSequence())
-                throw std::logic_error("'group_chats' node must have sequence type");
+        if (!ychats.IsDefined() || ychats.IsNull())
+            return false;
 
-            for (const YAML::Node& ychat : ychats)
-                if (GroupChat::Ptr c = createGroupChat(ychat))
-                    chats.add(c.detach());
-        }
+        if (!ychats.IsSequence())
+            throw std::logic_error("'group_chats' node must have sequence type");
+
+        for (const YAML::Node& ychat : ychats)
+            if (GroupChat::Ptr c = createGroupChat(ychat))
+                chats.add(c.detach());
+
         chats.sort();
         result = true;
     }

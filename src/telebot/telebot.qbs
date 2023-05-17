@@ -4,18 +4,28 @@ import ProbExt
 
 Product {
     name: "TeleBot"
-    targetName: "telebot"
     condition: true
+
+    targetName: "telebot";
+    Properties {
+         condition: project.slaveMode
+         targetName: "telebot-slave"
+    }
 
     type: "application"
     destinationDirectory: "./bin"
 
     Depends { name: "cpp" }
+    Depends { name: "lib.sodium" }
+    Depends { name: "Commands" }
     Depends { name: "PProto" }
     Depends { name: "RapidJson" }
     Depends { name: "SharedLib" }
     Depends { name: "Yaml" }
     Depends { name: "Qt"; submodules: ["core", "network"] }
+
+    lib.sodium.enabled: (qbs.buildVariant === "release")
+    lib.sodium.version: project.sodiumVersion
 
     cpp.defines: project.cppDefines
     cpp.cxxFlags: project.cxxFlags
@@ -28,19 +38,16 @@ Product {
 
     cpp.systemIncludePaths: QbsUtl.concatPaths(
         Qt.core.cpp.includePaths // Декларация для подавления Qt warning-ов
+       ,lib.sodium.includePath
     )
-
-//    cpp.rpaths: QbsUtl.concatPaths(
-//        "$ORIGIN/../lib"
-//    )
-
-//    cpp.libraryPaths: QbsUtl.concatPaths(
-//        project.buildDirectory + "/lib"
-//    )
 
     cpp.dynamicLibraries: QbsUtl.concatPaths(
         "pthread"
     )
+
+    cpp.staticLibraries: {
+        return lib.sodium.staticLibrariesPaths(product);
+    }
 
     files: [
         "group_chat.cpp",

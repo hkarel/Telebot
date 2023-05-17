@@ -3,6 +3,12 @@
 #include "tele_data.h"
 #include "processing.h"
 
+#include "pproto/func_invoker.h"
+#include "pproto/transport/tcp.h"
+
+#include "commands/commands.h"
+#include "commands/error.h"
+
 #include <QtCore>
 #include <QCoreApplication>
 #include <QSslKey>
@@ -17,6 +23,8 @@
 #include <chrono>
 
 using namespace std;
+using namespace pproto;
+using namespace pproto::transport;
 
 class SslServer : public QTcpServer
 {
@@ -58,6 +66,10 @@ public:
 
 public slots:
     void stop(int exitCode);
+    void message(const pproto::Message::Ptr&);
+
+    void socketConnected(pproto::SocketDescriptor);
+    void socketDisconnected(pproto::SocketDescriptor);
 
     void webhook_newConnection();
     void webhook_readyConnection();
@@ -72,9 +84,10 @@ public slots:
     void http_encrypted();
     void http_sslErrors(const QList<QSslError>&);
 
-    void startRequest();
     void reloadConfig();
+    void reloadBotMode();
     void reloadGroups();
+    void startRequest();
 
     // Функция для отправки http команды
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
@@ -89,6 +102,9 @@ private:
     Q_OBJECT
     void timerEvent(QTimerEvent* event) override;
 
+    void command_SlaveAuth(const Message::Ptr&);
+    void command_ConfSync(const Message::Ptr&);
+
     void loadReportSpam();
     void saveReportSpam();
 
@@ -98,16 +114,28 @@ private:
     static std::atomic_int _exitCode;
 
     int _stopTimerId = {-1};
+    int _slaveTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 
     QString _botId;
     qint64  _botUserId = {0};
+
+    bool _masterMode = {true};
+    bool _listenerInit = {false};
 
     QSslKey _sslKey;
     QSslCertificate _sslCert;
     SslServer::Ptr _webhookServer;
 
     tbot::Processing::List _procList;
+
+    typedef QVector<QPair<SocketDescriptor, steady_timer>> SocketPair;
+    SocketPair _waitAuthSockets;  // Список сокетов ожидающих авторизацию
+    SocketPair _waitCloseSockets; // Список сокетов ожидающих закрытие
+
+    tcp::Socket::Ptr _slaveSocket; // Сокет для соединения с master-ботом
+
+    FunctionInvoker _funcInvoker;
 
     struct Spammer
     {

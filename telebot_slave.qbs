@@ -2,9 +2,9 @@ import qbs
 import "telebot_base.qbs" as TelebotBase
 
 TelebotBase {
-    name: "TeleBot (Project)"
+    name: "TeleBot (Slave)"
 
-    readonly property bool slaveMode: false
+    readonly property bool slaveMode: true
 
     references: [
         "src/commands/commands.qbs",
