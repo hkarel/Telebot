@@ -5,7 +5,7 @@ Project {
     minimumQbsVersion: "1.23.0"
     qbsSearchPaths: ["qbs"]
 
-    //property bool useSodium: true
+    property bool useSodium: true
     property string sodiumVersion: "1.0.18"
 
     readonly property var projectVersion: projectProbe.projectVersion
@@ -36,6 +36,7 @@ Project {
             "PPROTO_VERSION_LOW=0",
             "PPROTO_VERSION_HIGH=0",
             "PPROTO_JSON_SERIALIZE",
+            "SODIUM_ENCRYPTION",
             "DEFAULT_PORT=28443",
             "CONFIG_DIR=\"/etc/telebot\"",
             "VAROPT_DIR=\"/var/opt/telebot\"",
@@ -43,9 +44,6 @@ Project {
 
         if (slaveMode === true)
             def.push("SLAVE_MODE");
-
-        if (qbs.buildVariant === "release")
-            def.push("SODIUM_ENCRYPTION");
 
         return def;
     }

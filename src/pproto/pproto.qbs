@@ -13,7 +13,7 @@ Product {
     Depends { name: "SharedLib" }
     Depends { name: "Qt"; submodules: ["core", "network"] }
 
-    lib.sodium.enabled: (qbs.buildVariant === "release")
+    lib.sodium.enabled: project.useSodium
     lib.sodium.version: project.sodiumVersion
 
     cpp.defines: project.cppDefines
