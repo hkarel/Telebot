@@ -289,8 +289,11 @@ void Application::timerEvent(QTimerEvent* event)
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
-        // Обновляем весь конфиг и список актуальных админов
-        reloadGroups();
+        if (_masterMode || (_slaveSocket && !_slaveSocket->isConnected()))
+        {
+            // Обновляем конфигурацию групп и список актуальных админов
+            reloadGroups();
+        }
     }
 }
 
