@@ -362,20 +362,27 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
 {
     if (!_masterMode && (message->type() == Message::Type::Answer))
     {
-        if (message->execStatus() != Message::ExecStatus::Success)
+        if (message->execStatus() == Message::ExecStatus::Success)
+        {
+            log_info_m << "Success authorization on master-bot"
+                       << ". Remote host: " << message->sourcePoint();
+
+            QTimer::singleShot(5*1000 /*5 сек*/, [this]()
+            {
+                if (Application::isStopped())
+                    return;
+
+                // Отправляем запрос на получение конфигурационного файла
+                Message::Ptr m = createJsonMessage(command::ConfSync);
+                if (_slaveSocket)
+                    _slaveSocket->send(m);
+            });
+        }
+        else
         {
             QString msg = errorDescription(message);
             log_error_m << msg;
         }
-        else
-            log_info_m << "Success authorization on master-bot"
-                       << ". Remote host: " << message->sourcePoint();
-
-        // Отправляем запрос на получение конфигурационного файла
-        Message::Ptr m = createJsonMessage(command::ConfSync);
-        if (_slaveSocket)
-            _slaveSocket->send(m);
-
         return;
     }
 
