@@ -479,7 +479,7 @@ void Application::command_ConfSync(const Message::Ptr& message)
     }
 
     // Проверяем структуру config-файла
-    YamlConfig yconfig;
+    YamlConfig yconfig; (void) yconfig;
     if (!yconfig.readString(confSync.config.toStdString()))
     {
         log_error_m << "Groups config file structure is corrupted";
@@ -488,12 +488,15 @@ void Application::command_ConfSync(const Message::Ptr& message)
 
     config::observer().stop();
 
-    if (!yconfig.saveFile(configFileS.toStdString()))
+    QFile file {configFileS};
+    if (!file.open(QIODevice::WriteOnly))
     {
-        log_error_m << "Failed save config file";
+        log_error_m << "Failed open to save config file: " << configFileS;
         config::observer().start();
         return;
     }
+    file.write(confSync.config.toUtf8());
+    file.close();
 
     log_verbose_m << "Groups config file updated from master-bot: " << configFileS;
 
@@ -791,6 +794,7 @@ void Application::reloadBotMode()
 #ifdef NDEBUG
             tcp::listener().setOnlyEncrypted(true);
 #endif
+            tcp::listener().setCompressionLevel(-1);
             _listenerInit = tcp::listener().init({hostAddress, port});
         }
     }
@@ -842,6 +846,7 @@ void Application::reloadBotMode()
             _slaveSocket->setEchoTimeout(5);
 #endif
             _slaveSocket->setMessageFormat(SerializeFormat::Json);
+            _slaveSocket->setCompressionLevel(-1);
             _slaveSocket->connect();
         }
     }
