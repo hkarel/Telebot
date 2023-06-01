@@ -949,7 +949,7 @@ void Application::sendTgCommand(const QString& funcName,
 
 void Application::httpResultHandler(const ReplyData& rd)
 {
-    if ( rd.funcName == "getMe")
+    if (rd.funcName == "getMe")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
@@ -1011,7 +1011,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         reloadConfig();
     }
-    else if ( rd.funcName == "getChat")
+    else if (rd.funcName == "getChat")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))

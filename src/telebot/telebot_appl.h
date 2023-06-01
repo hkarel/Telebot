@@ -58,7 +58,7 @@ public:
     struct ReplyData
     {
         QNetworkReply* reply = {nullptr};
-        quint64 replyNumer  = {0};
+        quint64 replyNumer = {0};
         QString funcName;
         tbot::HttpParams params;
         QByteArray data;
