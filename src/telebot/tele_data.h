@@ -195,7 +195,7 @@ struct Chat : public clife_base
     bool           has_protected_content    = {false}; // Optional. True, if messages from the chat can't be forwarded to other chats. Returned only in getChat.
     QString        sticker_set_name;                   // Optional. For supergroups, name of group sticker set. Returned only in getChat.
     bool           can_set_sticker_set      = {false}; // Optional. True, if the bot can change the group sticker set. Returned only in getChat.
-    qint32         linked_chat_id;                     // Optional. Unique identifier for the linked chat, i.e. the discussion group identifier for a channel and vice versa; for supergroups and channel chats. This identifier may be greater than 32 bits and some programming languages may have difficulty/silent defects in interpreting it. But it is smaller than 52 bits, so a signed 64 bit integer or double-precision float type are safe for storing this identifier. Returned only in getChat.
+    qint64         linked_chat_id;                     // Optional. Unique identifier for the linked chat, i.e. the discussion group identifier for a channel and vice versa; for supergroups and channel chats. This identifier may be greater than 32 bits and some programming languages may have difficulty/silent defects in interpreting it. But it is smaller than 52 bits, so a signed 64 bit integer or double-precision float type are safe for storing this identifier. Returned only in getChat.
   //ChatLocatPtr   location;                           // Optional. For supergroups, the location to which the supergroup is connected. Returned only in getChat.
 
     DECLARE_J_SERIALIZE_FUNC
