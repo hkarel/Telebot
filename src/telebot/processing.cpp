@@ -268,8 +268,20 @@ void Processing::run()
                 params2["parse_mode"] = "HTML";
                 emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
 
-                // Отправляем отчет о спаме
-                emit reportSpam(chatId, message->from);
+                if (trigger->immediatelyBan)
+                {
+                    tbot::HttpParams params;
+                    params["chat_id"] = chatId;
+                    params["user_id"] = userId;
+                    params["until_date"] = qint64(std::time(nullptr));
+                    params["revoke_messages"] = true;
+                    sendTgCommand("banChatMember", params, 6*1000 /*6 сек*/);
+                }
+                else
+                {
+                    // Отправляем отчет о спаме
+                    emit reportSpam(chatId, message->from);
+                }
                 break;
             }
         }

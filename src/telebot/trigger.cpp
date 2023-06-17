@@ -334,6 +334,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         inverse = ytrigger["inverse"].as<bool>();
     }
 
+    bool immediatelyBan = false;
+    if (ytrigger["immediately_ban"].IsDefined())
+    {
+        checkFiedType(ytrigger, "immediately_ban", YAML::NodeType::Scalar);
+        immediatelyBan = ytrigger["immediately_ban"].as<bool>();
+    }
+
     bool multiline = false;
     if (ytrigger["multiline"].IsDefined())
     {
@@ -424,6 +431,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         trigger->skipAdmins = skipAdmins;
         trigger->whiteUsers = whiteUsers;
         trigger->inverse = inverse;
+        trigger->immediatelyBan = immediatelyBan;
     }
     return trigger;
 }
@@ -561,7 +569,8 @@ void printTriggers(Trigger::List& triggers)
             logLine << nextComma() << item;
         logLine << "]";
 
-        logLine << "; inverse: " << trigger->inverse;
+        logLine << "; inverse: " << trigger->inverse
+                << "; immediately_ban: " << trigger->immediatelyBan;
 
         if (!trigger->description.isEmpty())
             logLine << "; description: " << trigger->description;
