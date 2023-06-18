@@ -154,6 +154,10 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
             ". Text after rx-remove: %?",
             update.update_id, chat->name(), name, text);
 
+    text = text.trimmed();
+    if (text.isEmpty())
+        return false;
+
     for (const QRegularExpression& re : regexpList)
     {
         const QRegularExpressionMatch match = re.match(text);
