@@ -9,6 +9,7 @@ SUDO=
 rebuild=
 print_help=
 build_mode=release
+command_echo_mode=summary
 need_packages=
 
 build_packages=
@@ -63,6 +64,7 @@ Usage: ${0##*/}
   -r   full rebuild the project
   -d   build in 'debug' mode
   -D   build deb package
+  -E   Show QBS command echo
   -i   install deb package $package_base
   -R   remove installation $package_base and exit
   -L   use 'lintian' utility to check deb-packages
@@ -88,6 +90,10 @@ do
             ;;
         -D)
             build_packages=yes
+            shift
+            ;;
+        -E)
+            command_echo_mode="command-line"
             shift
             ;;
         -i)
@@ -191,7 +197,7 @@ set -e
 qbs build \
     --file telebot_project.qbs \
     --build-directory ./build \
-    --command-echo-mode command-line \
+    --command-echo-mode $command_echo_mode \
     --jobs $jobs \
     --no-install \
     --products TeleBot \
