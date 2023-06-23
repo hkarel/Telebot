@@ -18,11 +18,7 @@ struct GroupChat;
 
 struct Trigger : public clife_base
 {
-public:
     typedef clife_ptr<Trigger> Ptr;
-
-    Trigger() = default;
-    virtual ~Trigger() = default;
 
     // Имя триггера
     QString name;
@@ -66,41 +62,61 @@ public:
     };
     typedef lst::List<Trigger, Find, clife_alloc<Trigger>> List;
 
-private:
+protected:
+    Trigger() = default;
     DISABLE_DEFAULT_COPY(Trigger)
 };
 
-struct TriggerLink : public Trigger
+struct TriggerLinkBase : public Trigger
 {
-public:
-    typedef clife_ptr<TriggerLink> Ptr;
-
-    TriggerLink() = default;
-
     struct ItemLink
     {
         QString host;
         QStringList paths;
     };
-    typedef QList<ItemLink> WhiteList;
+    typedef QList<ItemLink> LinkList;
 
-    // Список исключений
-    WhiteList whiteList;
+    // Белый список исключений
+    LinkList whiteList;
+
+    // Черный список исключений
+    LinkList blackList;
+
+protected:
+    TriggerLinkBase() = default;
+    DISABLE_DEFAULT_COPY(TriggerLinkBase)
+};
+
+struct TriggerLinkDisable : public TriggerLinkBase
+{
+    typedef clife_ptr<TriggerLinkDisable> Ptr;
+
+    TriggerLinkDisable() = default;
+    DISABLE_DEFAULT_COPY(TriggerLinkDisable)
 
     bool isActive(
            const tbot::Update& update, GroupChat* chat,
            const QString& clearText, const QString& alterText) const override;
+};
 
-private:
-    DISABLE_DEFAULT_COPY(TriggerLink)
+struct TriggerLinkEnable : public TriggerLinkBase
+{
+    typedef clife_ptr<TriggerLinkEnable> Ptr;
+
+    TriggerLinkEnable() = default;
+    DISABLE_DEFAULT_COPY(TriggerLinkEnable)
+
+    bool isActive(
+           const tbot::Update& update, GroupChat* chat,
+           const QString& clearText, const QString& alterText) const override;
 };
 
 struct TriggerWord : public Trigger
 {
-public:
     typedef clife_ptr<TriggerWord> Ptr;
 
     TriggerWord() = default;
+    DISABLE_DEFAULT_COPY(TriggerWord)
 
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
@@ -112,16 +128,14 @@ public:
            const tbot::Update& update, GroupChat* chat,
            const QString& clearText, const QString& alterText) const override;
 
-private:
-    DISABLE_DEFAULT_COPY(TriggerWord)
 };
 
 struct TriggerRegexp : public Trigger
 {
-public:
     typedef clife_ptr<TriggerRegexp> Ptr;
 
     TriggerRegexp() = default;
+    DISABLE_DEFAULT_COPY(TriggerRegexp)
 
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
@@ -147,9 +161,6 @@ public:
     bool isActive(
            const tbot::Update& update, GroupChat* chat,
            const QString& clearText, const QString& alterText) const override;
-
-private:
-    DISABLE_DEFAULT_COPY(TriggerRegexp)
 };
 
 const char* yamlTypeName(YAML::NodeType::value type);

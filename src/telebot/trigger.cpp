@@ -19,7 +19,8 @@ namespace tbot {
 
 using namespace std;
 
-bool TriggerLink::isActive(const Update& update, GroupChat* chat,
+bool TriggerLinkDisable::isActive(
+                           const Update& update, GroupChat* chat,
                            const QString& clearText, const QString& alterText) const
 {
     (void) clearText;
@@ -56,7 +57,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
             activationReasonMessage = u8"ссылка: " + urlStr;
 
             log_debug_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger '%?'. Input url: %?)",
+                "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
                 update.update_id, chat->name(), name, urlStr);
 
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
@@ -68,7 +69,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                     if (item.paths.isEmpty())
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Trigger '%?', link  skipped)"
+                            "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
                             ". It belong to whitelist [host: %?; path: empty]",
                             update.update_id, chat->name(), name, item.host);
                         urlGood = true;
@@ -85,7 +86,7 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
                         if (path.startsWith(ipath, Qt::CaseInsensitive))
                         {
                             log_verbose_m << log_format(
-                                R"("update_id":%?. Chat: %?. Trigger '%?', link skipped)"
+                                "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
                                 ". It belong to whitelist [host: %?; path: %?]",
                                 update.update_id, chat->name(), name, item.host, ipath);
                             urlGood = true;
@@ -101,7 +102,133 @@ bool TriggerLink::isActive(const Update& update, GroupChat* chat,
     if (!urlGood)
     {
         log_verbose_m << log_format(
-            R"("update_id":%?. Chat: %?. Trigger '%?' activated)",
+            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+            update.update_id, chat->name(), name);
+        return true;
+    }
+    return false;
+}
+
+bool TriggerLinkEnable::isActive(
+                           const Update& update, GroupChat* chat,
+                           const QString& clearText, const QString& alterText) const
+{
+    (void) clearText;
+    (void) alterText;
+    activationReasonMessage.clear();
+
+    Message::Ptr message = update.message;
+    if (message.empty())
+        message = update.edited_message;
+
+    if (message.empty())
+        return false;
+
+    bool urlBad = false;
+    bool urlGood = true;
+    for (const MessageEntity& entity : message->entities)
+    {
+        QString urlStr;
+        bool entityUrl = false;
+
+        if (entity.type == "url")
+        {
+            entityUrl = true;
+            urlStr = message->text.mid(entity.offset, entity.length);
+        }
+        else if (entity.type == "text_link")
+        {
+            entityUrl = true;
+            urlStr = entity.url;
+        }
+
+        if (entityUrl)
+        {
+            urlGood = false;
+            activationReasonMessage = u8"ссылка: " + urlStr;
+
+            log_debug_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
+                update.update_id, chat->name(), name, urlStr);
+
+            QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
+            QString host = url.host();
+            QString path = url.path();
+            for (const ItemLink& item : whiteList)
+                if (host.endsWith(item.host, Qt::CaseInsensitive))
+                {
+                    if (item.paths.isEmpty())
+                    {
+                        log_verbose_m << log_format(
+                            "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
+                            ". It belong to whitelist [host: %?; path: empty]",
+                            update.update_id, chat->name(), name, item.host);
+                        urlGood = true;
+                        break;
+                    }
+                    for (QString ipath: item.paths)
+                    {
+                        if (ipath.isEmpty())
+                            continue;
+
+                        if (ipath[0] != QChar('/'))
+                            ipath.prepend(QChar('/'));
+
+                        if (path.startsWith(ipath, Qt::CaseInsensitive))
+                        {
+                            log_verbose_m << log_format(
+                                "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
+                                ". It belong to whitelist [host: %?; path: %?]",
+                                update.update_id, chat->name(), name, item.host, ipath);
+                            urlGood = true;
+                            break;
+                        }
+                    }
+                }
+
+            if (urlGood)
+                continue;
+
+            for (const ItemLink& item : blackList)
+                if (host.endsWith(item.host, Qt::CaseInsensitive))
+                {
+                    if (item.paths.isEmpty())
+                    {
+                        log_verbose_m << log_format(
+                            "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
+                            ". It belong to blacklist [host: %?; path: empty]",
+                            update.update_id, chat->name(), name, item.host);
+                        urlBad = true;
+                        break;
+                    }
+                    for (QString ipath: item.paths)
+                    {
+                        if (ipath.isEmpty())
+                            continue;
+
+                        if (ipath[0] != QChar('/'))
+                            ipath.prepend(QChar('/'));
+
+                        if (path.startsWith(ipath, Qt::CaseInsensitive))
+                        {
+                            log_verbose_m << log_format(
+                                "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
+                                ". It belong to blacklist [host: %?; path: %?]",
+                                update.update_id, chat->name(), name, item.host, ipath);
+                            urlBad = true;
+                            break;
+                        }
+                    }
+                }
+
+            if (urlBad)
+                break;
+        }
+    }
+    if (urlBad)
+    {
+        log_verbose_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
             update.update_id, chat->name(), name);
         return true;
     }
@@ -124,7 +251,7 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
         if (clearText.contains(word, caseSens))
         {
             log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
                 ". The word '%?' was found",
                 update.update_id, chat->name(), name, word);
 
@@ -150,7 +277,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
 
     if (text.length() != textLen)
         log_verbose_m << log_format(
-            R"("update_id":%?. Chat: %?. Trigger '%?')"
+            "\"update_id\":%?. Chat: %?. Trigger '%?'"
             ". Text after rx-remove: %?",
             update.update_id, chat->name(), name, text);
 
@@ -164,7 +291,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         if (match.hasMatch())
         {
             alog::Line logLine = log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger '%?' activated)"
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
                 ". Regular expression '%?' matched. Captured text: ",
                 update.update_id, chat->name(), name, re.pattern());
             for (const QString& cap : match.capturedTexts())
@@ -176,7 +303,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
         else
         {
             log_debug2_m << log_format(
-                R"("update_id":%?. Chat: %?. Trigger '%?')"
+                "\"update_id\":%?. Chat: %?. Trigger '%?'"
                 ". Regular expression pattern '%?' not match",
                 update.update_id, chat->name(), name, re.pattern());
         }
@@ -239,36 +366,36 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         checkFiedType(ytrigger, "type", YAML::NodeType::Scalar);
         type = ytrigger["type"].as<string>();
     }
-    if (type != "link"
+    if (type != "link" // Синоним link_disable
+        && type != "link_enable"
+        && type != "link_disable"
         && type != "word"
         && type != "regexp")
     {
         throw std::logic_error(
             "In a filter-node a field 'type' can take one of the following "
-            "values: link, word, regexp. "
+            "values: link_enable, link_disable (link), word, regexp. "
             "Current value: " + type);
     }
 
-    TriggerLink::WhiteList linkWhiteList;
-    if (ytrigger["white_list"].IsDefined())
+    auto readWhiteBlackList = [&](const YAML::Node& ylist,
+                                  TriggerLinkBase::LinkList& linkList)
     {
-        checkFiedType(ytrigger, "white_list", YAML::NodeType::Sequence);
-        const YAML::Node& ywhite_list = ytrigger["white_list"];
-        for (const YAML::Node& ywhite_item : ywhite_list)
+        for (const YAML::Node& yitem : ylist)
         {
-            checkFiedType(ywhite_item, "host", YAML::NodeType::Scalar);
-            TriggerLink::ItemLink itemLink;
+            checkFiedType(yitem, "host", YAML::NodeType::Scalar);
+            TriggerLinkBase::ItemLink itemLink;
 
-            const YAML::Node yhost = ywhite_item["host"];
+            const YAML::Node yhost = yitem["host"];
             itemLink.host = QString::fromStdString(yhost.as<string>()).trimmed();
 
             if (itemLink.host.isEmpty())
                 continue;
 
-            const YAML::Node ypath_list = ywhite_item["paths"];
+            const YAML::Node ypath_list = yitem["paths"];
             if (ypath_list.IsDefined())
             {
-                checkFiedType(ywhite_item, "paths", YAML::NodeType::Sequence);
+                checkFiedType(yitem, "paths", YAML::NodeType::Sequence);
                 for (const YAML::Node& ypath : ypath_list)
                 {
                     QString path = QString::fromStdString(ypath.as<string>()).trimmed();
@@ -277,8 +404,24 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
                     itemLink.paths.append(path);
                 }
             }
-            linkWhiteList.append(itemLink);
+            linkList.append(itemLink);
         }
+    };
+
+    TriggerLinkBase::LinkList linkWhiteList;
+    if (ytrigger["white_list"].IsDefined())
+    {
+        checkFiedType(ytrigger, "white_list", YAML::NodeType::Sequence);
+        const YAML::Node& ywhite_list = ytrigger["white_list"];
+        readWhiteBlackList(ywhite_list, linkWhiteList);
+    }
+
+    TriggerLinkBase::LinkList linkBlackList;
+    if (ytrigger["black_list"].IsDefined())
+    {
+        checkFiedType(ytrigger, "black_list", YAML::NodeType::Sequence);
+        const YAML::Node& yblack_list = ytrigger["black_list"];
+        readWhiteBlackList(yblack_list, linkBlackList);
     }
 
     QStringList wordList;
@@ -366,11 +509,18 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
 
     Trigger::Ptr trigger;
 
-    if (type == "link")
+    if ((type == "link") || (type == "link_disable"))
     {
-        TriggerLink::Ptr triggerLink {new TriggerLink};
-        triggerLink->whiteList = linkWhiteList;
-        trigger = triggerLink;
+        TriggerLinkDisable::Ptr triggerLinkD {new TriggerLinkDisable};
+        triggerLinkD->whiteList = linkWhiteList;
+        trigger = triggerLinkD;
+    }
+    else if (type == "link_enable")
+    {
+        TriggerLinkEnable::Ptr triggerLinkE {new TriggerLinkEnable};
+        triggerLinkE->whiteList = linkWhiteList;
+        triggerLinkE->blackList = linkBlackList;
+        trigger = triggerLinkE;
     }
     else if (type == "word")
     {
@@ -510,14 +660,9 @@ void printTriggers(Trigger::List& triggers)
         alog::Line logLine = log_info_m << "Trigger : ";
         logLine << "name: " << trigger->name;
 
-        if (TriggerLink* triggerLink = dynamic_cast<TriggerLink*>(trigger))
+        auto printWhiteBlackList = [&](const TriggerLinkBase::LinkList& linkList)
         {
-            logLine << "; type: link"
-                    << "; active: " << trigger->active;
-
-            nextCommaVal = false;
-            logLine << "; white_list: [";
-            for (const TriggerLink::ItemLink& item : triggerLink->whiteList)
+            for (const TriggerLinkBase::ItemLink& item : linkList)
             {
                 logLine << nextComma() << "{host: " << item.host;
                 if (!item.paths.isEmpty())
@@ -530,12 +675,36 @@ void printTriggers(Trigger::List& triggers)
                 }
                 logLine << "}";
             }
+        };
+        if (TriggerLinkDisable* triggerLinkD = dynamic_cast<TriggerLinkDisable*>(trigger))
+        {
+            logLine << "; type: link_disable"
+                    << "; active: " << triggerLinkD->active;
+
+            nextCommaVal = false;
+            logLine << "; white_list: [";
+            printWhiteBlackList(triggerLinkD->whiteList);
+            logLine << "]";
+        }
+        else if (TriggerLinkEnable* triggerLinkE = dynamic_cast<TriggerLinkEnable*>(trigger))
+        {
+            logLine << "; type: link_enable"
+                    << "; active: " << triggerLinkE->active;
+
+            nextCommaVal = false;
+            logLine << "; white_list: [";
+            printWhiteBlackList(triggerLinkE->whiteList);
+            logLine << "]";
+
+            nextCommaVal = false;
+            logLine << "; black_list: [";
+            printWhiteBlackList(triggerLinkE->blackList);
             logLine << "]";
         }
         else if (TriggerWord* triggerWord = dynamic_cast<TriggerWord*>(trigger))
         {
             logLine << "; type: word"
-                    << "; active: " << trigger->active
+                    << "; active: " << triggerWord->active
                     << "; case_insensitive: " << triggerWord->caseInsensitive;
 
             nextCommaVal = false;
@@ -547,7 +716,7 @@ void printTriggers(Trigger::List& triggers)
         else if (TriggerRegexp* triggerRegexp = dynamic_cast<TriggerRegexp*>(trigger))
         {
             logLine << "; type: regexp"
-                    << "; active: " << trigger->active
+                    << "; active: " << triggerRegexp->active
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
                     << "; multiline: " << triggerRegexp->multiline
                     << "; analyze: " << triggerRegexp->analyze;
