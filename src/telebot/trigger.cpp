@@ -19,6 +19,11 @@ namespace tbot {
 
 using namespace std;
 
+struct trigger_logic_error : public std::logic_error
+{
+    explicit trigger_logic_error(const string& msg) : std::logic_error(msg) {}
+};
+
 bool TriggerLinkDisable::isActive(
                            const Update& update, GroupChat* chat,
                            const QString& clearText, const QString& alterText) const
@@ -328,11 +333,11 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
                             YAML::NodeType::value type)
     {
         if (ynode[field].IsNull())
-            throw std::logic_error(
+            throw trigger_logic_error(
                 "For 'trigger' node a field '" + field + "' can not be null");
 
         if (ynode[field].Type() != type)
-            throw std::logic_error(
+            throw trigger_logic_error(
                 "For 'trigger' node a field '" + field + "' "
                 "must have type '" + yamlTypeName(type) + "'");
     };
@@ -344,7 +349,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         name = QString::fromStdString(ytrigger["name"].as<string>());
     }
     if (name.isEmpty())
-        throw std::logic_error("In a filter-node a field 'name' can not be empty");
+        throw trigger_logic_error("In a 'trigger' node a field 'name' can not be empty");
 
     bool active = true;
     if (ytrigger["active"].IsDefined())
@@ -372,9 +377,9 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         && type != "word"
         && type != "regexp")
     {
-        throw std::logic_error(
-            "In a filter-node a field 'type' can take one of the following "
-            "values: link_enable, link_disable (link), word, regexp. "
+        throw trigger_logic_error(
+            "In a 'trigger' node a field 'type' can take one of the following "
+            "values: link_enable, link_disable/link, word, regexp. "
             "Current value: " + type);
     }
 
@@ -605,8 +610,16 @@ bool loadTriggers(Trigger::List& triggers)
             throw std::logic_error("'triggers' node must have sequence type");
 
         for (const YAML::Node& ytrigger : ytriggers)
-            if (Trigger::Ptr t = createTrigger(ytrigger))
-                triggers.add(t.detach());
+            try
+            {
+                if (Trigger::Ptr t = createTrigger(ytrigger))
+                    triggers.add(t.detach());
+            }
+            catch (trigger_logic_error& e)
+            {
+                log_error_m << "Trigger configure error. Detail: " << e.what()
+                            << ". Config file: " << config::work().filePath();
+            }
 
         result = true;
     }

@@ -18,6 +18,11 @@ namespace tbot {
 
 using namespace std;
 
+struct group_logic_error : public std::logic_error
+{
+    explicit group_logic_error(const string& msg) : std::logic_error(msg) {}
+};
+
 QString GroupChat::name() const
 {
     QMutexLocker locker {&_lock}; (void) locker;
@@ -59,11 +64,11 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     auto checkFiedType = [&ychat](const string& field, YAML::NodeType::value type)
     {
         if (ychat[field].IsNull())
-            throw std::logic_error(
+            throw group_logic_error(
                 "For 'group_chats' node a field '" + field + "' can not be null");
 
         if (ychat[field].Type() != type)
-            throw std::logic_error(
+            throw group_logic_error(
                 "For 'group_chats' node a field '" + field + "' "
                 "must have type '" + yamlTypeName(type) + "'");
     };
@@ -75,7 +80,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         id = ychat["id"].as<int64_t>();
     }
     if (id == 0)
-        throw std::logic_error("In a 'group_chats' node a field 'id' can not be empty");
+        throw group_logic_error("In a 'group_chats' node a field 'id' can not be empty");
 
     QString name;
     if (ychat["name"].IsDefined())
@@ -157,8 +162,16 @@ bool loadGroupChats(GroupChat::List& chats)
             throw std::logic_error("'group_chats' node must have sequence type");
 
         for (const YAML::Node& ychat : ychats)
-            if (GroupChat::Ptr c = createGroupChat(ychat))
-                chats.add(c.detach());
+            try
+            {
+                if (GroupChat::Ptr c = createGroupChat(ychat))
+                    chats.add(c.detach());
+            }
+            catch (group_logic_error& e)
+            {
+                log_error_m << "Group configure error. Detail: " << e.what()
+                            << ". Config file: " << config::work().filePath();
+            }
 
         chats.sort();
         result = true;
