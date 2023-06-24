@@ -146,8 +146,9 @@ void Processing::run()
         }
 
         QString clearText = message->text;
-        for (const MessageEntity& entity : message->entities)
+        for (int i = message->entities.count() - 1; i >= 0; --i)
         {
+            const MessageEntity& entity = message->entities[i];
             if (entity.type == "url")
                 clearText.remove(entity.offset, entity.length);
         }
