@@ -129,8 +129,6 @@ bool TriggerLinkEnable::isActive(
     if (message.empty())
         return false;
 
-    bool urlBad = false;
-    bool urlGood = true;
     for (const MessageEntity& entity : message->entities)
     {
         QString urlStr;
@@ -149,7 +147,7 @@ bool TriggerLinkEnable::isActive(
 
         if (entityUrl)
         {
-            urlGood = false;
+            bool urlGood = false;
             activationReasonMessage = u8"ссылка: " + urlStr;
 
             log_debug_m << log_format(
@@ -194,6 +192,7 @@ bool TriggerLinkEnable::isActive(
             if (urlGood)
                 continue;
 
+            bool urlBad = false;
             for (const ItemLink& item : blackList)
                 if (host.endsWith(item.host, Qt::CaseInsensitive))
                 {
@@ -227,15 +226,13 @@ bool TriggerLinkEnable::isActive(
                 }
 
             if (urlBad)
-                break;
+            {
+                log_verbose_m << log_format(
+                    "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+                    update.update_id, chat->name(), name);
+                return true;
+            }
         }
-    }
-    if (urlBad)
-    {
-        log_verbose_m << log_format(
-            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
-            update.update_id, chat->name(), name);
-        return true;
     }
     return false;
 }
