@@ -18,6 +18,8 @@ namespace tbot {
 
 using namespace std;
 
+extern atomic_int globalConfigParceErrors;
+
 struct group_logic_error : public std::logic_error
 {
     explicit group_logic_error(const string& msg) : std::logic_error(msg) {}
@@ -142,6 +144,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         {
             log_error_m << log_format("Group chat id: %?. Trigger '%?' not found",
                                       chat->id, triggerName);
+            ++globalConfigParceErrors;
         }
     }
     return chat;
@@ -171,6 +174,7 @@ bool loadGroupChats(GroupChat::List& chats)
             {
                 log_error_m << "Group configure error. Detail: " << e.what()
                             << ". Config file: " << config::work().filePath();
+                ++globalConfigParceErrors;
             }
 
         chats.sort();
@@ -180,16 +184,19 @@ bool loadGroupChats(GroupChat::List& chats)
     {
         log_error_m << "YAML error. Detail: " << e.what()
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     catch (std::exception& e)
     {
         log_error_m << "Configuration error. Detail: " << e.what()
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     catch (...)
     {
         log_error_m << "Unknown error"
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     return result;
 }

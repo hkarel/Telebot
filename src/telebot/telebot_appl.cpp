@@ -29,6 +29,10 @@
 
 #define KILL_TIMER(TIMER) {if (TIMER != -1) {killTimer(TIMER); TIMER = -1;}}
 
+namespace tbot {
+extern std::atomic_int globalConfigParceErrors;
+}
+
 QUuidEx Application::_applId;
 volatile bool Application::_stop = false;
 std::atomic_int Application::_exitCode = {0};
@@ -859,6 +863,9 @@ void Application::reloadGroups()
 {
     config::work().rereadFile();
 
+    _getChatAdminCallCount = 0;
+    tbot::globalConfigParceErrors = 0;
+
     { //Block for tbot::Trigger::List
         tbot::Trigger::List triggers;
         tbot::loadTriggers(triggers);
@@ -1042,6 +1049,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
                     sendTgCommand("getChatAdministrators", params);
+                    ++_getChatAdminCallCount;
                 }
                 else
                 {
@@ -1098,6 +1106,8 @@ void Application::httpResultHandler(const ReplyData& rd)
     }
     else if (rd.funcName == "getChatAdministrators")
     {
+        --_getChatAdminCallCount;
+
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
             return;
@@ -1125,6 +1135,23 @@ void Application::httpResultHandler(const ReplyData& rd)
                 tbot::GroupChat* chat = chats.item(fr.index());
                 chat->setAdminIds(adminIds);
                 chat->setOwnerIds(ownerIds);
+            }
+        }
+
+        if (_getChatAdminCallCount == 0)
+        {
+            if (tbot::globalConfigParceErrors == 0)
+            {
+                log_info_m << "---";
+                log_info_m << "Success parse groups config-file";
+                log_info_m << "---";
+            }
+            else
+            {
+                log_error_m << "---";
+                log_error_m << "Failed parse groups config-file"
+                            << ". Error count: " << int(tbot::globalConfigParceErrors);
+                log_error_m << "---";
             }
         }
     }

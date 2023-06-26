@@ -181,4 +181,7 @@ private:
 
     typedef container_ptr<QNetworkAccessManager> QNetworkAccessManagerPtr;
     QNetworkAccessManagerPtr _networkAccManager;
+
+    // Счетчик вызова ТГ-функции "getChatAdministrators"
+    int _getChatAdminCallCount = {0};
 };

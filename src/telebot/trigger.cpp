@@ -19,6 +19,8 @@ namespace tbot {
 
 using namespace std;
 
+atomic_int globalConfigParceErrors = {0};
+
 struct trigger_logic_error : public std::logic_error
 {
     explicit trigger_logic_error(const string& msg) : std::logic_error(msg) {}
@@ -558,6 +560,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
                             << ". Pattren '" << pattern << "'"
                             << ". Error: " << re.errorString()
                             << ". Offset: " << re.patternErrorOffset();
+                ++globalConfigParceErrors;
                 continue;
             }
             triggerRegexp->regexpRemove.append(std::move(re));
@@ -573,6 +576,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
                             << ". Pattren '" << pattern << "'"
                             << ". Error: " << re.errorString()
                             << ". Offset: " << re.patternErrorOffset();
+                ++globalConfigParceErrors;
                 continue;
             }
             triggerRegexp->regexpList.append(std::move(re));
@@ -616,6 +620,7 @@ bool loadTriggers(Trigger::List& triggers)
             {
                 log_error_m << "Trigger configure error. Detail: " << e.what()
                             << ". Config file: " << config::work().filePath();
+                ++globalConfigParceErrors;
             }
 
         result = true;
@@ -625,18 +630,21 @@ bool loadTriggers(Trigger::List& triggers)
         triggers.clear();
         log_error_m << "YAML error. Detail: " << e.what()
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     catch (std::exception& e)
     {
         triggers.clear();
         log_error_m << "Configuration error. Detail: " << e.what()
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     catch (...)
     {
         triggers.clear();
         log_error_m << "Unknown error"
                     << ". Config file: " << config::work().filePath();
+        ++globalConfigParceErrors;
     }
     return result;
 }
