@@ -34,6 +34,9 @@ public:
     // Если параметр равен 0 пользователь блокироваться не будет
     qint32 userSpamLimit = {5};
 
+    // Ограничение пользователя за публикацию спам-сообщений
+    QVector<qint32> userRestricts;
+
     // Список идентификаторов администраторов группы
     QSet<qint64> adminIds() const;
     void setAdminIds(const QSet<qint64>&);

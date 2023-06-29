@@ -1155,7 +1155,8 @@ void Application::httpResultHandler(const ReplyData& rd)
             }
         }
     }
-    else if (rd.funcName == "banChatMember")
+    else if (rd.funcName == "banChatMember"
+             || rd.funcName == "restrictChatMember")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
@@ -1170,12 +1171,22 @@ void Application::httpResultHandler(const ReplyData& rd)
         lst::FindResult fr = _spammers.findRef(qMakePair(chatId, userId));
 
         { //Block for alog::Line
-            alog::Line logLine = log_error_m;
+            alog::Line logLine = httpResult.ok ? log_verbose_m : log_error_m;
 
-            if (!httpResult.ok)
-                logLine << "Failed ban user";
+            if (rd.funcName == "banChatMember")
+            {
+                if (httpResult.ok)
+                    logLine << "User is banned";
+                else
+                    logLine << "Failed ban user";
+            }
             else
-                logLine << "User is banned";
+            {
+                if (httpResult.ok)
+                    logLine << "User is restricted";
+                else
+                    logLine << "Failed restrict user";
+            }
 
             logLine << ", first/last/uname/id: ";
 
@@ -1202,13 +1213,21 @@ void Application::httpResultHandler(const ReplyData& rd)
             else
                 logLine << ". Chat id: " << chatId;
 
-            if (!httpResult.ok)
+            if (httpResult.ok)
             {
-                logLine << ". Perhaps bot has not rights to block users";
+                if (rd.funcName == "restrictChatMember")
+                {
+                    uint untilDate = rd.params["until_date"].toUInt();
+                    logLine << ". Restricted to " << QDateTime::fromTime_t(untilDate);
+                }
+            }
+            else
+            {
+                logLine << ". Perhaps bot has not rights to block/restric users";
                 return;
             }
         }
-        if (fr.success())
+        if (fr.success() && (rd.funcName == "banChatMember"))
             _spammers.remove(fr.index());
     }
 }
@@ -1244,6 +1263,80 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     log_debug_m << log_format("Report spam (0) Id chat/spammer: %?/%?",
                               chatId, user->id);
 
+    tbot::GroupChat::List chats = tbot::groupChats();
+
+    auto userLogInfo =
+            [](alog::Line& logLine, Spammer* spammer, tbot::GroupChat* chat)
+    {
+        logLine << ". User first/last/uname/id: "
+                << spammer->user->first_name;
+
+        logLine << "/";
+        if (!spammer->user->last_name.isEmpty())
+            logLine << spammer->user->last_name;
+
+        logLine << "/";
+        if (!spammer->user->username.isEmpty())
+            logLine << "@" << spammer->user->username;
+
+        logLine << "/" << spammer->user->id;
+
+        logLine << ". Chat name/id: "
+                << chat->name() << "/" << chat->id;
+    };
+
+    // Ограничение пользователя
+    auto restrictUser = [&](Spammer* spammer)
+    {
+        lst::FindResult fr = chats.findRef(spammer->chatId);
+        if (fr.failed())
+            return;
+
+        tbot::GroupChat* chat = chats.item(fr.index());
+        if (chat->userRestricts.isEmpty())
+            return;
+
+        QSet<qint64> ownerIds = chat->ownerIds();
+        if (ownerIds.contains(spammer->user->id))
+        {
+            log_debug_m << log_format(
+                "Report spam (7) Id chat/spammer: %?/%?. Times: [%?]",
+                chat->id, spammer->user->id, times(spammer->spamTimes));
+
+            { //Block for alog::Line
+                alog::Line logLine =
+                    log_verbose_m << "Owner of chat cannot be restricted";
+                userLogInfo(logLine, spammer, chat);
+            }
+            return;
+        }
+
+        int restrictIndex = std::min(spammer->spamTimes.count(),
+                                     chat->userRestricts.count()) - 1;
+        qint64 restrictTime = chat->userRestricts[restrictIndex] * 60;
+        if (restrictTime > 0)
+        {
+            log_verbose_m << log_format(
+                "Report spam (8) Id chat/user: %?/%?. Times: [%?]",
+                chat->id, spammer->user->id, times(spammer->spamTimes));
+
+            log_verbose_m << log_format(
+                "User restrict. Id chat/user: %?/%?. Time restrict: %? min",
+                chat->id, spammer->user->id, restrictTime / 60);
+
+            tbot::ChatPermissions chatPermissions;
+            QByteArray permissions = chatPermissions.toJson();
+
+            tbot::HttpParams params;
+            params["chat_id"] = chat->id;
+            params["user_id"] = spammer->user->id;
+            params["until_date"] = qint64(std::time(nullptr)) + restrictTime;
+            params["permissions"] = permissions;
+            params["use_independent_chat_permissions"] = false;
+            sendTgCommand("restrictChatMember", params, 3*1000 /*3 сек*/);
+        }
+    };
+
     if (lst::FindResult fr = _spammers.findRef(qMakePair(chatId, user->id)))
     {
         Spammer* spammer = _spammers.item(fr.index());
@@ -1253,6 +1346,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
         log_debug_m << log_format("Report spam (1) Id chat/spammer: %?/%?. Times: [%?]",
                                   chatId, spammer->user->id, times(spammer->spamTimes));
+        restrictUser(spammer);
     }
     else
     {
@@ -1265,9 +1359,9 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
         log_debug_m << log_format("Report spam (2) Id chat/spammer: %?/%?. Times: [%?]",
                                   chatId, spammer->user->id, times(spammer->spamTimes));
+        restrictUser(spammer);
     }
 
-    tbot::GroupChat::List chats = tbot::groupChats();
     for (int i = 0; i < _spammers.count(); ++i)
     {
         Spammer* spammer = _spammers.item(i);
@@ -1278,7 +1372,11 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             {
                 log_debug_m << log_format("Report spam (3) Id chat/spammer: %?/%?",
                                           chat->id, spammer->user->id);
-                _spammers.remove(i--);
+
+                // Не удаляем спамера, так как его штрафы могут потребоваться
+                // в механизме ограничения пользователя
+                // _spammers.remove(i--);
+
                 continue;
             }
 
@@ -1296,25 +1394,11 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                         chat->id, spammer->user->id, times(spammer->spamTimes));
 
                     { //Block for alog::Line
-                        alog::Line logLine = log_debug_m
-                            << "Spam penalty has expired (2 day)"
-                            << ". User first/last/uname/id: "
-                            << spammer->user->first_name;
-
-                        logLine << "/";
-                        if (!spammer->user->last_name.isEmpty())
-                            logLine << spammer->user->last_name;
-
-                        logLine << "/";
-                        if (!spammer->user->username.isEmpty())
-                            logLine << "@" << spammer->user->username;
-
-                        logLine << "/" << spammer->user->id;
-
-                        logLine << ". Time: " << QString::number(spammer->spamTimes.at(j));
-
-                        logLine << ". Chat name/id: "
-                                << chat->name() << "/" << chat->id;
+                        alog::Line logLine =
+                            log_debug_m << "Spam penalty has expired (2 day)";
+                        userLogInfo(logLine, spammer, chat);
+                        logLine << ". Time: "
+                                << QString::number(spammer->spamTimes.at(j));
                     }
                     spammer->spamTimes.removeAt(j--);
                 }
@@ -1327,6 +1411,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 continue;
             }
 
+            // Блокировка пользователя
             if (spammer->spamTimes.count() >= chat->userSpamLimit)
             {
                 QSet<qint64> ownerIds = chat->ownerIds();
@@ -1337,23 +1422,9 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                         chat->id, spammer->user->id, times(spammer->spamTimes));
 
                     { //Block for alog::Line
-                        alog::Line logLine = log_verbose_m
-                            << "Owner of chat cannot be banned"
-                            << ", first/last/uname/id: "
-                            << spammer->user->first_name;
-
-                        logLine << "/";
-                        if (!spammer->user->last_name.isEmpty())
-                            logLine << spammer->user->last_name;
-
-                        logLine << "/";
-                        if (!spammer->user->username.isEmpty())
-                            logLine << "@" << spammer->user->username;
-
-                        logLine << "/" << spammer->user->id;
-
-                        logLine << ". Chat name/id: "
-                                << chat->name() << "/" << chat->id;
+                        alog::Line logLine =
+                            log_verbose_m << "Owner of chat cannot be banned";
+                        userLogInfo(logLine, spammer, chat);
                     }
                     _spammers.remove(i--);
                     continue;
@@ -1361,6 +1432,10 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
                 log_debug_m << log_format(
                     "Report spam (6) Id chat/spammer: %?/%?. Times: [%?]",
+                    chat->id, spammer->user->id, times(spammer->spamTimes));
+
+                log_debug_m << log_format(
+                    "User ban. Id chat/spammer: %?/%?. Times: [%?]",
                     chat->id, spammer->user->id, times(spammer->spamTimes));
 
                 tbot::HttpParams params;
@@ -1374,7 +1449,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         else
         {
             log_debug_m << log_format(
-                "Report spam (7) Id chat/spammer: %?/%?. Times: [%?]",
+                "Report spam (9) Id chat/spammer: %?/%?. Times: [%?]",
                 chatId, spammer->user->id, times(spammer->spamTimes));
             _spammers.remove(i--);
         }

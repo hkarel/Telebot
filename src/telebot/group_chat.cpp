@@ -123,12 +123,22 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         userSpamLimit = ychat["user_spam_limit"].as<int>();
     }
 
+    QVector<qint32> userRestricts;
+    if (ychat["user_restricts"].IsDefined())
+    {
+        checkFiedType("user_restricts", YAML::NodeType::Sequence);
+        const YAML::Node& yuser_restricts = ychat["user_restricts"];
+        for (const YAML::Node& yrestrict : yuser_restricts)
+            userRestricts.append(yrestrict.as<int32_t>());
+    }
+
     GroupChat::Ptr chat {new GroupChat};
     chat->id = id;
     chat->setName(name);
     chat->skipAdmins = skipAdmins;
     chat->whiteUsers = whiteUsers;
     chat->userSpamLimit = userSpamLimit;
+    chat->userRestricts = userRestricts;
 
     Trigger::List triggers = tbot::triggers();
     for (const QString& triggerName : triggerNames)
@@ -236,6 +246,12 @@ void printGroupChats(GroupChat::List& chats)
         logLine << "]";
 
         logLine << "; user_spam_limit: " << chat->userSpamLimit;
+
+        nextCommaVal = false;
+        logLine << "; user_restricts: [";
+        for (qint32 item : chat->userRestricts)
+            logLine << nextComma() << item;
+        logLine << "]";
     }
     log_info_m << "---";
 }
