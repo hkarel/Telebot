@@ -1330,7 +1330,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             tbot::HttpParams params;
             params["chat_id"] = chat->id;
             params["user_id"] = spammer->user->id;
-            params["until_date"] = qint64(std::time(nullptr)) + restrictTime;
+            params["until_date"] = qint64(std::time(nullptr)) + restrictTime + 5;
             params["permissions"] = permissions;
             params["use_independent_chat_permissions"] = false;
             sendTgCommand("restrictChatMember", params, 3*1000 /*3 сек*/);
