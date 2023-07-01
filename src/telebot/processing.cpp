@@ -276,7 +276,7 @@ void Processing::run()
                     params["user_id"] = userId;
                     params["until_date"] = qint64(std::time(nullptr));
                     params["revoke_messages"] = true;
-                    sendTgCommand("banChatMember", params, 6*1000 /*6 сек*/);
+                    sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
                 }
                 else
                 {

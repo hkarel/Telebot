@@ -1252,7 +1252,10 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     log_debug_m << "Report spam ---";
 
     if (chatId == 0)
+    {
+        // Выходим после вывода в лог текущего списка спамеров
         return;
+    }
 
     if (user.empty())
     {
@@ -1265,51 +1268,88 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
     tbot::GroupChat::List chats = tbot::groupChats();
 
-    auto userLogInfo =
-            [](alog::Line& logLine, Spammer* spammer, tbot::GroupChat* chat)
+    auto userLogInfo = [](alog::Line& logLine, const tbot::User::Ptr& user,
+                          tbot::GroupChat* chat)
     {
-        logLine << ". User first/last/uname/id: "
-                << spammer->user->first_name;
+        QString username;
+        if (user && !user->username.isEmpty())
+            username = "@" + user->username;
 
-        logLine << "/";
-        if (!spammer->user->last_name.isEmpty())
-            logLine << spammer->user->last_name;
+        if (user)
+            logLine << log_format(
+                ". User first/last/uname/id: %?/%?/%?/%?",
+                user->first_name, user->last_name, username, user->id);
 
-        logLine << "/";
-        if (!spammer->user->username.isEmpty())
-            logLine << "@" << spammer->user->username;
-
-        logLine << "/" << spammer->user->id;
-
-        logLine << ". Chat name/id: "
-                << chat->name() << "/" << chat->id;
+        if (chat)
+            logLine << log_format(
+                ". Chat name/id: %?/%?", chat->name(), chat->id);
     };
+
+    // Удаляем штрафы за спам если они были более двух суток назад, предпола-
+    // гаем, что пользователь сделал это ненамеренно и за последующие  сутки
+    // больше не спамил
+    for (int i = 0; i < _spammers.count(); ++i)
+    {
+        Spammer* spammer = _spammers.item(i);
+        std::time_t curTime = std::time(nullptr);
+        for (int j = 0; j < spammer->spamTimes.count(); ++j)
+        {
+            const int64_t elapsedTime = curTime - spammer->spamTimes.at(j);
+            if (qAbs(elapsedTime) > 2*24*60*60 /*двое суток*/)
+            {
+                tbot::GroupChat* chat = chats.findItem(&spammer->chatId);
+                log_debug_m << log_format(
+                    "Report spam (4) Id chat/spammer: %?/%?. Times: [%?]",
+                    (chat ? chat->id : qint64(-1)), spammer->user->id,
+                    times(spammer->spamTimes));
+
+                { //Block for alog::Line
+                    alog::Line logLine =
+                            log_debug_m << "Spam penalty has expired (2 day)";
+                    userLogInfo(logLine, spammer->user, chat);
+                    logLine << ". Time: " << QString::number(spammer->spamTimes.at(j));
+                }
+                spammer->spamTimes.removeAt(j--);
+            }
+        }
+
+        // Удаляем из списка спамеров без штрафов
+        if (spammer->spamTimes.isEmpty())
+        {
+            _spammers.remove(i--);
+            continue;
+        }
+    }
+
+    if (tbot::GroupChat* chat = chats.findItem(&chatId))
+    {
+        QSet<qint64> ownerIds = chat->ownerIds();
+        if (ownerIds.contains(user->id))
+        {
+            alog::Line logLine =
+                log_verbose_m << "Owner of chat cannot receive penalty";
+            userLogInfo(logLine, user, chat);
+            return;
+        }
+    }
 
     // Ограничение пользователя
     auto restrictUser = [&](Spammer* spammer)
     {
-        lst::FindResult fr = chats.findRef(spammer->chatId);
-        if (fr.failed())
+        tbot::GroupChat* chat = chats.findItem(&spammer->chatId);
+        if (chat == nullptr)
             return;
 
-        tbot::GroupChat* chat = chats.item(fr.index());
-        if (chat->userRestricts.isEmpty())
-            return;
-
-        QSet<qint64> ownerIds = chat->ownerIds();
-        if (ownerIds.contains(spammer->user->id))
+        if (chat->userSpamLimit > 0
+            && spammer->spamTimes.count() >= chat->userSpamLimit)
         {
-            log_debug_m << log_format(
-                "Report spam (7) Id chat/spammer: %?/%?. Times: [%?]",
-                chat->id, spammer->user->id, times(spammer->spamTimes));
-
-            { //Block for alog::Line
-                alog::Line logLine =
-                    log_verbose_m << "Owner of chat cannot be restricted";
-                userLogInfo(logLine, spammer, chat);
-            }
+            // Не делаем проверку на ограничение пользователя,
+            // так как на следующем шаге он будет заблокирован
             return;
         }
+
+        if (chat->userRestricts.isEmpty())
+            return;
 
         int restrictIndex = std::min(spammer->spamTimes.count(),
                                      chat->userRestricts.count()) - 1;
@@ -1365,9 +1405,8 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     for (int i = 0; i < _spammers.count(); ++i)
     {
         Spammer* spammer = _spammers.item(i);
-        if (lst::FindResult fr = chats.findRef(spammer->chatId))
+        if (tbot::GroupChat* chat = chats.findItem(&spammer->chatId))
         {
-            tbot::GroupChat* chat = chats.item(fr.index());
             if (chat->userSpamLimit <= 0)
             {
                 log_debug_m << log_format("Report spam (3) Id chat/spammer: %?/%?",
@@ -1380,56 +1419,9 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 continue;
             }
 
-            // Удаляем штрафы за спам если они были более суток назад,
-            // предполагаем что пользователь сделал это ненамеренно и
-            // за последующие сутки больше не спамил
-            std::time_t curTime = std::time(nullptr);
-            for (int j = 0; j < spammer->spamTimes.count(); ++j)
-            {
-                const int64_t elapsedTime = curTime - spammer->spamTimes.at(j);
-                if (qAbs(elapsedTime) > 60*60*24*2 /*двое суток*/)
-                {
-                    log_debug_m << log_format(
-                        "Report spam (4) Id chat/spammer: %?/%?. Times: [%?]",
-                        chat->id, spammer->user->id, times(spammer->spamTimes));
-
-                    { //Block for alog::Line
-                        alog::Line logLine =
-                            log_debug_m << "Spam penalty has expired (2 day)";
-                        userLogInfo(logLine, spammer, chat);
-                        logLine << ". Time: "
-                                << QString::number(spammer->spamTimes.at(j));
-                    }
-                    spammer->spamTimes.removeAt(j--);
-                }
-            }
-
-            // Удаляем из списка спамеров без штрафов
-            if (spammer->spamTimes.isEmpty())
-            {
-                _spammers.remove(i--);
-                continue;
-            }
-
             // Блокировка пользователя
             if (spammer->spamTimes.count() >= chat->userSpamLimit)
             {
-                QSet<qint64> ownerIds = chat->ownerIds();
-                if (ownerIds.contains(spammer->user->id))
-                {
-                    log_debug_m << log_format(
-                        "Report spam (5) Id chat/spammer: %?/%?. Times: [%?]",
-                        chat->id, spammer->user->id, times(spammer->spamTimes));
-
-                    { //Block for alog::Line
-                        alog::Line logLine =
-                            log_verbose_m << "Owner of chat cannot be banned";
-                        userLogInfo(logLine, spammer, chat);
-                    }
-                    _spammers.remove(i--);
-                    continue;
-                }
-
                 log_debug_m << log_format(
                     "Report spam (6) Id chat/spammer: %?/%?. Times: [%?]",
                     chat->id, spammer->user->id, times(spammer->spamTimes));
@@ -1443,7 +1435,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 params["user_id"] = spammer->user->id;
                 params["until_date"] = qint64(std::time(nullptr));
                 params["revoke_messages"] = false;
-                sendTgCommand("banChatMember", params, 6*1000 /*6 сек*/);
+                sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
             }
         }
         else
