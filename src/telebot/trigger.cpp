@@ -68,6 +68,11 @@ bool TriggerLinkDisable::isActive(
                 update.update_id, chat->name(), name, urlStr);
 
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
+            if (url.scheme().isEmpty())
+            {
+                urlStr.prepend("https://");
+                url = QUrl::fromEncoded(urlStr.toUtf8());
+            }
             QString host = url.host();
             QString path = url.path();
             for (const ItemLink& item : whiteList)
@@ -157,6 +162,11 @@ bool TriggerLinkEnable::isActive(
                 update.update_id, chat->name(), name, urlStr);
 
             QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
+            if (url.scheme().isEmpty())
+            {
+                urlStr.prepend("https://");
+                url = QUrl::fromEncoded(urlStr.toUtf8());
+            }
             QString host = url.host();
             QString path = url.path();
             for (const ItemLink& item : whiteList)
