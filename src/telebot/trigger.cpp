@@ -41,26 +41,20 @@ bool TriggerLinkDisable::isActive(
     if (message.empty())
         return false;
 
-    //bool urlGood = true;
-    auto isGoodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
+    auto goodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
-        //bool entityUrl = false;
-
         if (entity.type == "url")
         {
-//            entityUrl = true;
             urlStr = text.mid(entity.offset, entity.length);
         }
         else if (entity.type == "text_link")
         {
-//            entityUrl = true;
             urlStr = entity.url;
         }
         else
             return true;
 
-        //urlGood = false;
         activationReasonMessage = u8"ссылка: " + urlStr;
 
         log_debug_m << log_format(
@@ -84,8 +78,6 @@ bool TriggerLinkDisable::isActive(
                         "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
                         ". It belong to whitelist [host: %?; path: empty]",
                         update.update_id, chat->name(), name, item.host);
-                    //urlGood = true;
-                    //break;
                     return true;
                 }
                 for (QString ipath: item.paths)
@@ -102,30 +94,16 @@ bool TriggerLinkDisable::isActive(
                             "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
                             ". It belong to whitelist [host: %?; path: %?]",
                             update.update_id, chat->name(), name, item.host, ipath);
-                        //urlGood = true;
-                        //break;
                         return true;
                     }
                 }
             }
 
-        //if (!urlGood)
-        //    break;
         return false;
     };
 
-//    for (const MessageEntity& entity : message->entities)
-
-//    if (!urlGood)
-//    {
-//        log_verbose_m << log_format(
-//            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
-//            update.update_id, chat->name(), name);
-//        return true;
-//    }
-
     for (const MessageEntity& entity : message->caption_entities)
-        if (!isGoodEntitiy(message->caption, entity))
+        if (!goodEntitiy(message->caption, entity))
         {
             log_verbose_m << log_format(
                 "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
@@ -134,7 +112,7 @@ bool TriggerLinkDisable::isActive(
         }
 
     for (const MessageEntity& entity : message->entities)
-        if (!isGoodEntitiy(message->text, entity))
+        if (!goodEntitiy(message->text, entity))
         {
             log_verbose_m << log_format(
                 "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
@@ -160,28 +138,20 @@ bool TriggerLinkEnable::isActive(
     if (message.empty())
         return false;
 
-    auto isGoodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
+    auto goodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
-//        bool entityUrl = false;
-
         if (entity.type == "url")
         {
-            //entityUrl = true;
             urlStr = text.mid(entity.offset, entity.length);
         }
         else if (entity.type == "text_link")
         {
-            //entityUrl = true;
             urlStr = entity.url;
         }
         else
             return true;
 
-//        if (!entityUrl)
-//            return true;
-
-        //bool urlGood = false;
         activationReasonMessage = u8"ссылка: " + urlStr;
 
         log_debug_m << log_format(
@@ -205,8 +175,6 @@ bool TriggerLinkEnable::isActive(
                         "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
                         ". It belong to whitelist [host: %?; path: empty]",
                         update.update_id, chat->name(), name, item.host);
-                    //urlGood = true;
-                    //break;
                     return true;
                 }
                 for (QString ipath: item.paths)
@@ -223,17 +191,11 @@ bool TriggerLinkEnable::isActive(
                             "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
                             ". It belong to whitelist [host: %?; path: %?]",
                             update.update_id, chat->name(), name, item.host, ipath);
-                        //urlGood = true;
-                        //break;
                         return true;
                     }
                 }
             }
 
-        //if (urlGood)
-        //    return true;
-
-        //bool urlBad = false;
         for (const ItemLink& item : blackList)
             if (host.endsWith(item.host, Qt::CaseInsensitive))
             {
@@ -243,8 +205,6 @@ bool TriggerLinkEnable::isActive(
                         "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
                         ". It belong to blacklist [host: %?; path: empty]",
                         update.update_id, chat->name(), name, item.host);
-                    //urlBad = true;
-                    //break;
                     return false;
                 }
                 for (QString ipath: item.paths)
@@ -261,26 +221,16 @@ bool TriggerLinkEnable::isActive(
                             "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
                             ". It belong to blacklist [host: %?; path: %?]",
                             update.update_id, chat->name(), name, item.host, ipath);
-                        //urlBad = true;
-                        //break;
                         return false;
                     }
                 }
             }
 
-//            if (urlBad)
-//            {
-//                log_verbose_m << log_format(
-//                    "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
-//                    update.update_id, chat->name(), name);
-//                return false;
-//            }
-
         return true;
     };
 
     for (const MessageEntity& entity : message->caption_entities)
-        if (!isGoodEntitiy(message->caption, entity))
+        if (!goodEntitiy(message->caption, entity))
         {
             log_verbose_m << log_format(
                 "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
@@ -289,7 +239,7 @@ bool TriggerLinkEnable::isActive(
         }
 
     for (const MessageEntity& entity : message->entities)
-        if (!isGoodEntitiy(message->text, entity))
+        if (!goodEntitiy(message->text, entity))
         {
             log_verbose_m << log_format(
                 "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
