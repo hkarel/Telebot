@@ -239,8 +239,8 @@ struct Message : public clife_base
 //    voice 	Voice 	Optional. Message is a voice message, information about the file
 
     QString caption; // Optional. Caption for the animation, audio, document, photo, video or voice
+    QList<MessageEntity> caption_entities; 	//Optional. For messages with a caption, special entities like usernames, URLs, bot commands, etc. that appear in the caption
 
-//    caption_entities 	Array of MessageEntity 	Optional. For messages with a caption, special entities like usernames, URLs, bot commands, etc. that appear in the caption
 //    contact 	Contact 	Optional. Message is a shared contact, information about the contact
 //    dice 	Dice 	Optional. Message is a dice with random value
 //    game 	Game 	Optional. Message is a game, information about the game. More about games »
@@ -298,6 +298,7 @@ struct Message : public clife_base
         J_SERIALIZE_OPT ( text                    )
         J_SERIALIZE_OPT ( entities                )
         J_SERIALIZE_OPT ( caption                 )
+        J_SERIALIZE_OPT ( caption_entities        )
     J_SERIALIZE_END
 };
 

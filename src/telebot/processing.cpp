@@ -25,6 +25,7 @@ using namespace std;
 QMutex Processing::_threadLock;
 QWaitCondition Processing::_threadCond;
 QList<QByteArray> Processing::_updates;
+QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
 
 Processing::Processing()
 {}
@@ -145,6 +146,32 @@ void Processing::run()
             continue;
         }
 
+        if (!message->media_group_id.isEmpty())
+        {
+            QMutexLocker locker {&_threadLock}; (void) locker;
+            MediaGroup& mg = _mediaGroups[message->media_group_id];
+            if (mg.isBad)
+            {
+                HttpParams params;
+                params["chat_id"] = chatId;
+                params["message_id"] = messageId;
+                emit sendTgCommand("deleteMessage", params);
+                continue;
+            }
+            else
+            {
+                if (mg.chatId == 0)
+                    mg.chatId = chatId;
+
+                if (mg.chatId != chatId)
+                {
+                    break_point
+                    log_error_m << "Failed chat id for media group";
+                }
+                mg.messageIds.insert(messageId);
+            }
+        }
+
         QString clearText = message->text;
         for (int i = message->entities.count() - 1; i >= 0; --i)
         {
@@ -154,12 +181,21 @@ void Processing::run()
         }
         clearText = clearText.trimmed();
 
-        if (!message->caption.isEmpty())
+        QString clearCaption = message->caption;
+        for (int i = message->caption_entities.count() - 1; i >= 0; --i)
+        {
+            const MessageEntity& entity = message->caption_entities[i];
+            if (entity.type == "url")
+                clearCaption.remove(entity.offset, entity.length);
+        }
+        clearCaption = clearCaption.trimmed();
+
+        if (!clearCaption.isEmpty())
         {
             if (clearText.isEmpty())
-                clearText = message->caption;
+                clearText = clearCaption;
             else
-                clearText = message->caption + '\n' + clearText;
+                clearText = clearCaption + '\n' + clearText;
         }
 
         QString usernameText = {"%1 %2 %3"};
@@ -231,10 +267,27 @@ void Processing::run()
                     R"("update_id":%?. Chat: %?. Delete message (chat_id: %?; message_id: %?))",
                     update.update_id, chat->name(), chatId, messageId);
 
-                HttpParams params;
-                params["chat_id"] = chatId;
-                params["message_id"] = messageId;
-                emit sendTgCommand("deleteMessage", params);
+                if (!message->media_group_id.isEmpty())
+                {
+                    QMutexLocker locker {&_threadLock}; (void) locker;
+                    MediaGroup& mg = _mediaGroups[message->media_group_id];
+                    mg.isBad = true;
+                    for (qint64 msgId : mg.messageIds)
+                    {
+                        HttpParams params;
+                        params["chat_id"] = mg.chatId;
+                        params["message_id"] = msgId;
+                        emit sendTgCommand("deleteMessage", params);
+                    }
+                    mg.messageIds.clear();
+                }
+                else
+                {
+                    HttpParams params;
+                    params["chat_id"] = chatId;
+                    params["message_id"] = messageId;
+                    emit sendTgCommand("deleteMessage", params);
+                }
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
                 QString botMsh =
@@ -286,6 +339,20 @@ void Processing::run()
                 break;
             }
         }
+
+        { //Block for QMutexLocker
+            QMutexLocker locker {&_threadLock}; (void) locker;
+            for (const QString& key : _mediaGroups.keys())
+            {
+                const MediaGroup& mg = _mediaGroups[key];
+                if (mg.timer.elapsed() > 1*60*60*1000 /*1 час*/)
+                {
+                    log_debug_m << "Remove media group: " << key;
+                    _mediaGroups.remove(key);
+                }
+            }
+        }
+
     } // while (true)
 
     log_info_m << "Stopped";

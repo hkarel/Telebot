@@ -46,6 +46,21 @@ private:
 
     volatile bool _configChanged = {true};
 
+    struct MediaGroup
+    {
+        // Одно из сообщений медиа-группы плохое
+        bool isBad = {false};
+
+        // Идентификатор чата для сообщений медиа-группы
+        qint64 chatId = {0};
+        QSet<qint64> messageIds;
+
+        // Таймер для очистки _mediaGroups
+        steady_timer timer;
+
+    };
+    static QMap<QString /*media_group_id*/, MediaGroup> _mediaGroups;
+
     bool _spamIsActive;
     QString _spamMessage;
 

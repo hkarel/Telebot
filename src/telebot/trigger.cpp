@@ -41,83 +41,107 @@ bool TriggerLinkDisable::isActive(
     if (message.empty())
         return false;
 
-    bool urlGood = true;
-    for (const MessageEntity& entity : message->entities)
+    //bool urlGood = true;
+    auto isGoodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
-        bool entityUrl = false;
+        //bool entityUrl = false;
 
         if (entity.type == "url")
         {
-            entityUrl = true;
-            urlStr = message->text.mid(entity.offset, entity.length);
+//            entityUrl = true;
+            urlStr = text.mid(entity.offset, entity.length);
         }
         else if (entity.type == "text_link")
         {
-            entityUrl = true;
+//            entityUrl = true;
             urlStr = entity.url;
         }
+        else
+            return true;
 
-        if (entityUrl)
+        //urlGood = false;
+        activationReasonMessage = u8"ссылка: " + urlStr;
+
+        log_debug_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
+            update.update_id, chat->name(), name, urlStr);
+
+        QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
+        if (url.scheme().isEmpty())
         {
-            urlGood = false;
-            activationReasonMessage = u8"ссылка: " + urlStr;
-
-            log_debug_m << log_format(
-                "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
-                update.update_id, chat->name(), name, urlStr);
-
-            QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
-            if (url.scheme().isEmpty())
+            urlStr.prepend("https://");
+            url = QUrl::fromEncoded(urlStr.toUtf8());
+        }
+        QString host = url.host();
+        QString path = url.path();
+        for (const ItemLink& item : whiteList)
+            if (host.endsWith(item.host, Qt::CaseInsensitive))
             {
-                urlStr.prepend("https://");
-                url = QUrl::fromEncoded(urlStr.toUtf8());
-            }
-            QString host = url.host();
-            QString path = url.path();
-            for (const ItemLink& item : whiteList)
-                if (host.endsWith(item.host, Qt::CaseInsensitive))
+                if (item.paths.isEmpty())
                 {
-                    if (item.paths.isEmpty())
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
+                        ". It belong to whitelist [host: %?; path: empty]",
+                        update.update_id, chat->name(), name, item.host);
+                    //urlGood = true;
+                    //break;
+                    return true;
+                }
+                for (QString ipath: item.paths)
+                {
+                    if (ipath.isEmpty())
+                        continue;
+
+                    if (ipath[0] != QChar('/'))
+                        ipath.prepend(QChar('/'));
+
+                    if (path.startsWith(ipath, Qt::CaseInsensitive))
                     {
                         log_verbose_m << log_format(
-                            "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
-                            ". It belong to whitelist [host: %?; path: empty]",
-                            update.update_id, chat->name(), name, item.host);
-                        urlGood = true;
-                        break;
-                    }
-                    for (QString ipath: item.paths)
-                    {
-                        if (ipath.isEmpty())
-                            continue;
-
-                        if (ipath[0] != QChar('/'))
-                            ipath.prepend(QChar('/'));
-
-                        if (path.startsWith(ipath, Qt::CaseInsensitive))
-                        {
-                            log_verbose_m << log_format(
-                                "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
-                                ". It belong to whitelist [host: %?; path: %?]",
-                                update.update_id, chat->name(), name, item.host, ipath);
-                            urlGood = true;
-                            break;
-                        }
+                            "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
+                            ". It belong to whitelist [host: %?; path: %?]",
+                            update.update_id, chat->name(), name, item.host, ipath);
+                        //urlGood = true;
+                        //break;
+                        return true;
                     }
                 }
+            }
 
-            if (!urlGood)
-                break;
+        //if (!urlGood)
+        //    break;
+        return false;
+    };
+
+//    for (const MessageEntity& entity : message->entities)
+
+//    if (!urlGood)
+//    {
+//        log_verbose_m << log_format(
+//            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+//            update.update_id, chat->name(), name);
+//        return true;
+//    }
+
+    for (const MessageEntity& entity : message->caption_entities)
+        if (!isGoodEntitiy(message->caption, entity))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+                update.update_id, chat->name(), name);
+            return true;
         }
-    }
-    if (!urlGood)
-    {
-        log_verbose_m << log_format(
-            "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
-            update.update_id, chat->name(), name);
-        return true;
-    }
+
+    for (const MessageEntity& entity : message->entities)
+        if (!isGoodEntitiy(message->text, entity))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+                update.update_id, chat->name(), name);
+            return true;
+        }
+
     return false;
 }
 
@@ -136,116 +160,143 @@ bool TriggerLinkEnable::isActive(
     if (message.empty())
         return false;
 
-    for (const MessageEntity& entity : message->entities)
+    auto isGoodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
-        bool entityUrl = false;
+//        bool entityUrl = false;
 
         if (entity.type == "url")
         {
-            entityUrl = true;
-            urlStr = message->text.mid(entity.offset, entity.length);
+            //entityUrl = true;
+            urlStr = text.mid(entity.offset, entity.length);
         }
         else if (entity.type == "text_link")
         {
-            entityUrl = true;
+            //entityUrl = true;
             urlStr = entity.url;
         }
+        else
+            return true;
 
-        if (entityUrl)
+//        if (!entityUrl)
+//            return true;
+
+        //bool urlGood = false;
+        activationReasonMessage = u8"ссылка: " + urlStr;
+
+        log_debug_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
+            update.update_id, chat->name(), name, urlStr);
+
+        QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
+        if (url.scheme().isEmpty())
         {
-            bool urlGood = false;
-            activationReasonMessage = u8"ссылка: " + urlStr;
-
-            log_debug_m << log_format(
-                "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
-                update.update_id, chat->name(), name, urlStr);
-
-            QUrl url = QUrl::fromEncoded(urlStr.toUtf8());
-            if (url.scheme().isEmpty())
+            urlStr.prepend("https://");
+            url = QUrl::fromEncoded(urlStr.toUtf8());
+        }
+        QString host = url.host();
+        QString path = url.path();
+        for (const ItemLink& item : whiteList)
+            if (host.endsWith(item.host, Qt::CaseInsensitive))
             {
-                urlStr.prepend("https://");
-                url = QUrl::fromEncoded(urlStr.toUtf8());
-            }
-            QString host = url.host();
-            QString path = url.path();
-            for (const ItemLink& item : whiteList)
-                if (host.endsWith(item.host, Qt::CaseInsensitive))
+                if (item.paths.isEmpty())
                 {
-                    if (item.paths.isEmpty())
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
+                        ". It belong to whitelist [host: %?; path: empty]",
+                        update.update_id, chat->name(), name, item.host);
+                    //urlGood = true;
+                    //break;
+                    return true;
+                }
+                for (QString ipath: item.paths)
+                {
+                    if (ipath.isEmpty())
+                        continue;
+
+                    if (ipath[0] != QChar('/'))
+                        ipath.prepend(QChar('/'));
+
+                    if (path.startsWith(ipath, Qt::CaseInsensitive))
                     {
                         log_verbose_m << log_format(
-                            "\"update_id\":%?. Chat: %?. Trigger '%?', link  skipped"
-                            ". It belong to whitelist [host: %?; path: empty]",
-                            update.update_id, chat->name(), name, item.host);
-                        urlGood = true;
-                        break;
-                    }
-                    for (QString ipath: item.paths)
-                    {
-                        if (ipath.isEmpty())
-                            continue;
-
-                        if (ipath[0] != QChar('/'))
-                            ipath.prepend(QChar('/'));
-
-                        if (path.startsWith(ipath, Qt::CaseInsensitive))
-                        {
-                            log_verbose_m << log_format(
-                                "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
-                                ". It belong to whitelist [host: %?; path: %?]",
-                                update.update_id, chat->name(), name, item.host, ipath);
-                            urlGood = true;
-                            break;
-                        }
+                            "\"update_id\":%?. Chat: %?. Trigger '%?', link skipped"
+                            ". It belong to whitelist [host: %?; path: %?]",
+                            update.update_id, chat->name(), name, item.host, ipath);
+                        //urlGood = true;
+                        //break;
+                        return true;
                     }
                 }
+            }
 
-            if (urlGood)
-                continue;
+        //if (urlGood)
+        //    return true;
 
-            bool urlBad = false;
-            for (const ItemLink& item : blackList)
-                if (host.endsWith(item.host, Qt::CaseInsensitive))
+        //bool urlBad = false;
+        for (const ItemLink& item : blackList)
+            if (host.endsWith(item.host, Qt::CaseInsensitive))
+            {
+                if (item.paths.isEmpty())
                 {
-                    if (item.paths.isEmpty())
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
+                        ". It belong to blacklist [host: %?; path: empty]",
+                        update.update_id, chat->name(), name, item.host);
+                    //urlBad = true;
+                    //break;
+                    return false;
+                }
+                for (QString ipath: item.paths)
+                {
+                    if (ipath.isEmpty())
+                        continue;
+
+                    if (ipath[0] != QChar('/'))
+                        ipath.prepend(QChar('/'));
+
+                    if (path.startsWith(ipath, Qt::CaseInsensitive))
                     {
                         log_verbose_m << log_format(
                             "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
-                            ". It belong to blacklist [host: %?; path: empty]",
-                            update.update_id, chat->name(), name, item.host);
-                        urlBad = true;
-                        break;
-                    }
-                    for (QString ipath: item.paths)
-                    {
-                        if (ipath.isEmpty())
-                            continue;
-
-                        if (ipath[0] != QChar('/'))
-                            ipath.prepend(QChar('/'));
-
-                        if (path.startsWith(ipath, Qt::CaseInsensitive))
-                        {
-                            log_verbose_m << log_format(
-                                "\"update_id\":%?. Chat: %?. Trigger '%?', link bad"
-                                ". It belong to blacklist [host: %?; path: %?]",
-                                update.update_id, chat->name(), name, item.host, ipath);
-                            urlBad = true;
-                            break;
-                        }
+                            ". It belong to blacklist [host: %?; path: %?]",
+                            update.update_id, chat->name(), name, item.host, ipath);
+                        //urlBad = true;
+                        //break;
+                        return false;
                     }
                 }
-
-            if (urlBad)
-            {
-                log_verbose_m << log_format(
-                    "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
-                    update.update_id, chat->name(), name);
-                return true;
             }
+
+//            if (urlBad)
+//            {
+//                log_verbose_m << log_format(
+//                    "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+//                    update.update_id, chat->name(), name);
+//                return false;
+//            }
+
+        return true;
+    };
+
+    for (const MessageEntity& entity : message->caption_entities)
+        if (!isGoodEntitiy(message->caption, entity))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+                update.update_id, chat->name(), name);
+            return true;
         }
-    }
+
+    for (const MessageEntity& entity : message->entities)
+        if (!isGoodEntitiy(message->text, entity))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated",
+                update.update_id, chat->name(), name);
+            return true;
+        }
+
     return false;
 }
 
