@@ -93,6 +93,7 @@ triggers:
     # строки текста (а не началу и концу входной строки).
     # Смотри описание опции QRegularExpression::MultilineOption:
     #   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
+    # Значение параметра по умолчанию равно FALSE
     multiline: false
 
     # Определяет что будет анализироваться: контент сообщения (content) или имя
