@@ -23,6 +23,9 @@ struct Trigger : public clife_base
     // Имя триггера
     QString name;
 
+    // Тип триггера
+    QString type;
+
     // Признак активного триггера. Позволяет исключить триггер из процесса
     // обработки сообщений
     bool active = {true};
@@ -32,7 +35,7 @@ struct Trigger : public clife_base
 
     // Действия триггера не распространяются на администраторов группы если
     // параметр установлен в TRUE
-    bool skipAdmins = {true};
+    bool skipAdmins = {false};
 
     // Список идентификаторов пользователей, на которых не распространяется
     // действие триггера
@@ -65,6 +68,8 @@ struct Trigger : public clife_base
 protected:
     Trigger() = default;
     DISABLE_DEFAULT_COPY(Trigger)
+
+    void assign(const Trigger&);
 };
 
 struct TriggerLinkBase : public Trigger
@@ -81,6 +86,8 @@ struct TriggerLinkBase : public Trigger
 
     // Черный список исключений
     LinkList blackList;
+
+    void assign(const TriggerLinkBase&);
 
 protected:
     TriggerLinkBase() = default;
@@ -128,6 +135,7 @@ struct TriggerWord : public Trigger
            const tbot::Update& update, GroupChat* chat,
            const QString& clearText, const QString& alterText) const override;
 
+    void assign(const TriggerWord&);
 };
 
 struct TriggerRegexp : public Trigger
@@ -141,7 +149,7 @@ struct TriggerRegexp : public Trigger
     bool caseInsensitive = {true};
 
     // Использовать многострочный режим, где ^ и $ соответствуют началу и концу
-    // строки текста (а не началу и концу входной строки).
+    // одной строки текста (а не началу и концу всего текста).
     // См. описание опции QRegularExpression::MultilineOption:
     //   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
     bool multiline = {false};
@@ -161,6 +169,8 @@ struct TriggerRegexp : public Trigger
     bool isActive(
            const tbot::Update& update, GroupChat* chat,
            const QString& clearText, const QString& alterText) const override;
+
+    void assign(const TriggerRegexp&);
 };
 
 const char* yamlTypeName(YAML::NodeType::value type);

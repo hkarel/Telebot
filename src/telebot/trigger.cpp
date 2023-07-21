@@ -6,6 +6,7 @@
 #include "shared/logger/format.h"
 
 #include <string>
+#include <optional>
 #include <stdexcept>
 
 #define log_error_m   alog::logger().error  (alog_line_location, "Trigger")
@@ -25,6 +26,26 @@ struct trigger_logic_error : public std::logic_error
 {
     explicit trigger_logic_error(const string& msg) : std::logic_error(msg) {}
 };
+
+void Trigger::assign(const Trigger& trigger)
+{
+    name           = trigger.name;
+    type           = trigger.type;
+    active         = trigger.active;
+    description    = trigger.description;
+    skipAdmins     = trigger.skipAdmins;
+    whiteUsers     = trigger.whiteUsers;
+    inverse        = trigger.inverse;
+    immediatelyBan = trigger.immediatelyBan;
+}
+
+void TriggerLinkBase::assign(const TriggerLinkBase& trigger)
+{
+    Trigger::assign(trigger);
+
+    whiteList = trigger.whiteList;
+    blackList = trigger.blackList;
+}
 
 bool TriggerLinkDisable::isActive(
                            const Update& update, GroupChat* chat,
@@ -277,6 +298,14 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
     return false;
 }
 
+void TriggerWord::assign(const TriggerWord& trigger)
+{
+    Trigger::assign(trigger);
+
+    caseInsensitive = trigger.caseInsensitive;
+    wordList = trigger.wordList;
+}
+
 bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
                              const QString& clearText, const QString& alterText) const
 {
@@ -326,6 +355,17 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
     return false;
 }
 
+void TriggerRegexp::assign(const TriggerRegexp& trigger)
+{
+    Trigger::assign(trigger);
+
+    caseInsensitive = trigger.caseInsensitive;
+    multiline       = trigger.multiline;
+    analyze         = trigger.analyze;
+    regexpRemove    = trigger.regexpRemove;
+    regexpList      = trigger.regexpList;
+}
+
 const char* yamlTypeName(YAML::NodeType::value type)
 {
     switch (int(type))
@@ -337,7 +377,7 @@ const char* yamlTypeName(YAML::NodeType::value type)
     }
 }
 
-Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
+Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
 {
     auto checkFiedType = [](const YAML::Node& ynode, const string& field,
                             YAML::NodeType::value type)
@@ -375,11 +415,11 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         description = QString::fromStdString(ytrigger["description"].as<string>());
     }
 
-    string type;
+    QString type;
     if (ytrigger["type"].IsDefined())
     {
         checkFiedType(ytrigger, "type", YAML::NodeType::Scalar);
-        type = ytrigger["type"].as<string>();
+        type = QString::fromStdString(ytrigger["type"].as<string>());
     }
     if (type != "link" // Синоним link_disable
         && type != "link_enable"
@@ -390,7 +430,33 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         throw trigger_logic_error(
             "In a 'trigger' node a field 'type' can take one of the following "
             "values: link_enable, link_disable/link, word, regexp. "
-            "Current value: " + type);
+            "Current value: " + type.toStdString());
+    }
+
+    QString base;
+    Trigger* baseTrigger = nullptr;
+    if (ytrigger["base"].IsDefined())
+    {
+        checkFiedType(ytrigger, "base", YAML::NodeType::Scalar);
+        base = QString::fromStdString(ytrigger["base"].as<string>());
+    }
+    if (!base.isEmpty())
+    {
+        baseTrigger = triggers.findItem(&base, {lst::BruteForce::Yes});
+        if (!baseTrigger)
+        {
+            QString err = "Base trigger '%1' not found for trigger '%2'"
+                          ". See parameter 'base'";
+            err = err.arg(base).arg(name);
+            throw trigger_logic_error(err.toStdString());
+        }
+        if (baseTrigger->type != type)
+        {
+            QString err = "Types mismatch for base/detived triggers: %1/%2"
+                          ". See trigger '%3'";
+            err = err.arg(baseTrigger->type).arg(type).arg(name);
+            throw trigger_logic_error(err.toStdString());
+        }
     }
 
     auto readWhiteBlackList = [&](const YAML::Node& ylist,
@@ -423,186 +489,222 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger)
         }
     };
 
-    TriggerLinkBase::LinkList linkWhiteList;
+    optional<TriggerLinkBase::LinkList> linkWhiteListO;
     if (ytrigger["white_list"].IsDefined())
     {
+        linkWhiteListO = TriggerLinkBase::LinkList();
         checkFiedType(ytrigger, "white_list", YAML::NodeType::Sequence);
         const YAML::Node& ywhite_list = ytrigger["white_list"];
-        readWhiteBlackList(ywhite_list, linkWhiteList);
+        readWhiteBlackList(ywhite_list, *linkWhiteListO);
     }
 
-    TriggerLinkBase::LinkList linkBlackList;
+    optional<TriggerLinkBase::LinkList> linkBlackListO;
     if (ytrigger["black_list"].IsDefined())
     {
+        linkBlackListO = TriggerLinkBase::LinkList();
         checkFiedType(ytrigger, "black_list", YAML::NodeType::Sequence);
         const YAML::Node& yblack_list = ytrigger["black_list"];
-        readWhiteBlackList(yblack_list, linkBlackList);
+        readWhiteBlackList(yblack_list, *linkBlackListO);
     }
 
-    QStringList wordList;
+    optional<QStringList> wordListO;
     if (ytrigger["word_list"].IsDefined())
     {
+        wordListO = QStringList();
         checkFiedType(ytrigger, "word_list", YAML::NodeType::Sequence);
         const YAML::Node& yword_list = ytrigger["word_list"];
         for (const YAML::Node& yword : yword_list)
-            wordList.append(QString::fromStdString(yword.as<string>()));
+            wordListO->append(QString::fromStdString(yword.as<string>()));
     }
 
-    QStringList regexpRemove;
+    optional<QStringList> regexpRemoveO;
     if (ytrigger["regexp_remove"].IsDefined())
     {
+        regexpRemoveO = QStringList();
         checkFiedType(ytrigger, "regexp_remove", YAML::NodeType::Sequence);
         const YAML::Node& yregexp_remove = ytrigger["regexp_remove"];
         for (const YAML::Node& yregexp : yregexp_remove)
-            regexpRemove.append(QString::fromStdString(yregexp.as<string>()));
+            regexpRemoveO->append(QString::fromStdString(yregexp.as<string>()));
     }
 
-    QStringList regexpList;
+    optional<QStringList> regexpListO;
     if (ytrigger["regexp_list"].IsDefined())
     {
+        regexpListO = QStringList();
         checkFiedType(ytrigger, "regexp_list", YAML::NodeType::Sequence);
         const YAML::Node& yregexp_list = ytrigger["regexp_list"];
         for (const YAML::Node& yregexp : yregexp_list)
-            regexpList.append(QString::fromStdString(yregexp.as<string>()));
+            regexpListO->append(QString::fromStdString(yregexp.as<string>()));
     }
 
-    bool caseInsensitive = true;
+    optional<bool> caseInsensitiveO;
     if (ytrigger["case_insensitive"].IsDefined())
     {
         checkFiedType(ytrigger, "case_insensitive", YAML::NodeType::Scalar);
-        caseInsensitive = ytrigger["case_insensitive"].as<bool>();
+        caseInsensitiveO = ytrigger["case_insensitive"].as<bool>();
     }
 
-    bool skipAdmins = false;
+    optional<bool> skipAdminsO;
     if (ytrigger["skip_admins"].IsDefined())
     {
         checkFiedType(ytrigger, "skip_admins", YAML::NodeType::Scalar);
-        skipAdmins = ytrigger["skip_admins"].as<bool>();
+        skipAdminsO = ytrigger["skip_admins"].as<bool>();
     }
 
-    QSet<qint64> whiteUsers;
+    optional<QSet<qint64>> whiteUsersO;
     if (ytrigger["white_users"].IsDefined())
     {
+        whiteUsersO = QSet<qint64>();
         checkFiedType(ytrigger, "white_users", YAML::NodeType::Sequence);
         const YAML::Node& ywhite_users = ytrigger["white_users"];
         for (const YAML::Node& ywhite : ywhite_users)
-            whiteUsers.insert(ywhite.as<int64_t>());
+            whiteUsersO->insert(ywhite.as<int64_t>());
     }
 
-    bool inverse = false;
+    optional<bool> inverseO;
     if (ytrigger["inverse"].IsDefined())
     {
         checkFiedType(ytrigger, "inverse", YAML::NodeType::Scalar);
-        inverse = ytrigger["inverse"].as<bool>();
+        inverseO = ytrigger["inverse"].as<bool>();
     }
 
-    bool immediatelyBan = false;
+    optional<bool> immediatelyBanO;
     if (ytrigger["immediately_ban"].IsDefined())
     {
         checkFiedType(ytrigger, "immediately_ban", YAML::NodeType::Scalar);
-        immediatelyBan = ytrigger["immediately_ban"].as<bool>();
+        immediatelyBanO = ytrigger["immediately_ban"].as<bool>();
     }
 
-    bool multiline = false;
+    optional<bool> multilineO;
     if (ytrigger["multiline"].IsDefined())
     {
         checkFiedType(ytrigger, "multiline", YAML::NodeType::Scalar);
-        multiline = ytrigger["multiline"].as<bool>();
+        multilineO = ytrigger["multiline"].as<bool>();
     }
 
-    QString analyze;
+    optional<QString> analyzeO;
     if (ytrigger["analyze"].IsDefined())
     {
         checkFiedType(ytrigger, "analyze", YAML::NodeType::Scalar);
-        analyze = QString::fromStdString(ytrigger["analyze"].as<string>());
+        analyzeO = QString::fromStdString(ytrigger["analyze"].as<string>());
+
+        // Параметр analyze может принимать только два значения: content и username.
+        // Значение параметра по умолчанию равно content
+        if (analyzeO != "username")
+            analyzeO = "content";
     }
 
-    // Параметр analyze может принимать только два значения: content и username.
-    // Значение параметра по умолчанию равно content
-    if (analyze != "username")
-        analyze = "content";
+    auto assignValue = [](auto& dest, const auto& source)
+    {
+        if (source) dest = source.value();
+    };
 
     Trigger::Ptr trigger;
 
     if ((type == "link") || (type == "link_disable"))
     {
         TriggerLinkDisable::Ptr triggerLinkD {new TriggerLinkDisable};
-        triggerLinkD->whiteList = linkWhiteList;
+
+        if (TriggerLinkDisable* t = dynamic_cast<TriggerLinkDisable*>(baseTrigger))
+            triggerLinkD->assign(*t);
+
+        assignValue(triggerLinkD->whiteList, linkWhiteListO);
         trigger = triggerLinkD;
     }
     else if (type == "link_enable")
     {
         TriggerLinkEnable::Ptr triggerLinkE {new TriggerLinkEnable};
-        triggerLinkE->whiteList = linkWhiteList;
-        triggerLinkE->blackList = linkBlackList;
+
+        if (TriggerLinkEnable* t = dynamic_cast<TriggerLinkEnable*>(baseTrigger))
+            triggerLinkE->assign(*t);
+
+        assignValue(triggerLinkE->whiteList, linkWhiteListO);
+        assignValue(triggerLinkE->blackList, linkBlackListO);
         trigger = triggerLinkE;
     }
     else if (type == "word")
     {
         TriggerWord::Ptr triggerWord {new TriggerWord};
-        triggerWord->caseInsensitive = caseInsensitive;
-        triggerWord->wordList = wordList;
+
+        if (TriggerWord* t = dynamic_cast<TriggerWord*>(baseTrigger))
+            triggerWord->assign(*t);
+
+        assignValue(triggerWord->caseInsensitive, caseInsensitiveO);
+        assignValue(triggerWord->wordList, wordListO);
         trigger = triggerWord;
     }
     else if (type == "regexp")
     {
         TriggerRegexp::Ptr triggerRegexp {new TriggerRegexp};
-        triggerRegexp->caseInsensitive = caseInsensitive;
-        triggerRegexp->multiline = multiline;
-        triggerRegexp->analyze = analyze;
+
+        if (TriggerRegexp* t = dynamic_cast<TriggerRegexp*>(baseTrigger))
+            triggerRegexp->assign(*t);
+
+        assignValue(triggerRegexp->caseInsensitive, caseInsensitiveO);
+        assignValue(triggerRegexp->multiline, multilineO);
+        assignValue(triggerRegexp->analyze, analyzeO);
 
         QRegularExpression::PatternOptions patternOpt =
             {QRegularExpression::DotMatchesEverythingOption
             |QRegularExpression::UseUnicodePropertiesOption};
 
-        if (caseInsensitive)
+        if (triggerRegexp->caseInsensitive)
             patternOpt |= QRegularExpression::CaseInsensitiveOption;
 
-        if (multiline)
+        if (triggerRegexp->multiline)
             patternOpt |= QRegularExpression::MultilineOption;
 
-        for (const QString& pattern : regexpRemove)
+        if (regexpRemoveO)
         {
-            QRegularExpression re {pattern, patternOpt};
-            if (!re.isValid())
+            triggerRegexp->regexpRemove.clear();
+            for (const QString& pattern : regexpRemoveO.value())
             {
-                log_error_m << "Trigger '" << name << "'"
-                            << ". Failed regular expression in regexp_remove"
-                            << ". Pattren '" << pattern << "'"
-                            << ". Error: " << re.errorString()
-                            << ". Offset: " << re.patternErrorOffset();
-                ++globalConfigParceErrors;
-                continue;
+                QRegularExpression re {pattern, patternOpt};
+                if (!re.isValid())
+                {
+                    log_error_m << "Trigger '" << name << "'"
+                                << ". Failed regular expression in regexp_remove"
+                                << ". Pattren '" << pattern << "'"
+                                << ". Error: " << re.errorString()
+                                << ". Offset: " << re.patternErrorOffset();
+                    ++globalConfigParceErrors;
+                    continue;
+                }
+                triggerRegexp->regexpRemove.append(std::move(re));
             }
-            triggerRegexp->regexpRemove.append(std::move(re));
         }
-
-        for (const QString& pattern : regexpList)
+        if (regexpListO)
         {
-            QRegularExpression re {pattern, patternOpt};
-            if (!re.isValid())
+            triggerRegexp->regexpList.clear();
+            for (const QString& pattern : regexpListO.value())
             {
-                log_error_m << "Trigger '" << name << "'"
-                            << ". Failed regular expression in regexp_list"
-                            << ". Pattren '" << pattern << "'"
-                            << ". Error: " << re.errorString()
-                            << ". Offset: " << re.patternErrorOffset();
-                ++globalConfigParceErrors;
-                continue;
+                QRegularExpression re {pattern, patternOpt};
+                if (!re.isValid())
+                {
+                    log_error_m << "Trigger '" << name << "'"
+                                << ". Failed regular expression in regexp_list"
+                                << ". Pattren '" << pattern << "'"
+                                << ". Error: " << re.errorString()
+                                << ". Offset: " << re.patternErrorOffset();
+                    ++globalConfigParceErrors;
+                    continue;
+                }
+                triggerRegexp->regexpList.append(std::move(re));
             }
-            triggerRegexp->regexpList.append(std::move(re));
         }
         trigger = triggerRegexp;
     }
     if (trigger)
     {
         trigger->name = name;
+        trigger->type = type;
         trigger->active = active;
         trigger->description = description;
-        trigger->skipAdmins = skipAdmins;
-        trigger->whiteUsers = whiteUsers;
-        trigger->inverse = inverse;
-        trigger->immediatelyBan = immediatelyBan;
+
+        assignValue(trigger->skipAdmins, skipAdminsO);
+        assignValue(trigger->whiteUsers, whiteUsersO);
+        assignValue(trigger->inverse, inverseO);
+        assignValue(trigger->immediatelyBan, immediatelyBanO);
     }
     return trigger;
 }
@@ -624,7 +726,7 @@ bool loadTriggers(Trigger::List& triggers)
         for (const YAML::Node& ytrigger : ytriggers)
             try
             {
-                if (Trigger::Ptr t = createTrigger(ytrigger))
+                if (Trigger::Ptr t = createTrigger(ytrigger, triggers))
                     triggers.add(t.detach());
             }
             catch (trigger_logic_error& e)
