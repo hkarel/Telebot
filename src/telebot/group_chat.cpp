@@ -263,7 +263,29 @@ GroupChat::List groupChats(GroupChat::List* list)
     static GroupChat::List chats;
 
     if (list)
+    {
         chats.swap(*list);
+
+        // После создания нового списка групп, они (группы) некоторое  время
+        // остаются без актуального списка админов и владельцев. Если в этот
+        // момент придет сообщение от админа, оно может быть  удалено  ботом.
+        // Чтобы не оставлять группу с пустым списком  админов,  переприсваи-
+        // ваем его из "старых" групп. Новый список админов будет получен и
+        // обновлен через 1-2 секунды.
+        for (GroupChat* chat : *list)
+        {
+            QSet<qint64> adminIds = chat->adminIds();
+            QSet<qint64> ownerIds = chat->ownerIds();
+            if (lst::FindResult fr = chats.findRef(chat->id))
+            {
+                if (!adminIds.isEmpty())
+                    chats[fr.index()].setAdminIds(adminIds);
+
+                if (!ownerIds.isEmpty())
+                    chats[fr.index()].setOwnerIds(ownerIds);
+            }
+        }
+    }
 
     GroupChat::List retChats;
     for (GroupChat* c : chats)
