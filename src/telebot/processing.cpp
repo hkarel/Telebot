@@ -312,6 +312,8 @@ void Processing::run()
                                .arg(trigger->name);
 
                 botMsh.replace("+", "&#43;");
+                botMsh.replace("<", "&#60;");
+                botMsh.replace(">", "&#62;");
 
                 if (!trigger->description.isEmpty())
                     botMsh += QString(" (%1)").arg(trigger->description);
