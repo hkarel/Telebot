@@ -24,6 +24,7 @@ struct Trigger : public clife_base
     {
         Content  = 0,
         UserName = 1,
+        FileMime = 2,
     };
     typedef QMap<TextType, QString> Text;
 
@@ -153,10 +154,12 @@ struct TriggerRegexp : public Trigger
     //   https://doc.qt.io/qt-6/qregularexpression.html#PatternOption-enum
     bool multiline = {false};
 
-    // Определяет что будет анализироваться: контент сообщения (content) или имя
-    // пользователя (username).
-    // Параметр может принимать значения: content, username. Значение параметра
-    // по умолчанию равно content
+    // Параметр определяет что будет анализироваться, может принимать следующие
+    // значения:
+    //   content  - контент сообщения;
+    //   username - имя пользователя;
+    //   filemime - наименование и mimetype вложенного документа.
+    // Значение параметра по умолчанию равно content
     QString analyze = {"content"};
 
     // Список регулярных выражений для сокращения исходного текста

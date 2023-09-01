@@ -104,10 +104,12 @@ triggers:
     # Значение параметра по умолчанию равно FALSE
     multiline: false
 
-    # Определяет что будет анализироваться: контент сообщения (content) или имя
-    # пользователя (username).
-    # Параметр может принимать значения: content, username. Значение параметра
-    # по умолчанию равно content
+    # Параметр определяет что будет анализироваться, может принимать следующие
+    # значения:
+    #   content  - контент сообщения;
+    #   username - имя пользователя;
+    #   filemime - наименование и mimetype вложенного документа.
+    # Значение параметра по умолчанию равно content
     analyze: content
 
     # Если триггер  однозначно  идентифицирует  спам-сообщение, то пользователя
@@ -136,8 +138,6 @@ triggers:
   - name: one_symbol
     type: regexp
     description: "Одиночные/повторяющиеся символы"
-    case_insensitive: true
-    multiline: false
 
     # Список регулярных выражений
     regexp_list: [
@@ -147,12 +147,19 @@ triggers:
   - name: user_name
     type: regexp
     description: "Имя пользователя"
-    case_insensitive: true
-    multiline: false
     analyze: username
 
     regexp_list: [
         "User.*Name",
+    ]
+
+  - name: file_name
+    type: regexp
+    description: "Имя файла"
+    analyze: filemime
+
+    regexp_list: [
+        "\\.apk\\b",
     ]
 
 group_chats:

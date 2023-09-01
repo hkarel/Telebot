@@ -230,6 +230,14 @@ void Processing::run()
         tbot::Trigger::Text triggerText;
         triggerText[tbot::Trigger::TextType::Content]  = clearText;
         triggerText[tbot::Trigger::TextType::UserName] = usernameText;
+        triggerText[tbot::Trigger::TextType::FileMime] = "";
+
+        if (message->document)
+        {
+            triggerText[tbot::Trigger::TextType::FileMime] =
+                QString("%1 %2").arg(message->document->file_name)
+                                .arg(message->document->mime_type).trimmed();
+        }
 
         for (tbot::Trigger* trigger : chat->triggers)
         {
