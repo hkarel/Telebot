@@ -20,6 +20,13 @@ struct Trigger : public clife_base
 {
     typedef clife_ptr<Trigger> Ptr;
 
+    enum class TextType
+    {
+        Content  = 0,
+        UserName = 1,
+    };
+    typedef QMap<TextType, QString> Text;
+
     // Имя триггера
     QString name;
 
@@ -54,9 +61,7 @@ struct Trigger : public clife_base
 
     // Проверяет сообщение на соответствие критериям фильтрации.
     // Параметр clearText содержит текстовое сообщение с удаленными линками
-    virtual bool isActive(
-                   const tbot::Update& update, GroupChat* chat,
-                   const QString& clearText, const QString& alterText) const = 0;
+    virtual bool isActive(const tbot::Update&, GroupChat*, const Text&) const = 0;
 
     struct Find
     {
@@ -101,9 +106,7 @@ struct TriggerLinkDisable : public TriggerLinkBase
     TriggerLinkDisable() = default;
     DISABLE_DEFAULT_COPY(TriggerLinkDisable)
 
-    bool isActive(
-           const tbot::Update& update, GroupChat* chat,
-           const QString& clearText, const QString& alterText) const override;
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 };
 
 struct TriggerLinkEnable : public TriggerLinkBase
@@ -113,9 +116,7 @@ struct TriggerLinkEnable : public TriggerLinkBase
     TriggerLinkEnable() = default;
     DISABLE_DEFAULT_COPY(TriggerLinkEnable)
 
-    bool isActive(
-           const tbot::Update& update, GroupChat* chat,
-           const QString& clearText, const QString& alterText) const override;
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 };
 
 struct TriggerWord : public Trigger
@@ -131,9 +132,7 @@ struct TriggerWord : public Trigger
     // Список слов
     QStringList wordList;
 
-    bool isActive(
-           const tbot::Update& update, GroupChat* chat,
-           const QString& clearText, const QString& alterText) const override;
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 
     void assign(const TriggerWord&);
 };
@@ -166,9 +165,7 @@ struct TriggerRegexp : public Trigger
     // Список регулярных выражений
     QList<QRegularExpression> regexpList;
 
-    bool isActive(
-           const tbot::Update& update, GroupChat* chat,
-           const QString& clearText, const QString& alterText) const override;
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 
     void assign(const TriggerRegexp&);
 };

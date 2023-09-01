@@ -227,6 +227,10 @@ void Processing::run()
             continue;
         }
 
+        tbot::Trigger::Text triggerText;
+        triggerText[tbot::Trigger::TextType::Content]  = clearText;
+        triggerText[tbot::Trigger::TextType::UserName] = usernameText;
+
         for (tbot::Trigger* trigger : chat->triggers)
         {
             if (!trigger->active)
@@ -255,7 +259,7 @@ void Processing::run()
                 continue;
             }
 
-            bool triggerActive = trigger->isActive(update, chat, clearText, usernameText);
+            bool triggerActive = trigger->isActive(update, chat, triggerText);
 
             if (trigger->inverse)
                 triggerActive = !triggerActive;

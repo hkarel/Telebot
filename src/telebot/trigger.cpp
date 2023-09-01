@@ -47,12 +47,10 @@ void TriggerLinkBase::assign(const TriggerLinkBase& trigger)
     blackList = trigger.blackList;
 }
 
-bool TriggerLinkDisable::isActive(
-                           const Update& update, GroupChat* chat,
-                           const QString& clearText, const QString& alterText) const
+bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
+                                  const Text& text_) const
 {
-    (void) clearText;
-    (void) alterText;
+    (void) text_;
     activationReasonMessage.clear();
 
     Message::Ptr message = update.message;
@@ -144,12 +142,10 @@ bool TriggerLinkDisable::isActive(
     return false;
 }
 
-bool TriggerLinkEnable::isActive(
-                           const Update& update, GroupChat* chat,
-                           const QString& clearText, const QString& alterText) const
+bool TriggerLinkEnable::isActive(const Update& update, GroupChat* chat,
+                                 const Text& text_) const
 {
-    (void) clearText;
-    (void) alterText;
+    (void) text_;
     activationReasonMessage.clear();
 
     Message::Ptr message = update.message;
@@ -272,19 +268,19 @@ bool TriggerLinkEnable::isActive(
 }
 
 bool TriggerWord::isActive(const Update& update, GroupChat* chat,
-                           const QString& clearText, const QString& alterText) const
+                           const Text& text_) const
 {
-    (void) alterText;
     activationReasonMessage.clear();
+    QString text = text_[TextType::Content];
 
-    if (clearText.isEmpty())
+    if (text.isEmpty())
         return false;
 
     Qt::CaseSensitivity caseSens = (caseInsensitive)
                                    ? Qt::CaseInsensitive
                                    : Qt::CaseSensitive;
     for (const QString& word : wordList)
-        if (clearText.contains(word, caseSens))
+        if (text.contains(word, caseSens))
         {
             log_verbose_m << log_format(
                 "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
@@ -307,11 +303,13 @@ void TriggerWord::assign(const TriggerWord& trigger)
 }
 
 bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
-                             const QString& clearText, const QString& alterText) const
+                             const Text& text_) const
 {
     activationReasonMessage.clear();
+    QString text = (analyze == "username")
+                   ? text_[TextType::UserName]
+                   : text_[TextType::Content];
 
-    QString text = (analyze == "username") ? alterText : clearText;
     int textLen = text.length();
     if (textLen == 0)
         return false;
