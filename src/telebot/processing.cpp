@@ -198,10 +198,29 @@ void Processing::run()
                 clearText = clearCaption + '\n' + clearText;
         }
 
-        QString usernameText = {"%1 %2 %3"};
-        usernameText = usernameText.arg(message->from->first_name)
-                                   .arg(message->from->last_name)
-                                   .arg(message->from->username).trimmed();
+        QString usernameText = QString("%1 %2 %3")
+                                    .arg(message->from->first_name)
+                                    .arg(message->from->last_name)
+                                    .arg(message->from->username).trimmed();
+
+        if (message->forward_from)
+        {
+            usernameText += QString(" %1 %2 %3")
+                                    .arg(message->forward_from->first_name)
+                                    .arg(message->forward_from->last_name)
+                                    .arg(message->forward_from->username);
+            usernameText = usernameText.trimmed();
+        }
+
+        if (message->forward_from_chat)
+        {
+            usernameText += QString(" %1 %2 %3 %4")
+                                    .arg(message->forward_from_chat->title)
+                                    .arg(message->forward_from_chat->first_name)
+                                    .arg(message->forward_from_chat->last_name)
+                                    .arg(message->forward_from_chat->username);
+            usernameText = usernameText.trimmed();
+        }
 
         GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
