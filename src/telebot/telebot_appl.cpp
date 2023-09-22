@@ -702,8 +702,9 @@ void Application::http_finished()
 
     rd.data = unicodeDecode(rd.data);
 
-    log_debug_m << log_format("Http answer (reply id: %?) func   : %?",
-                              rd.replyNumer, rd.funcName);
+    log_debug_m << log_format("Http answer (reply id: %?) func   : %? (attempt: %?)",
+                              rd.replyNumer, rd.funcName, rd.attempt);
+
     { //Block for alog::Line
         alog::Line logLine =
             log_debug_m << log_format("Http answer (reply id: %?) params : ",
@@ -714,8 +715,24 @@ void Application::http_finished()
     log_debug_m << log_format("Http answer (reply id: %?) return : %?",
                               rd.replyNumer, rd.data);
 
-    QMetaObject::invokeMethod(this, "httpResultHandler",  Qt::QueuedConnection,
-                              Q_ARG(ReplyData, rd));
+    if (rd.success)
+    {
+        QMetaObject::invokeMethod(this, "httpResultHandler",  Qt::QueuedConnection,
+                                  Q_ARG(ReplyData, rd));
+    }
+    else
+    {
+        if (rd.funcName == "deleteMessage"
+            || rd.funcName == "banChatMember"
+            || rd.funcName == "restrictChatMember")
+        {
+            if (rd.attempt == 1)
+                sendTgCommand(rd.funcName, rd.params, 30*1000 /*30 сек*/, 2);
+
+            if (rd.attempt == 2)
+                sendTgCommand(rd.funcName, rd.params, 60*1000 /*60 сек*/, 3);
+        }
+    }
 
     _httpReplyMap.remove(replyId);
     reply->deleteLater();
@@ -726,8 +743,9 @@ void Application::http_error(QNetworkReply::NetworkError /*error*/)
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
     quint64 replyId = reinterpret_cast<quint64>(reply);
-    const ReplyData& rd = _httpReplyMap[replyId];
+    ReplyData& rd = _httpReplyMap[replyId];
 
+    rd.success = false;
     log_error_m << log_format("Http error (reply id: %?). %?",
                               rd.replyNumer, reply->errorString());
 }
@@ -914,10 +932,10 @@ void Application::startRequest()
     sendTgCommand("getMe", params);
 }
 
-void Application::sendTgCommand(const QString& funcName,
-                                const tbot::HttpParams& params, int delay)
+void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams& params,
+                                int delay, int attempt)
 {
-    QTimer::singleShot(delay, [this, funcName, params, delay]()
+    QTimer::singleShot(delay, [this, funcName, params, delay, attempt]()
     {
         QString urlStr = "https://api.telegram.org/bot%1/%2";
         urlStr = urlStr.arg(_botId).arg(funcName);
@@ -947,6 +965,7 @@ void Application::sendTgCommand(const QString& funcName,
         rd.reply = reply;
         rd.replyNumer = ++httpReplyNumber;
         rd.funcName = funcName;
+        rd.attempt = attempt;
         rd.params = params;
 
         log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",

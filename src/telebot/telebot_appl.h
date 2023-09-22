@@ -50,8 +50,6 @@ public:
     bool init();
     void deinit();
 
-//    void sendSettings();
-
     static void stop() {_stop = true;}
     static bool isStopped() {return _stop;}
 
@@ -60,8 +58,10 @@ public:
         QNetworkReply* reply = {nullptr};
         quint64 replyNumer = {0};
         QString funcName;
+        int attempt = {1};
         tbot::HttpParams params;
         QByteArray data;
+        bool success = {true}; // Признак успешно выполненного Http запроса
     };
 
 public slots:
@@ -89,9 +89,11 @@ public slots:
     void reloadGroups();
     void startRequest();
 
-    // Функция для отправки http команды
+    // Функция для отправки http команды.
+    //   delay - задержка отправки команды, задается в миллисекундах;
+    //   attempt - номер попытки выполняемого запроса.
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0);
+                       int delay = 0, int attempt = 1);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
