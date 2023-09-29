@@ -222,6 +222,15 @@ void Processing::run()
             usernameText = usernameText.trimmed();
         }
 
+        if (message->via_bot)
+        {
+            usernameText += QString(" %1 %2 %3")
+                                    .arg(message->via_bot->first_name)
+                                    .arg(message->via_bot->last_name)
+                                    .arg(message->via_bot->username);
+            usernameText = usernameText.trimmed();
+        }
+
         GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
 
