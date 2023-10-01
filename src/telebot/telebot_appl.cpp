@@ -933,9 +933,9 @@ void Application::startRequest()
 }
 
 void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams& params,
-                                int delay, int attempt)
+                                int delay, int attempt, bool serviceMsg)
 {
-    QTimer::singleShot(delay, [this, funcName, params, delay, attempt]()
+    QTimer::singleShot(delay, [=]()
     {
         QString urlStr = "https://api.telegram.org/bot%1/%2";
         urlStr = urlStr.arg(_botId).arg(funcName);
@@ -965,8 +965,9 @@ void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams&
         rd.reply = reply;
         rd.replyNumer = ++httpReplyNumber;
         rd.funcName = funcName;
-        rd.attempt = attempt;
         rd.params = params;
+        rd.attempt = attempt;
+        rd.serviceMsg = serviceMsg;
 
         log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
                                   rd.funcName, rd.replyNumer, url.toString());
@@ -1108,7 +1109,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         // Удаляем служебные сообщения бота
         tbot::SendMessage_Result result;
-        if (result.fromJson(rd.data))
+        if (rd.serviceMsg && result.fromJson(rd.data))
         {
             qint64 chatId = result.message.chat->id;
             qint64 userId = result.message.from->id;

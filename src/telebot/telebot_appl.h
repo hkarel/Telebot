@@ -57,11 +57,26 @@ public:
     {
         QNetworkReply* reply = {nullptr};
         quint64 replyNumer = {0};
+
+        // Имя TG-функции
         QString funcName;
-        int attempt = {1};
+
+        // Параметры http запроса
         tbot::HttpParams params;
+
+        // Результат выполнения http запроса в raw-формате
         QByteArray data;
-        bool success = {true}; // Признак успешно выполненного Http запроса
+
+        // Счетчик попыток выполнения http запроса
+        int attempt = {1};
+
+        // Признак сервисного сообщения бота. Сервисное сообщение должно отобра-
+        // жаться только в истории сообщений, поэтому  сразу  после  публикации
+        // такого сообщения в группе бот его удаляет
+        bool serviceMsg = {true};
+
+        // Признак успешно выполненного http запроса
+        bool success = {true};
     };
 
 public slots:
@@ -93,7 +108,7 @@ public slots:
     //   delay - задержка отправки команды, задается в миллисекундах;
     //   attempt - номер попытки выполняемого запроса.
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0, int attempt = 1);
+                       int delay = 0, int attempt = 1, bool serviceMsg = true);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);

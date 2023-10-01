@@ -27,7 +27,7 @@ public:
 
 signals:
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0, int attempt = 1);
+                       int delay = 0, int attempt = 1, bool serviceMsg = true);
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
 public slots:
