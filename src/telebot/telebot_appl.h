@@ -70,10 +70,11 @@ public:
         // Счетчик попыток выполнения http запроса
         int attempt = {1};
 
-        // Признак сервисного сообщения бота. Сервисное сообщение должно отобра-
-        // жаться только в истории сообщений, поэтому  сразу  после  публикации
-        // такого сообщения в группе бот его удаляет
-        bool serviceMsg = {true};
+        // Определяет тайм-аут для удаления сервисных сообщений бота, задается
+        // в секундах. Если значение тайм-аута равно 0 сообщение будет удалено
+        // немедленно, таким образом оно останется только в истории сообщений.
+        // При значении параметра меньше 0 сообщение не удаляется
+        int messageDel = {0};
 
         // Признак успешно выполненного http запроса
         bool success = {true};
@@ -104,11 +105,14 @@ public slots:
     void reloadGroups();
     void startRequest();
 
+    void timelimitCheck();
+
     // Функция для отправки http команды.
     //   delay - задержка отправки команды, задается в миллисекундах;
     //   attempt - номер попытки выполняемого запроса.
+    //   messageDel - см. описание в структуре ReplyData
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0, int attempt = 1, bool serviceMsg = true);
+                       int delay = 0, int attempt = 1, int messageDel = 0);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
@@ -132,6 +136,7 @@ private:
 
     int _stopTimerId = {-1};
     int _slaveTimerId = {-1};
+    int _timelimitTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 
     QString _botId;
@@ -183,6 +188,34 @@ private:
     };
 
     Spammer::List _spammers;
+
+    struct TimeLimit
+    {
+        qint64  chatId = {0};
+        QString triggerName;
+        steady_timer timer;
+
+        struct Compare
+        {
+            int operator() (const TimeLimit* item1, const TimeLimit* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(item1->chatId, item2->chatId)
+                return item1->triggerName.compare(item2->triggerName);
+            }
+            int operator() (const QPair<qint64 /*chat id*/, QString /*trigger name*/>* pair,
+                            const TimeLimit* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(pair->first, item2->chatId)
+                return pair->second.compare(item2->triggerName);
+            }
+        };
+        typedef lst::List<TimeLimit, Compare> List;
+    };
+
+    // Списки начала и окончания действия триггеров timelimit, используются
+    // для публикации сообщений об начале и окончании работы триггера
+    TimeLimit::List _timelimitBegins;
+    TimeLimit::List _timelimitEnds;
 
     struct WebhookData
     {

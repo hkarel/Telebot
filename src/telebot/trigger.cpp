@@ -367,6 +367,71 @@ void TriggerRegexp::assign(const TriggerRegexp& trigger)
     regexpList      = trigger.regexpList;
 }
 
+bool TriggerTimeLimit::isActive(const Update&, GroupChat*, const Text&) const
+{
+    activationReasonMessage.clear();
+
+    // Учитываем временной сдвиг UTC
+    QDateTime dtime = QDateTime::currentDateTimeUtc().addSecs(utc * 60*60);
+    int dayOfWeek = dtime.date().dayOfWeek();
+
+    QTime timeBegin, timeEnd;
+    if (!timeRangeOfDay(dayOfWeek, timeBegin, timeEnd))
+        return false;
+
+    if (timeBegin.isNull()
+        || timeEnd.isNull()
+        || !timeBegin.isValid()
+        || !timeEnd.isValid())
+        return false;
+
+    QTime time = dtime.time();
+    if (timeInRange(timeBegin, time, timeEnd))
+    {
+        activationReasonMessage = QString(u8"ограничение на публикацию с %1 до %2")
+                                         .arg(timeBegin.toString("HH:mm"))
+                                         .arg(timeEnd.toString("HH:mm"));
+        return true;
+    }
+    return false;
+}
+
+void TriggerTimeLimit::assign(const TriggerTimeLimit& trigger)
+{
+    Trigger::assign(trigger);
+
+    utc = trigger.utc;
+    times = trigger.times;
+
+    messageBegin = trigger.messageBegin;
+    messageEnd = trigger.messageEnd;
+    messageInfo = trigger.messageInfo;
+}
+
+bool TriggerTimeLimit::timeRangeOfDay(int dayOfWeek,
+                                      QTime& timeBegin, QTime& timeEnd) const
+{
+    timeBegin = QTime();
+    timeEnd = QTime();
+
+    bool found = false;
+    for (const Time& time : times)
+        if (time.days.contains(dayOfWeek))
+        {
+            timeBegin = time.begin;
+            timeEnd = time.end;
+            found = true;
+            break;
+        }
+
+    if (!found)
+        log_error_m << log_format(
+            "Time range not found for day (%?) of week. Trigger '%?'",
+            dayOfWeek, name);
+
+    return found;
+}
+
 const char* yamlTypeName(YAML::NodeType::value type)
 {
     switch (int(type))
@@ -426,7 +491,8 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         && type != "link_enable"
         && type != "link_disable"
         && type != "word"
-        && type != "regexp")
+        && type != "regexp"
+        && type != "timelimit")
     {
         throw trigger_logic_error(
             "In a 'trigger' node a field 'type' can take one of the following "
@@ -569,11 +635,11 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         inverseO = ytrigger["inverse"].as<bool>();
     }
 
-    optional<bool> reportSpam0;
+    optional<bool> reportSpamO;
     if (ytrigger["report_spam"].IsDefined())
     {
         checkFiedType(ytrigger, "report_spam", YAML::NodeType::Scalar);
-        reportSpam0 = ytrigger["report_spam"].as<bool>();
+        reportSpamO = ytrigger["report_spam"].as<bool>();
     }
 
     optional<bool> immediatelyBanO;
@@ -600,6 +666,74 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         // Значение параметра по умолчанию равно content
         if ((analyzeO != "username") && (analyzeO != "filemime"))
             analyzeO = "content";
+    }
+
+    optional<int> timeUtcO;
+    if (ytrigger["utc"].IsDefined())
+    {
+        checkFiedType(ytrigger, "utc", YAML::NodeType::Scalar);
+        timeUtcO = qBound(-12, ytrigger["utc"].as<int>(), +12);
+    }
+
+    optional<TriggerTimeLimit::Time::List> timeListO;
+    if (ytrigger["times"].IsDefined())
+    {
+        timeListO = TriggerTimeLimit::Time::List();
+        checkFiedType(ytrigger, "times", YAML::NodeType::Sequence);
+        const YAML::Node& ytimes = ytrigger["times"];
+        for (const YAML::Node& ytime : ytimes)
+        {
+            TriggerTimeLimit::Time time;
+            if (ytime["days"].IsDefined())
+            {
+                QSet<int> days;
+                checkFiedType(ytime, "days", YAML::NodeType::Sequence);
+                const YAML::Node& ydays = ytime["days"];
+                for (const YAML::Node& yday : ydays)
+                    days.insert(qBound(1, yday.as<int>(), 7));
+                time.days = days;
+            }
+            if (ytime["begin"].IsDefined())
+            {
+                checkFiedType(ytime, "begin", YAML::NodeType::Scalar);
+                QString s = QString::fromStdString(ytime["begin"].as<string>());
+                QTime t = QTime::fromString(s, "HH:mm");
+                time.begin = t.isValid() ? t : QTime(0, 0);
+            }
+            if (ytime["end"].IsDefined())
+            {
+                checkFiedType(ytime, "end", YAML::NodeType::Scalar);
+                QString s = QString::fromStdString(ytime["end"].as<string>());
+                QTime t = QTime::fromString(s, "HH:mm");
+                time.end = t.isValid() ? t : QTime(0, 0);
+            }
+            timeListO->append(time);
+        }
+    }
+
+    optional<QString> timeMsgBeginO;
+    optional<QString> timeMsgEndO;
+    optional<QString> timeMsgInfoO;
+    if (ytrigger["message"].IsDefined())
+    {
+        checkFiedType(ytrigger, "message", YAML::NodeType::Map);
+        const YAML::Node ymessage = ytrigger["message"];
+
+        if (ymessage["begin"].IsDefined())
+        {
+            checkFiedType(ymessage, "begin", YAML::NodeType::Scalar);
+            timeMsgBeginO = QString::fromStdString(ymessage["begin"].as<string>()).trimmed();
+        }
+        if (ymessage["end"].IsDefined())
+        {
+            checkFiedType(ymessage, "end", YAML::NodeType::Scalar);
+            timeMsgEndO = QString::fromStdString(ymessage["end"].as<string>()).trimmed();
+        }
+        if (ymessage["info"].IsDefined())
+        {
+            checkFiedType(ymessage, "info", YAML::NodeType::Scalar);
+            timeMsgInfoO = QString::fromStdString(ymessage["info"].as<string>()).trimmed();
+        }
     }
 
     auto assignValue = [](auto& dest, const auto& source)
@@ -702,6 +836,21 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         }
         trigger = triggerRegexp;
     }
+    else if (type == "timelimit")
+    {
+        TriggerTimeLimit::Ptr triggerTimeLmt {new TriggerTimeLimit};
+
+        if (TriggerTimeLimit* t = dynamic_cast<TriggerTimeLimit*>(baseTrigger))
+            triggerTimeLmt->assign(*t);
+
+        assignValue(triggerTimeLmt->utc, timeUtcO);
+        assignValue(triggerTimeLmt->times, timeListO);
+        assignValue(triggerTimeLmt->messageBegin, timeMsgBeginO);
+        assignValue(triggerTimeLmt->messageEnd, timeMsgEndO);
+        assignValue(triggerTimeLmt->messageInfo, timeMsgInfoO);
+        trigger = triggerTimeLmt;
+    }
+
     if (trigger)
     {
         trigger->name = name;
@@ -712,7 +861,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(trigger->skipAdmins, skipAdminsO);
         assignValue(trigger->whiteUsers, whiteUsersO);
         assignValue(trigger->inverse, inverseO);
-        assignValue(trigger->reportSpam, reportSpam0);
+        assignValue(trigger->reportSpam, reportSpamO);
         assignValue(trigger->immediatelyBan, immediatelyBanO);
     }
     return trigger;
@@ -873,6 +1022,35 @@ void printTriggers(Trigger::List& triggers)
                 logLine << nextComma() << "'" << re.pattern() << "'";
             logLine << "]";
         }
+        else if (TriggerTimeLimit* triggerTimeLmt = dynamic_cast<TriggerTimeLimit*>(trigger))
+        {
+            logLine << "; type: timelimit"
+                    << "; active: " << triggerTimeLmt->active
+                    << "; utc: " << triggerTimeLmt->utc;
+
+            nextCommaVal = false;
+            logLine << "; times: [";
+            for (const TriggerTimeLimit::Time& time : triggerTimeLmt->times)
+            {
+                logLine << nextComma();
+                logLine << log_format("{begin: %?, end: %?, ",
+                                      time.begin.toString("HH:mm"),
+                                      time.end.toString("HH:mm"));
+                nextCommaVal2 = false;
+                logLine << "days: [";
+                QList<int> days = time.days.toList();
+                qSort(days.begin(), days.end());
+                for (int day : days)
+                    logLine << nextComma2() << day;
+                logLine << "]}";
+            }
+            logLine << "]";
+
+            logLine << log_format("; message: {begin: '%?', end: '%?', info: '%?'}",
+                                  triggerTimeLmt->messageBegin,
+                                  triggerTimeLmt->messageEnd,
+                                  triggerTimeLmt->messageInfo);
+        }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;
 
@@ -908,6 +1086,24 @@ Trigger::List triggers(Trigger::List* list)
         retTriggers.add(t);
     }
     return retTriggers;
+}
+
+bool timeInRange(const QTime& begin, const QTime& time, const QTime& end)
+{
+    if (begin <= end)
+    {
+        if ((begin <= time) && (time <= end))
+            return true;
+    }
+    else // begin > end
+    {
+        if ((begin <= time) && (time <= QTime(23, 59, 59, 999)))
+            return true;
+
+        if ((QTime(0, 0) <= time) && (time <= end))
+            return true;
+    }
+    return false;
 }
 
 } // namespace tbot

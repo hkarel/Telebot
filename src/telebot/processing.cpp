@@ -364,6 +364,29 @@ void Processing::run()
                 params2["parse_mode"] = "HTML";
                 emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
 
+                if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
+                    if (!trg->messageInfo.isEmpty())
+                    {
+                        QDateTime dtime = QDateTime::currentDateTimeUtc();
+                        dtime = dtime.addSecs(trg->utc * 60*60); // Учитываем сдвиг UTC
+                        int dayOfWeek = dtime.date().dayOfWeek();
+
+                        QTime timeBegin, timeEnd;
+                        if (trg->timeRangeOfDay(dayOfWeek, timeBegin, timeEnd))
+                        {
+                            QString message = trg->messageInfo;
+                            message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                            tbot::HttpParams params;
+                            params["chat_id"] = chatId;
+                            params["text"] = message;
+                            params["parse_mode"] = "HTML";
+                            emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/,
+                                               1, 3*60 /*3 мин*/);
+                        }
+                    }
+
                 if (trigger->immediatelyBan)
                 {
                     tbot::HttpParams params;

@@ -176,11 +176,43 @@ struct TriggerRegexp : public Trigger
     void assign(const TriggerRegexp&);
 };
 
+struct TriggerTimeLimit : public Trigger
+{
+    typedef clife_ptr<TriggerTimeLimit> Ptr;
+
+    TriggerTimeLimit() = default;
+    DISABLE_DEFAULT_COPY(TriggerTimeLimit)
+
+    int utc = {0}; // Часовой пояс
+
+    struct Time
+    {
+        QSet<int> days = {1,2,3,4,5,6,7}; // Дни недели, 1 - понедельник
+        QTime begin = {0, 0}; // Начало действия ограничения
+        QTime end   = {0, 2}; // Окончание действия ограничения
+
+        typedef QList<Time> List;
+    };
+    Time::List times;
+
+    QString messageBegin; // Сообщение отправляется в момент начала ограничения
+    QString messageEnd;   // Сообщение отправляется в момент окончания ограничения
+    QString messageInfo;  // Сообщение отправляется в период действия ограничения
+
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
+
+    void assign(const TriggerTimeLimit&);
+    bool timeRangeOfDay(int dayOfWeek, QTime& timeBegin, QTime& timeEnd) const;
+};
+
 const char* yamlTypeName(YAML::NodeType::value type);
 
 bool loadTriggers(Trigger::List&);
 void printTriggers(Trigger::List&);
 
 Trigger::List triggers(Trigger::List* = nullptr);
+
+// Проверяет нахождение времени time в диапазоне [begin, end]
+bool timeInRange(const QTime& begin, const QTime& time, const QTime& end);
 
 } // namespace tbot

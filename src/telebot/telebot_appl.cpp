@@ -95,6 +95,7 @@ Application::Application(int& argc, char** argv)
 {
     _stopTimerId = startTimer(1000);
     _slaveTimerId = startTimer(10*1000 /*10 сек*/);
+    _timelimitTimerId = startTimer(30*1000 /*30 сек*/);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -240,6 +241,7 @@ void Application::timerEvent(QTimerEvent* event)
         {
             KILL_TIMER(_stopTimerId)
             KILL_TIMER(_slaveTimerId)
+            KILL_TIMER(_timelimitTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
             exit(_exitCode);
@@ -290,6 +292,14 @@ void Application::timerEvent(QTimerEvent* event)
     else if (event->timerId() == _slaveTimerId)
     {
         reloadBotMode();
+    }
+    else if (event->timerId() == _timelimitTimerId)
+    {
+        if (_masterMode || (_slaveSocket && !_slaveSocket->isConnected()))
+        {
+            // Проверяем необходимость публикации сообщений для timelimit триггеров
+            timelimitCheck();
+        }
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
@@ -717,7 +727,7 @@ void Application::http_finished()
 
     if (rd.success)
     {
-        QMetaObject::invokeMethod(this, "httpResultHandler",  Qt::QueuedConnection,
+        QMetaObject::invokeMethod(this, "httpResultHandler", Qt::QueuedConnection,
                                   Q_ARG(ReplyData, rd));
     }
     else
@@ -932,8 +942,83 @@ void Application::startRequest()
     sendTgCommand("getMe", params);
 }
 
+void Application::timelimitCheck()
+{
+    using namespace tbot;
+
+    for (int i = 0; i < _timelimitBegins.count(); ++i)
+        if (_timelimitBegins[i].timer.elapsed() > 3*60*1000 /*3 мин*/)
+            _timelimitBegins.remove(i--);
+
+    for (int i = 0; i < _timelimitEnds.count(); ++i)
+        if (_timelimitEnds[i].timer.elapsed() > 3*60*1000 /*3 мин*/)
+            _timelimitEnds.remove(i--);
+
+    GroupChat::List chats = tbot::groupChats();
+    for (GroupChat* chat : chats)
+        for (Trigger* trigger : chat->triggers)
+            if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
+            {
+                QDateTime dtime = QDateTime::currentDateTimeUtc();
+                dtime = dtime.addSecs(trg->utc * 60*60); // Учитываем сдвиг UTC
+                int dayOfWeek = dtime.date().dayOfWeek();
+
+                QTime timeBegin, timeEnd;
+                if (trg->timeRangeOfDay(dayOfWeek, timeBegin, timeEnd))
+                {
+                    QTime time = dtime.time();
+
+                    QTime timeBeginL = timeBegin.addSecs(-15 /*-15 сек*/);
+                    QTime timeBeginR = timeBegin.addSecs(+90 /*+1.5 мин*/);
+                    if (timeInRange(timeBeginL, time, timeBeginR))
+                        if (!trg->messageBegin.isEmpty()
+                            && !_timelimitBegins.findRef(qMakePair(chat->id, trg->name)))
+                        {
+                            TimeLimit* tl = _timelimitBegins.add();
+                            tl->chatId = chat->id;
+                            tl->triggerName = trg->name;
+
+                            _timelimitBegins.sort();
+
+                            QString message = trg->messageBegin;
+                            message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                            tbot::HttpParams params;
+                            params["chat_id"] = chat->id;
+                            params["text"] = message;
+                            params["parse_mode"] = "HTML";
+                            emit sendTgCommand("sendMessage", params, 0, 1, -1);
+                        }
+
+                    QTime timeEndL = timeEnd.addSecs(-15 /*-15 сек*/);
+                    QTime timeEndR = timeEnd.addSecs(+90 /*+1.5 мин*/);
+                    if (timeInRange(timeEndL, time, timeEndR))
+                        if (!trg->messageEnd.isEmpty()
+                            && !_timelimitEnds.findRef(qMakePair(chat->id, trg->name)))
+                        {
+                            TimeLimit* tl = _timelimitEnds.add();
+                            tl->chatId = chat->id;
+                            tl->triggerName = trg->name;
+
+                            _timelimitEnds.sort();
+
+                            QString message = trg->messageEnd;
+                            message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                            tbot::HttpParams params;
+                            params["chat_id"] = chat->id;
+                            params["text"] = message;
+                            params["parse_mode"] = "HTML";
+                            emit sendTgCommand("sendMessage", params, 0, 1, -1);
+                        }
+                }
+            }
+}
+
 void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams& params,
-                                int delay, int attempt, bool serviceMsg)
+                                int delay, int attempt, int messageDel)
 {
     QTimer::singleShot(delay, [=]()
     {
@@ -967,7 +1052,7 @@ void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams&
         rd.funcName = funcName;
         rd.params = params;
         rd.attempt = attempt;
-        rd.serviceMsg = serviceMsg;
+        rd.messageDel = messageDel;
 
         log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
                                   rd.funcName, rd.replyNumer, url.toString());
@@ -1109,7 +1194,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         // Удаляем служебные сообщения бота
         tbot::SendMessage_Result result;
-        if (rd.serviceMsg && result.fromJson(rd.data))
+        if ((rd.messageDel >= 0) && result.fromJson(rd.data))
         {
             qint64 chatId = result.message.chat->id;
             qint64 userId = result.message.from->id;
@@ -1120,7 +1205,9 @@ void Application::httpResultHandler(const ReplyData& rd)
                 tbot::HttpParams params;
                 params["chat_id"] = chatId;
                 params["message_id"] = messageId;
-                sendTgCommand("deleteMessage", params);
+
+                int delay = rd.messageDel * 1000;
+                sendTgCommand("deleteMessage", params, delay);
             }
         }
     }
