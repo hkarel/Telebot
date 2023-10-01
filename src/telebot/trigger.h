@@ -52,6 +52,9 @@ struct Trigger : public clife_base
     // Инвертирует результат работы триггера
     bool inverse = {false};
 
+    // Отправлять отчет о спаме в систему учета штрафов
+    bool reportSpam = {true};
+
     // Если триггер однозначно идентифицирует спам-сообщение, то пользователя
     // можно заблокировать сразу
     bool immediatelyBan = {false};
@@ -61,7 +64,7 @@ struct Trigger : public clife_base
     mutable QString activationReasonMessage;
 
     // Проверяет сообщение на соответствие критериям фильтрации.
-    // Параметр clearText содержит текстовое сообщение с удаленными линками
+    // Параметр Text содержит текстовое сообщение с удаленными линками
     virtual bool isActive(const tbot::Update&, GroupChat*, const Text&) const = 0;
 
     struct Find

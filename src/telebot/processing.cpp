@@ -373,7 +373,7 @@ void Processing::run()
                     params["revoke_messages"] = true;
                     sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
                 }
-                else
+                else if (trigger->reportSpam)
                 {
                     // Отправляем отчет о спаме
                     emit reportSpam(chatId, message->from);

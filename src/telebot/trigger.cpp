@@ -36,6 +36,7 @@ void Trigger::assign(const Trigger& trigger)
     skipAdmins     = trigger.skipAdmins;
     whiteUsers     = trigger.whiteUsers;
     inverse        = trigger.inverse;
+    reportSpam     = trigger.reportSpam;
     immediatelyBan = trigger.immediatelyBan;
 }
 
@@ -568,6 +569,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         inverseO = ytrigger["inverse"].as<bool>();
     }
 
+    optional<bool> reportSpam0;
+    if (ytrigger["report_spam"].IsDefined())
+    {
+        checkFiedType(ytrigger, "report_spam", YAML::NodeType::Scalar);
+        reportSpam0 = ytrigger["report_spam"].as<bool>();
+    }
+
     optional<bool> immediatelyBanO;
     if (ytrigger["immediately_ban"].IsDefined())
     {
@@ -704,6 +712,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(trigger->skipAdmins, skipAdminsO);
         assignValue(trigger->whiteUsers, whiteUsersO);
         assignValue(trigger->inverse, inverseO);
+        assignValue(trigger->reportSpam, reportSpam0);
         assignValue(trigger->immediatelyBan, immediatelyBanO);
     }
     return trigger;
@@ -874,6 +883,7 @@ void printTriggers(Trigger::List& triggers)
         logLine << "]";
 
         logLine << "; inverse: " << trigger->inverse
+                << "; report_spam: " << trigger->reportSpam
                 << "; immediately_ban: " << trigger->immediatelyBan;
 
         if (!trigger->description.isEmpty())
