@@ -712,18 +712,33 @@ void Application::http_finished()
 
     rd.data = unicodeDecode(rd.data);
 
-    log_debug_m << log_format("Http answer (reply id: %?) func   : %? (attempt: %?)",
-                              rd.replyNumer, rd.funcName, rd.attempt);
+    auto printToLog = [&rd]()
+    {
+        log_debug_m << log_format("Http answer (reply id: %?) func   : %? (attempt: %?)",
+                                  rd.replyNumer, rd.funcName, rd.attempt);
 
-    { //Block for alog::Line
-        alog::Line logLine =
-            log_debug_m << log_format("Http answer (reply id: %?) params : ",
-                                      rd.replyNumer);
-        for (auto&& it = rd.params.cbegin(); it != rd.params.cend(); ++it)
-            logLine << it.key() << ": " << it.value().toString() << "; ";
+        { //Block for alog::Line
+            alog::Line logLine =
+                    log_debug_m << log_format("Http answer (reply id: %?) params : ",
+                                              rd.replyNumer);
+            for (auto&& it = rd.params.cbegin(); it != rd.params.cend(); ++it)
+                logLine << it.key() << ": " << it.value().toString() << "; ";
+        }
+        log_debug_m << log_format("Http answer (reply id: %?) return : %?",
+                                  rd.replyNumer, rd.data);
+    };
+
+    if (rd.funcName == "getChat"
+        || (rd.funcName == "getChatAdministrators"))
+    {
+        if ((rd.funcName == "getChat") && _printGetChat)
+            printToLog();
+
+        if ((rd.funcName == "getChatAdministrators") && _printGetChatAdministrators)
+            printToLog();
     }
-    log_debug_m << log_format("Http answer (reply id: %?) return : %?",
-                              rd.replyNumer, rd.data);
+    else
+        printToLog();
 
     if (rd.success)
     {
@@ -793,6 +808,12 @@ void Application::reloadConfig()
         config::observer().removeFile(configFileM);
         config::observer().addFile(configFileS);
     }
+
+    _printGetChat = true;
+    config::base().getValue("print_log.get_chat", _printGetChat);
+
+    _printGetChatAdministrators = true;
+    config::base().getValue("print_log.get_chatadministrators", _printGetChatAdministrators);
 
     reloadBotMode();
     reloadGroups();
@@ -1054,8 +1075,23 @@ void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams&
         rd.attempt = attempt;
         rd.messageDel = messageDel;
 
-        log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
-                                  rd.funcName, rd.replyNumer, url.toString());
+        auto printToLog = [&rd, &url]()
+        {
+            log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
+                                      rd.funcName, rd.replyNumer, url.toString());
+        };
+
+        if (rd.funcName == "getChat"
+            || (rd.funcName == "getChatAdministrators"))
+        {
+            if ((rd.funcName == "getChat") && _printGetChat)
+                printToLog();
+
+            if ((rd.funcName == "getChatAdministrators") && _printGetChatAdministrators)
+                printToLog();
+        }
+        else
+            printToLog();
     });
 }
 

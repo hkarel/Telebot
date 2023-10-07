@@ -234,4 +234,7 @@ private:
 
     // Счетчик вызова ТГ-функции "getChatAdministrators"
     int _getChatAdminCallCount = {0};
+
+    bool _printGetChat = {true};
+    bool _printGetChatAdministrators = {true};
 };
