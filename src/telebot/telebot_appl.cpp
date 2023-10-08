@@ -1009,7 +1009,7 @@ void Application::timelimitCheck()
                             params["chat_id"] = chat->id;
                             params["text"] = message;
                             params["parse_mode"] = "HTML";
-                            emit sendTgCommand("sendMessage", params, 0, 1, -1);
+                            sendTgCommand("sendMessage", params, 0, 1, 6*60*60 /*6 часов*/);
                         }
 
                     QTime timeEndL = timeEnd.addSecs(-15 /*-15 сек*/);
@@ -1032,7 +1032,7 @@ void Application::timelimitCheck()
                             params["chat_id"] = chat->id;
                             params["text"] = message;
                             params["parse_mode"] = "HTML";
-                            emit sendTgCommand("sendMessage", params, 0, 1, -1);
+                            sendTgCommand("sendMessage", params, 0, 1, 1*60*60 /*1 час*/);
                         }
                 }
             }
