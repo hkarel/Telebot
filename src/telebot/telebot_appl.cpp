@@ -95,7 +95,7 @@ Application::Application(int& argc, char** argv)
 {
     _stopTimerId = startTimer(1000);
     _slaveTimerId = startTimer(10*1000 /*10 сек*/);
-    _timelimitTimerId = startTimer(30*1000 /*30 сек*/);
+    _timelimitTimerId = startTimer(20*1000 /*20 сек*/);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -990,7 +990,7 @@ void Application::timelimitCheck()
                     QTime time = dtime.time();
 
                     QTime timeBeginL = timeBegin.addSecs(-15 /*-15 сек*/);
-                    QTime timeBeginR = timeBegin.addSecs(+90 /*+1.5 мин*/);
+                    QTime timeBeginR = timeBegin.addSecs(+45 /*+45 сек*/);
                     if (timeInRange(timeBeginL, time, timeBeginR))
                         if (!trg->messageBegin.isEmpty()
                             && !_timelimitBegins.findRef(qMakePair(chat->id, trg->name)))
@@ -1013,7 +1013,7 @@ void Application::timelimitCheck()
                         }
 
                     QTime timeEndL = timeEnd.addSecs(-15 /*-15 сек*/);
-                    QTime timeEndR = timeEnd.addSecs(+90 /*+1.5 мин*/);
+                    QTime timeEndR = timeEnd.addSecs(+45 /*+45 сек*/);
                     if (timeInRange(timeEndL, time, timeEndR))
                         if (!trg->messageEnd.isEmpty()
                             && !_timelimitEnds.findRef(qMakePair(chat->id, trg->name)))
