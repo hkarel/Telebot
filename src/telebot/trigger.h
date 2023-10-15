@@ -185,24 +185,33 @@ struct TriggerTimeLimit : public Trigger
 
     int utc = {0}; // Часовой пояс
 
-    struct Time
+    struct TimeRange
     {
-        QSet<int> days = {1,2,3,4,5,6,7}; // Дни недели, 1 - понедельник
-        QTime begin = {0, 0}; // Начало действия ограничения
-        QTime end   = {0, 2}; // Окончание действия ограничения
-
-        typedef QList<Time> List;
+        QTime begin; // Начало действия ограничения
+        QTime end;   // Окончание действия ограничения
+        QTime hint;  // Подсказка для отображения в информ-сообщениях
     };
-    Time::List times;
+    typedef QList<TimeRange> Times;
+
+    struct Day
+    {
+        Times times;
+        QSet<int> daysOfWeek = {1,2,3,4,5,6,7}; // Дни недели, 1 - понедельник
+    };
+    typedef QList<Day> Week;
+
+    Week week;
 
     QString messageBegin; // Сообщение отправляется в момент начала ограничения
     QString messageEnd;   // Сообщение отправляется в момент окончания ограничения
     QString messageInfo;  // Сообщение отправляется в период действия ограничения
 
+    mutable TimeRange activationTime;
+
     bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 
     void assign(const TriggerTimeLimit&);
-    bool timeRangeOfDay(int dayOfWeek, QTime& timeBegin, QTime& timeEnd) const;
+    void timesRangeOfDay(int dayOfWeek, Times& times) const;
 };
 
 const char* yamlTypeName(YAML::NodeType::value type);

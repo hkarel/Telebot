@@ -367,24 +367,24 @@ void Processing::run()
                 if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
                     if (!trg->messageInfo.isEmpty())
                     {
-                        QDateTime dtime = QDateTime::currentDateTimeUtc();
-                        dtime = dtime.addSecs(trg->utc * 60*60); // Учитываем сдвиг UTC
-                        int dayOfWeek = dtime.date().dayOfWeek();
+                        QTime timeBegin = !trg->activationTime.begin.isNull()
+                                          ? trg->activationTime.begin
+                                          : trg->activationTime.hint;
 
-                        QTime timeBegin, timeEnd;
-                        if (trg->timeRangeOfDay(dayOfWeek, timeBegin, timeEnd))
-                        {
-                            QString message = trg->messageInfo;
-                            message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+                        QTime timeEnd   = !trg->activationTime.end.isNull()
+                                          ? trg->activationTime.end
+                                          : trg->activationTime.hint;
 
-                            tbot::HttpParams params;
-                            params["chat_id"] = chatId;
-                            params["text"] = message;
-                            params["parse_mode"] = "HTML";
-                            emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/,
-                                               1, 3*60 /*3 мин*/);
-                        }
+                        QString message = trg->messageInfo;
+                        message.replace("{begin}", timeBegin.toString("HH:mm"))
+                               .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                        tbot::HttpParams params;
+                        params["chat_id"] = chatId;
+                        params["text"] = message;
+                        params["parse_mode"] = "HTML";
+                        emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/,
+                                           1, 3*60 /*3 мин*/);
                     }
 
                 if (trigger->immediatelyBan)

@@ -95,7 +95,7 @@ Application::Application(int& argc, char** argv)
 {
     _stopTimerId = startTimer(1000);
     _slaveTimerId = startTimer(10*1000 /*10 сек*/);
-    _timelimitTimerId = startTimer(20*1000 /*20 сек*/);
+    _timelimitTimerId = startTimer(15*1000 /*15 сек*/);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -983,23 +983,28 @@ void Application::timelimitCheck()
                 QDateTime dtime = QDateTime::currentDateTimeUtc();
                 dtime = dtime.addSecs(trg->utc * 60*60); // Учитываем сдвиг UTC
                 int dayOfWeek = dtime.date().dayOfWeek();
+                QTime curTime = dtime.time();
 
-                QTime timeBegin, timeEnd;
-                if (trg->timeRangeOfDay(dayOfWeek, timeBegin, timeEnd))
+                TriggerTimeLimit::Times times;
+                trg->timesRangeOfDay(dayOfWeek, times);
+                for (const TriggerTimeLimit::TimeRange& time : times)
                 {
-                    QTime time = dtime.time();
-
-                    QTime timeBeginL = timeBegin.addSecs(-15 /*-15 сек*/);
-                    QTime timeBeginR = timeBegin.addSecs(+45 /*+45 сек*/);
-                    if (timeInRange(timeBeginL, time, timeBeginR))
-                        if (!trg->messageBegin.isEmpty()
-                            && !_timelimitBegins.findRef(qMakePair(chat->id, trg->name)))
+                    if (!time.begin.isNull()
+                        && !trg->messageBegin.isEmpty()
+                        && !_timelimitBegins.findRef(qMakePair(chat->id, trg->name)))
+                    {
+                        QTime timeBeginL = time.begin.addSecs(+1  /*+1 сек*/);
+                        QTime timeBeginR = time.begin.addSecs(+45 /*+45 сек*/);
+                        if (timeInRange(timeBeginL, curTime, timeBeginR))
                         {
                             TimeLimit* tl = _timelimitBegins.add();
                             tl->chatId = chat->id;
                             tl->triggerName = trg->name;
 
                             _timelimitBegins.sort();
+
+                            QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                            QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
                             QString message = trg->messageBegin;
                             message.replace("{begin}", timeBegin.toString("HH:mm"))
@@ -1011,18 +1016,24 @@ void Application::timelimitCheck()
                             params["parse_mode"] = "HTML";
                             sendTgCommand("sendMessage", params, 0, 1, 6*60*60 /*6 часов*/);
                         }
+                    }
 
-                    QTime timeEndL = timeEnd.addSecs(-15 /*-15 сек*/);
-                    QTime timeEndR = timeEnd.addSecs(+45 /*+45 сек*/);
-                    if (timeInRange(timeEndL, time, timeEndR))
-                        if (!trg->messageEnd.isEmpty()
-                            && !_timelimitEnds.findRef(qMakePair(chat->id, trg->name)))
+                    if (!time.end.isNull()
+                        && !trg->messageEnd.isEmpty()
+                        && !_timelimitEnds.findRef(qMakePair(chat->id, trg->name)))
+                    {
+                        QTime timeEndL = time.end.addSecs(+1  /*+1 сек*/);
+                        QTime timeEndR = time.end.addSecs(+45 /*+45 сек*/);
+                        if (timeInRange(timeEndL, curTime, timeEndR))
                         {
                             TimeLimit* tl = _timelimitEnds.add();
                             tl->chatId = chat->id;
                             tl->triggerName = trg->name;
 
                             _timelimitEnds.sort();
+
+                            QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                            QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
                             QString message = trg->messageEnd;
                             message.replace("{begin}", timeBegin.toString("HH:mm"))
@@ -1034,6 +1045,7 @@ void Application::timelimitCheck()
                             params["parse_mode"] = "HTML";
                             sendTgCommand("sendMessage", params, 0, 1, 1*60*60 /*1 час*/);
                         }
+                    }
                 }
             }
 }
