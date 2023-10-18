@@ -372,17 +372,6 @@ bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
 {
     activationReasonMessage.clear();
 
-    if (update.message.empty())
-        return false;
-
-    // Не обрабатываем сообщения о вступлении в группу новых участников
-    if (!update.message->new_chat_members.isEmpty())
-        return false;
-
-    // Не обрабатываем сообщения о покинувших группу участниках
-    if (update.message->left_chat_member)
-        return false;
-
     // Учитываем временной сдвиг UTC
     QDateTime dtime = QDateTime::currentDateTimeUtc().addSecs(utc * 60*60);
     int dayOfWeek = dtime.date().dayOfWeek();

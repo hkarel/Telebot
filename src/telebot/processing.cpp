@@ -91,6 +91,15 @@ void Processing::run()
             continue;
 
         Message::Ptr message = update.message;
+
+        // Не обрабатываем сообщения о вступлении в группу новых участников
+        if (message && message->new_chat_members.count())
+            continue;
+
+        // Не обрабатываем сообщения о покинувших группу участниках
+        if (message && message->left_chat_member)
+            continue;
+
         if (message.empty())
         {
             message = update.edited_message;
