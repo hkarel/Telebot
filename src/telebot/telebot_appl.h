@@ -118,6 +118,7 @@ public slots:
     void httpResultHandler(const ReplyData&);
 
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
+    void updateBotCommands();
 
 private:
     Q_OBJECT
@@ -125,9 +126,13 @@ private:
 
     void command_SlaveAuth(const Message::Ptr&);
     void command_ConfSync(const Message::Ptr&);
+    void command_TimelimitSync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
+
+     void loadBotCommands();
+     void saveBotCommands(qint64 timemark);
 
 private:
     static QUuidEx _applId;

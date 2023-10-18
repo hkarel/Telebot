@@ -298,4 +298,31 @@ GroupChat::List groupChats(GroupChat::List* list)
     return retChats;
 }
 
+static QMutex timelimitChatsMutex;
+static QSet<qint64> timelimitChatsSet;
+
+QSet<qint64> timelimitChats()
+{
+    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
+    return timelimitChatsSet;
+}
+
+void setTimelimitChats(const QList<qint64>& chats)
+{
+    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
+    timelimitChatsSet = QSet<qint64>::fromList(chats);
+}
+
+void timelimitChatAdd(qint64 chatId)
+{
+    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
+    timelimitChatsSet.insert(chatId);
+}
+
+void timelimitChatRemove(qint64 chatId)
+{
+    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
+    timelimitChatsSet.remove(chatId);
+}
+
 } // namespace tbot

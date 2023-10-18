@@ -123,6 +123,9 @@ void Processing::run()
             continue;
         }
 
+        if (botCommand(update))
+            continue;
+
         qint64 chatId = message->chat->id;
         qint64 userId = message->from->id;
         qint32 messageId = message->message_id;
@@ -430,6 +433,167 @@ void Processing::run()
     } // while (true)
 
     log_info_m << "Stopped";
+}
+
+bool Processing::botCommand(const Update& update)
+{
+    Message::Ptr message = (update.message)
+                           ? update.message
+                           : update.edited_message;
+    if (message.empty())
+    {
+        // После выхода из функции будет обрабатываться следующее сообщение
+        return true;
+    }
+
+    qint64 chatId = message->chat->id;
+    qint64 userId = message->from->id;
+    qint32 messageId = message->message_id;
+
+    GroupChat::List chats = tbot::groupChats();
+
+    GroupChat* chat = chats.findItem(&chatId);
+    if (chat == nullptr)
+        return false;
+
+    auto sendMessage = [this](qint64 chatId, const QString& botMsg)
+    {
+        tbot::HttpParams params;
+        params["chat_id"] = chatId;
+        params["text"] = botMsg;
+        params["parse_mode"] = "HTML";
+        emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/);
+    };
+
+    for (const MessageEntity& entity : message->entities)
+    {
+        if (entity.type != "bot_command")
+            continue;
+
+        QString command = message->text.mid(entity.offset, entity.length);
+        command.remove(QRegularExpression("@.*$"));
+
+        QString actionLine = message->text.mid(entity.offset + entity.length);
+        QStringList actions = actionLine.split(QChar(' '), QString::SkipEmptyParts);
+
+        if (command == "/timelimit")
+        {
+            // Удаляем сообщение с командой
+            tbot::HttpParams params;
+            params["chat_id"] = chatId;
+            params["message_id"] = messageId;
+            sendTgCommand("deleteMessage", params);
+
+            if (!chat->adminIds().contains(userId))
+            {
+                QString botMsg =
+                    u8"Для управления ботом нужны права администратора."
+                    u8"\r\nКоманда /timelimit";
+
+                sendMessage(chatId, botMsg);
+                return true;
+            }
+
+            QString action;
+            if (actions.count())
+                action = actions[0];
+
+            if (action != "start"
+                && action != "stop"
+                && action != "status")
+            {
+                QString botMsg = (action.isEmpty())
+                    ? u8"Для команды /timelimit требуется указать действие."
+                    : u8"Команда /timelimit не используется с указанным действием: %1.";
+
+                botMsg += u8"\r\nДопустимые действия: start/stop/status"
+                          u8"\r\nПример: /timelimit status";
+                botMsg = botMsg.arg(action);
+
+                sendMessage(chatId, botMsg);
+                return true;
+            }
+
+            if (action == "start")
+            {
+                timelimitChatRemove(chatId);
+                emit updateBotCommands();
+
+                QString botMsg = u8"Триггер timelimit активирован";
+                sendMessage(chatId, botMsg);
+            }
+            else if (action == "stop")
+            {
+                timelimitChatAdd(chatId);
+                emit updateBotCommands();
+
+                QString botMsg = u8"Триггер timelimit деактивирован";
+                sendMessage(chatId, botMsg);
+            }
+            else if (action == "status")
+            {
+                for (tbot::Trigger* trigger : chat->triggers)
+                {
+                    TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger);
+                    if (trg == nullptr)
+                        continue;
+
+                    QString botMsg = u8"Триггер: " + trigger->name;
+                    if (!trg->description.isEmpty())
+                        botMsg += QString(" (%1)").arg(trg->description);
+
+                    if (timelimitChats().contains(chatId))
+                        botMsg += u8"\r\nСостояние: не активен";
+                    else
+                        botMsg += u8"\r\nСостояние: активен";
+
+                    botMsg += u8"\r\nUTC часовой пояс: " + QString::number(trg->utc);
+                    botMsg += u8"\r\nРасписание:";
+
+                    bool first = true;
+                    for (const TriggerTimeLimit::Day& day : trg->week)
+                    {
+                        QList<int> dayset = day.daysOfWeek.toList();
+                        qSort(dayset.begin(), dayset.end());
+
+                        botMsg += u8"\r\n    Дни:";
+                        for (int ds : dayset)
+                            botMsg += " " + QString::number(ds);
+
+                        if (first)
+                        {
+                            botMsg += u8" (1 - понедельник)";
+                            first = false;
+                        }
+
+                        botMsg += u8"\r\n    Время:";
+                        for (const TriggerTimeLimit::TimeRange& time : day.times)
+                        {
+                            botMsg += u8"\r\n        Начало: ";
+                            botMsg += !time.begin.isNull()
+                                      ? time.begin.toString("HH:mm")
+                                      : QString("--:--");
+
+                            botMsg += u8". Окончание: ";
+                            botMsg += !time.end.isNull()
+                                      ? time.end.toString("HH:mm")
+                                      : QString("--:--");
+
+                            if (time.hint.isValid())
+                            {
+                                botMsg += u8". Подсказка: ";
+                                botMsg += time.hint.toString("HH:mm");
+                            }
+                        }
+                    }
+                    botMsg += "\r\n\r\n";
+                    sendMessage(chatId, botMsg);
+                }
+            }
+            return true;
+        } // command /timelimit
+    }
+    return false;
 }
 
 } // namespace tbot

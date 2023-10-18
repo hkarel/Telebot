@@ -29,6 +29,7 @@ signals:
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
                        int delay = 0, int attempt = 1, int messageDel = 0);
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
+    void updateBotCommands();
 
 public slots:
     void reloadConfig();
@@ -38,6 +39,8 @@ private:
     DISABLE_DEFAULT_COPY(Processing)
 
     void run() override;
+
+    bool botCommand(const tbot::Update&);
 
 private:
     static QMutex _threadLock;

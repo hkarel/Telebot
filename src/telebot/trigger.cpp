@@ -372,6 +372,15 @@ bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
 {
     activationReasonMessage.clear();
 
+    if (timelimitChats().contains(chat->id))
+    {
+        log_verbose_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?' skipped, it deactivated",
+            update.update_id, chat->name(), name);
+
+        return false;
+    }
+
     // Учитываем временной сдвиг UTC
     QDateTime dtime = QDateTime::currentDateTimeUtc().addSecs(utc * 60*60);
     int dayOfWeek = dtime.date().dayOfWeek();

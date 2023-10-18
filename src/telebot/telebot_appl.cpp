@@ -109,6 +109,7 @@ Application::Application(int& argc, char** argv)
 
     FUNC_REGISTRATION(SlaveAuth)
     FUNC_REGISTRATION(ConfSync)
+    FUNC_REGISTRATION(TimelimitSync)
 
     #undef FUNC_REGISTRATION
 
@@ -189,6 +190,8 @@ bool Application::init()
 
     loadReportSpam();
     reportSpam(0, {}); // Выводим в лог текущий спам-список
+
+    loadBotCommands();
 
     startRequest();
     return true;
@@ -420,6 +423,19 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
 
         log_info_m << "Success authorization slave-bot"
                    << ". Remote host: " << message->sourcePoint();
+
+        qint64 timemark = 0;
+        config::state().getValue("timelimit.timemark", timemark);
+
+        // Отправлем команду синхронизации timelimit
+        data::TimelimitSync timelimitSync;
+        timelimitSync.timemark = timemark;
+        timelimitSync.chats = tbot::timelimitChats().toList();
+
+        Message::Ptr m = createJsonMessage(timelimitSync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
         return;
     }
 
@@ -521,6 +537,42 @@ void Application::command_ConfSync(const Message::Ptr& message)
     reloadGroups();
 
     config::observer().start();
+}
+
+void Application::command_TimelimitSync(const Message::Ptr& message)
+{
+    data::TimelimitSync timelimitSync;
+    readFromMessage(message, timelimitSync);
+
+    qint64 timemark = 0;
+    config::state().getValue("timelimit.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (timelimitSync.timemark > timemark)
+    {
+        tbot::setTimelimitChats(timelimitSync.chats);
+        saveBotCommands(timelimitSync.timemark);
+
+        log_verbose_m << "Updated 'timelimit' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::TimelimitSync timelimitSync;
+            timelimitSync.timemark = timemark;
+            timelimitSync.chats = tbot::timelimitChats().toList();
+
+            writeToJsonMessage(timelimitSync, answer);
+            _slaveSocket->send(answer);
+
+            log_verbose_m << "'timelimit' settings was send to master";
+        }
+    }
 }
 
 void Application::webhook_newConnection()
@@ -1161,6 +1213,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::reportSpam,
                           this, &Application::reportSpam);
 
+            chk_connect_q(p, &tbot::Processing::updateBotCommands,
+                          this, &Application::updateBotCommands);
+
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
 
@@ -1614,6 +1669,38 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     saveReportSpam();
 }
 
+void Application::updateBotCommands()
+{
+    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    saveBotCommands(timemark);
+
+    if (_masterMode)
+    {
+        data::TimelimitSync timelimitSync;
+        timelimitSync.timemark = timemark;
+        timelimitSync.chats = tbot::timelimitChats().toList();
+
+        // Отправляем событие с изменениями timelimit
+        Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
+        tcp::listener().send(m);
+    }
+}
+
+void Application::loadBotCommands()
+{
+    QList<qint64> timelimitChats;
+    config::state().getValue("timelimit.chats", timelimitChats);
+    tbot::setTimelimitChats(timelimitChats);
+}
+
+void Application::saveBotCommands(qint64 timemark)
+{
+    config::state().remove("timelimit");
+    config::state().setValue("timelimit.timemark", timemark);
+    config::state().setValue("timelimit.chats", tbot::timelimitChats().toList());
+    config::state().saveFile();
+}
+
 void Application::loadReportSpam()
 {
     YamlConfig::Func loadFunc = [this](YamlConfig* conf, YAML::Node& nodes, bool)
@@ -1657,4 +1744,3 @@ void Application::saveReportSpam()
     config::state().setValue("spammers", saveFunc);
     config::state().saveFile();
 }
-

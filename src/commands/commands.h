@@ -26,6 +26,11 @@ extern const QUuidEx SlaveAuth;
 */
 extern const QUuidEx ConfSync;
 
+/**
+  Cинхронизация списка групп для триггеров timelimit
+*/
+extern const QUuidEx TimelimitSync;
+
 } // namespace command
 
 //---------------- Структуры данных используемые в сообщениях ----------------
@@ -40,6 +45,20 @@ struct ConfSync : Data<&command::ConfSync,
     QString config;
 
     J_SERIALIZE_ONE( config )
+};
+
+struct TimelimitSync : Data<&command::TimelimitSync,
+                             Message::Type::Command,
+                             Message::Type::Answer,
+                             Message::Type::Event>
+{
+    qint64 timemark = {0};
+    QList<qint64> chats;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( timemark )
+        J_SERIALIZE_ITEM( chats    )
+    J_SERIALIZE_END
 };
 
 } // namespace data
