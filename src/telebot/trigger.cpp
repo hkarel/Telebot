@@ -1127,7 +1127,8 @@ void printTriggers(Trigger::List& triggers)
 Trigger::List triggers(Trigger::List* list)
 {
     static QMutex mutex;
-    static QMutexLocker locker {&mutex}; (void) locker;
+    QMutexLocker locker {&mutex}; (void) locker;
+
     static Trigger::List triggers;
 
     if (list)

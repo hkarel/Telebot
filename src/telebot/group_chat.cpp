@@ -259,7 +259,8 @@ void printGroupChats(GroupChat::List& chats)
 GroupChat::List groupChats(GroupChat::List* list)
 {
     static QMutex mutex;
-    static QMutexLocker locker {&mutex}; (void) locker;
+    QMutexLocker locker {&mutex}; (void) locker;
+
     static GroupChat::List chats;
 
     if (list)
