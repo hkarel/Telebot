@@ -339,7 +339,7 @@ void Processing::run()
                 }
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
-                QString botMsh =
+                QString botMsg =
                     u8"Бот удалил сообщение"
                     u8"\r\n---"
                     u8"\r\n%1"
@@ -356,20 +356,20 @@ void Processing::run()
                     else
                         messageText = message->caption + '\n' + messageText;
                 }
-                botMsh = botMsh.arg(messageText)
+                botMsg = botMsg.arg(messageText)
                                .arg(trigger->activationReasonMessage)
                                .arg(trigger->name);
 
-                botMsh.replace("+", "&#43;");
-                botMsh.replace("<", "&#60;");
-                botMsh.replace(">", "&#62;");
+                botMsg.replace("+", "&#43;");
+                botMsg.replace("<", "&#60;");
+                botMsg.replace(">", "&#62;");
 
                 if (!trigger->description.isEmpty())
-                    botMsh += QString(" (%1)").arg(trigger->description);
+                    botMsg += QString(" (%1)").arg(trigger->description);
 
                 tbot::HttpParams params2;
                 params2["chat_id"] = chatId;
-                params2["text"] = botMsh;
+                params2["text"] = botMsg;
                 params2["parse_mode"] = "HTML";
                 emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
 
