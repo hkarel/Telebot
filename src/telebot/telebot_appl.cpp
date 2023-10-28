@@ -308,6 +308,8 @@ void Application::timerEvent(QTimerEvent* event)
     {
         if (_masterMode || (_slaveSocket && !_slaveSocket->isConnected()))
         {
+            log_verbose_m << "Update groups config-file by timer";
+
             // Обновляем конфигурацию групп и список актуальных админов
             reloadGroups();
         }
@@ -561,6 +563,8 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
         // то выполняем обратную синхронизацию
         if (_slaveSocket && (message->type() != Message::Type::Answer))
         {
+            log_verbose_m << "Send 'timelimit' settings to master-bot";
+
             Message::Ptr answer = message->cloneForAnswer();
 
             data::TimelimitSync timelimitSync;
@@ -569,8 +573,6 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
 
             writeToJsonMessage(timelimitSync, answer);
             _slaveSocket->send(answer);
-
-            log_verbose_m << "'timelimit' settings was send to master";
         }
     }
 }
