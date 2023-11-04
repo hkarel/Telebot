@@ -1044,7 +1044,6 @@ void Application::timelimitCheck()
                 for (const TriggerTimeLimit::TimeRange& time : times)
                 {
                     if (!time.begin.isNull()
-                        && !trg->messageBegin.isEmpty()
                         && !_timelimitBegins.findRef(qMakePair(chat->id, trg->name)))
                     {
                         QTime timeBeginL = time.begin.addSecs(+1  /*+1 сек*/);
@@ -1057,23 +1056,29 @@ void Application::timelimitCheck()
 
                             _timelimitBegins.sort();
 
-                            QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
-                            QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
+                            log_verbose_m << log_format(
+                                "Trigger timelimit '%?' started. Chat: %?",
+                                trg->name, chat->name());
 
-                            QString message = trg->messageBegin;
-                            message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+                            if (!trg->messageBegin.isEmpty())
+                            {
+                                QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                                QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
-                            tbot::HttpParams params;
-                            params["chat_id"] = chat->id;
-                            params["text"] = message;
-                            params["parse_mode"] = "HTML";
-                            sendTgCommand("sendMessage", params, 0, 1, 6*60*60 /*6 часов*/);
+                                QString message = trg->messageBegin;
+                                message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                        .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                                tbot::HttpParams params;
+                                params["chat_id"] = chat->id;
+                                params["text"] = message;
+                                params["parse_mode"] = "HTML";
+                                sendTgCommand("sendMessage", params, 0, 1, 6*60*60 /*6 часов*/);
+                            }
                         }
                     }
 
                     if (!time.end.isNull()
-                        && !trg->messageEnd.isEmpty()
                         && !_timelimitEnds.findRef(qMakePair(chat->id, trg->name)))
                     {
                         QTime timeEndL = time.end.addSecs(+1  /*+1 сек*/);
@@ -1086,18 +1091,25 @@ void Application::timelimitCheck()
 
                             _timelimitEnds.sort();
 
-                            QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
-                            QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
+                            log_verbose_m << log_format(
+                                "Trigger timelimit '%?' stopped. Chat: %?",
+                                trg->name, chat->name());
 
-                            QString message = trg->messageEnd;
-                            message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                   .replace("{end}",   timeEnd.toString("HH:mm"));
+                            if (!trg->messageEnd.isEmpty())
+                            {
+                                QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                                QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
-                            tbot::HttpParams params;
-                            params["chat_id"] = chat->id;
-                            params["text"] = message;
-                            params["parse_mode"] = "HTML";
-                            sendTgCommand("sendMessage", params, 0, 1, 1*60*60 /*1 час*/);
+                                QString message = trg->messageEnd;
+                                message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                        .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                                tbot::HttpParams params;
+                                params["chat_id"] = chat->id;
+                                params["text"] = message;
+                                params["parse_mode"] = "HTML";
+                                sendTgCommand("sendMessage", params, 0, 1, 1*60*60 /*1 час*/);
+                            }
                         }
                     }
                 }
