@@ -298,31 +298,31 @@ GroupChat::List groupChats(GroupChat::List* list)
     return retChats;
 }
 
-static QMutex timelimitChatsMutex;
-static QSet<qint64> timelimitChatsSet;
+static QMutex timelimitInactiveChatsMutex;
+static QSet<qint64> timelimitInactiveChatsSet;
 
-QSet<qint64> timelimitChats()
+QSet<qint64> timelimitInactiveChats()
 {
-    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
-    return timelimitChatsSet;
+    QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
+    return timelimitInactiveChatsSet;
 }
 
-void setTimelimitChats(const QList<qint64>& chats)
+void setTimelimitInactiveChats(const QList<qint64>& chats)
 {
-    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
-    timelimitChatsSet = QSet<qint64>::fromList(chats);
+    QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
+    timelimitInactiveChatsSet = QSet<qint64>::fromList(chats);
 }
 
-void timelimitChatAdd(qint64 chatId)
+void timelimitInactiveChatAdd(qint64 chatId)
 {
-    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
-    timelimitChatsSet.insert(chatId);
+    QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
+    timelimitInactiveChatsSet.insert(chatId);
 }
 
-void timelimitChatRemove(qint64 chatId)
+void timelimitInactiveChatRemove(qint64 chatId)
 {
-    QMutexLocker locker {&timelimitChatsMutex}; (void) locker;
-    timelimitChatsSet.remove(chatId);
+    QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
+    timelimitInactiveChatsSet.remove(chatId);
 }
 
 } // namespace tbot

@@ -70,10 +70,10 @@ void printGroupChats(GroupChat::List&);
 
 GroupChat::List groupChats(GroupChat::List* = nullptr);
 
-QSet<qint64> timelimitChats();
-void setTimelimitChats(const QList<qint64>& chats);
+QSet<qint64> timelimitInactiveChats();
+void setTimelimitInactiveChats(const QList<qint64>& chats);
 
-void timelimitChatAdd(qint64 chatId);
-void timelimitChatRemove(qint64 chatId);
+void timelimitInactiveChatAdd(qint64 chatId);
+void timelimitInactiveChatRemove(qint64 chatId);
 
 } // namespace tbot

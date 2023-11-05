@@ -206,6 +206,9 @@ struct TriggerTimeLimit : public Trigger
     QString messageEnd;   // Сообщение отправляется в момент окончания ограничения
     QString messageInfo;  // Сообщение отправляется в период действия ограничения
 
+    bool hideMessageBegin = {false}; // Скрывать сообщенеие messageBegin
+    bool hideMessageEnd   = {false}; // Скрывать сообщенеие messageEnd
+
     mutable TimeRange activationTime;
 
     bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;

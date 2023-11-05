@@ -372,7 +372,7 @@ bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
 {
     activationReasonMessage.clear();
 
-    if (timelimitChats().contains(chat->id))
+    if (timelimitInactiveChats().contains(chat->id))
     {
         log_verbose_m << log_format(
             "\"update_id\":%?. Chat: %?. Trigger '%?' skipped, it deactivated",
@@ -424,6 +424,9 @@ void TriggerTimeLimit::assign(const TriggerTimeLimit& trigger)
     messageBegin = trigger.messageBegin;
     messageEnd = trigger.messageEnd;
     messageInfo = trigger.messageInfo;
+
+    hideMessageBegin = trigger.hideMessageBegin;
+    hideMessageEnd = trigger.hideMessageEnd;
 }
 
 void TriggerTimeLimit::timesRangeOfDay(int dayOfWeek, Times& times) const
@@ -756,6 +759,8 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
     optional<QString> timeMsgBeginO;
     optional<QString> timeMsgEndO;
     optional<QString> timeMsgInfoO;
+    optional<bool> hideMsgBeginO;
+    optional<bool> hideMsgEndO;
     if (ytrigger["message"].IsDefined())
     {
         checkFiedType(ytrigger, "message", YAML::NodeType::Map);
@@ -775,6 +780,23 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         {
             checkFiedType(ymessage, "info", YAML::NodeType::Scalar);
             timeMsgInfoO = QString::fromStdString(ymessage["info"].as<string>()).trimmed();
+        }
+
+        if (ymessage["hide"].IsDefined())
+        {
+            checkFiedType(ymessage, "hide", YAML::NodeType::Map);
+            const YAML::Node yhide = ymessage["hide"];
+
+            if (yhide["begin"].IsDefined())
+            {
+                checkFiedType(yhide, "begin", YAML::NodeType::Scalar);
+                hideMsgBeginO = yhide["begin"].as<bool>();
+            }
+            if (yhide["end"].IsDefined())
+            {
+                checkFiedType(yhide, "end", YAML::NodeType::Scalar);
+                hideMsgEndO = yhide["end"].as<bool>();
+            }
         }
     }
 
@@ -890,6 +912,9 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(triggerTimeLmt->messageBegin, timeMsgBeginO);
         assignValue(triggerTimeLmt->messageEnd, timeMsgEndO);
         assignValue(triggerTimeLmt->messageInfo, timeMsgInfoO);
+        assignValue(triggerTimeLmt->hideMessageBegin, hideMsgBeginO);
+        assignValue(triggerTimeLmt->hideMessageEnd, hideMsgEndO);
+
         trigger = triggerTimeLmt;
     }
 
@@ -1109,10 +1134,13 @@ void printTriggers(Trigger::List& triggers)
             }
             logLine << "]";
 
-            logLine << log_format("; message: {begin: '%?', end: '%?', info: '%?'}",
+            logLine << log_format("; message: {begin: '%?', end: '%?', info: '%?'"
+                                  ", hide: {begin: %?, end: %?}}",
                                   triggerTimeLmt->messageBegin,
                                   triggerTimeLmt->messageEnd,
-                                  triggerTimeLmt->messageInfo);
+                                  triggerTimeLmt->messageInfo,
+                                  triggerTimeLmt->hideMessageBegin,
+                                  triggerTimeLmt->hideMessageEnd);
         }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;

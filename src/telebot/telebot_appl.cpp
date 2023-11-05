@@ -427,12 +427,12 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
                    << ". Remote host: " << message->sourcePoint();
 
         qint64 timemark = 0;
-        config::state().getValue("timelimit.timemark", timemark);
+        config::state().getValue("timelimit_inactive.timemark", timemark);
 
         // Отправлем команду синхронизации timelimit
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
-        timelimitSync.chats = tbot::timelimitChats().toList();
+        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
         Message::Ptr m = createJsonMessage(timelimitSync);
         m->appendDestinationSocket(answer->socketDescriptor());
@@ -547,12 +547,12 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
     readFromMessage(message, timelimitSync);
 
     qint64 timemark = 0;
-    config::state().getValue("timelimit.timemark", timemark);
+    config::state().getValue("timelimit_inactive.timemark", timemark);
 
     // Для master и slave режимов перезаписываем устаревшие данные
     if (timelimitSync.timemark > timemark)
     {
-        tbot::setTimelimitChats(timelimitSync.chats);
+        tbot::setTimelimitInactiveChats(timelimitSync.chats);
         saveBotCommands(timelimitSync.timemark);
 
         log_verbose_m << "Updated 'timelimit' settings for groups";
@@ -569,7 +569,7 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
 
             data::TimelimitSync timelimitSync;
             timelimitSync.timemark = timemark;
-            timelimitSync.chats = tbot::timelimitChats().toList();
+            timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
             writeToJsonMessage(timelimitSync, answer);
             _slaveSocket->send(answer);
@@ -1031,6 +1031,10 @@ void Application::timelimitCheck()
 
     GroupChat::List chats = tbot::groupChats();
     for (GroupChat* chat : chats)
+    {
+        if (timelimitInactiveChats().contains(chat->id))
+            continue;
+
         for (Trigger* trigger : chat->triggers)
             if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
             {
@@ -1067,13 +1071,17 @@ void Application::timelimitCheck()
 
                                 QString message = trg->messageBegin;
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                        .replace("{end}",   timeEnd.toString("HH:mm"));
+                                       .replace("{end}",   timeEnd.toString("HH:mm"));
 
                                 tbot::HttpParams params;
                                 params["chat_id"] = chat->id;
                                 params["text"] = message;
                                 params["parse_mode"] = "HTML";
-                                sendTgCommand("sendMessage", params, 0, 1, 6*60*60 /*6 часов*/);
+
+                                int messageDel =
+                                    trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
+
+                                sendTgCommand("sendMessage", params, 0, 1, messageDel);
                             }
                         }
                     }
@@ -1102,18 +1110,23 @@ void Application::timelimitCheck()
 
                                 QString message = trg->messageEnd;
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                        .replace("{end}",   timeEnd.toString("HH:mm"));
+                                       .replace("{end}",   timeEnd.toString("HH:mm"));
 
                                 tbot::HttpParams params;
                                 params["chat_id"] = chat->id;
                                 params["text"] = message;
                                 params["parse_mode"] = "HTML";
-                                sendTgCommand("sendMessage", params, 0, 1, 1*60*60 /*1 час*/);
+
+                                int messageDel =
+                                    trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
+
+                                sendTgCommand("sendMessage", params, 0, 1, messageDel);
                             }
                         }
                     }
                 }
             }
+    }
 }
 
 void Application::sendTgCommand(const QString& funcName, const tbot::HttpParams& params,
@@ -1692,7 +1705,7 @@ void Application::updateBotCommands()
     {
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
-        timelimitSync.chats = tbot::timelimitChats().toList();
+        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
         // Отправляем событие с изменениями timelimit
         Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
@@ -1702,16 +1715,17 @@ void Application::updateBotCommands()
 
 void Application::loadBotCommands()
 {
-    QList<qint64> timelimitChats;
-    config::state().getValue("timelimit.chats", timelimitChats);
-    tbot::setTimelimitChats(timelimitChats);
+    QList<qint64> timelimitInactiveChats;
+    config::state().getValue("timelimit_inactive.chats", timelimitInactiveChats);
+    tbot::setTimelimitInactiveChats(timelimitInactiveChats);
 }
 
 void Application::saveBotCommands(qint64 timemark)
 {
-    config::state().remove("timelimit");
-    config::state().setValue("timelimit.timemark", timemark);
-    config::state().setValue("timelimit.chats", tbot::timelimitChats().toList());
+    config::state().remove("timelimit_inactive");
+    config::state().setValue("timelimit_inactive.timemark", timemark);
+    config::state().setValue("timelimit_inactive.chats",
+                             tbot::timelimitInactiveChats().toList());
     config::state().saveFile();
 }
 
