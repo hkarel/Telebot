@@ -313,13 +313,13 @@ void setTimelimitInactiveChats(const QList<qint64>& chats)
     timelimitInactiveChatsSet = QSet<qint64>::fromList(chats);
 }
 
-void timelimitInactiveChatAdd(qint64 chatId)
+void timelimitInactiveChatsAdd(qint64 chatId)
 {
     QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
     timelimitInactiveChatsSet.insert(chatId);
 }
 
-void timelimitInactiveChatRemove(qint64 chatId)
+void timelimitInactiveChatsRemove(qint64 chatId)
 {
     QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
     timelimitInactiveChatsSet.remove(chatId);

@@ -516,7 +516,7 @@ bool Processing::botCommand(const Update& update)
 
             if (action == "start")
             {
-                timelimitInactiveChatRemove(chatId);
+                timelimitInactiveChatsRemove(chatId);
                 emit updateBotCommands();
 
                 QString botMsg = u8"Триггер timelimit активирован";
@@ -524,7 +524,7 @@ bool Processing::botCommand(const Update& update)
             }
             else if (action == "stop")
             {
-                timelimitInactiveChatAdd(chatId);
+                timelimitInactiveChatsAdd(chatId);
                 emit updateBotCommands();
 
                 QString botMsg = u8"Триггер timelimit деактивирован";
