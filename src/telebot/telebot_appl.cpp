@@ -713,7 +713,9 @@ void Application::webhook_readyRead()
 
     if (wd.data.size() > wd.dataSize)
     {
-        log_error_m << "Input data larger than 'Content-Length'";
+        log_error_m << log_format(
+            "Input data larger than 'Content-Length' => %? %?",
+            wd.data.size(), wd.dataSize);
         socket->close();
     }
 }
