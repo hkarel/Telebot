@@ -986,11 +986,18 @@ void Application::reloadGroups()
     }
 
     tbot::GroupChat::List chats = tbot::groupChats();
-    for (tbot::GroupChat* chat : chats)
+    for (int i = 0; i < chats.count(); ++i)
     {
+        tbot::GroupChat* chat = chats.item(i);
         tbot::HttpParams params;
         params["chat_id"] = chat->id;
-        sendTgCommand("getChat", params);
+
+        // Команды getChat отправляются с интервалом 70  миллисекунд,  чтобы
+        // уложиться в ограничение Телеграм на 30 запросов в секунду от бота.
+        // Интервал 70 миллисекунд обеспечивает двукратный запас  по времени,
+        // это обусловлено тем, что после вызова getChat идет вызов команды
+        // getChatAdministrators
+        sendTgCommand("getChat", params, 70 * i);
     }
 
     if (_masterMode)
