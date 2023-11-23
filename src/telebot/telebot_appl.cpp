@@ -1293,7 +1293,6 @@ void Application::httpResultHandler(const ReplyData& rd)
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
                     sendTgCommand("getChatAdministrators", params);
-                    ++_getChatAdminCallCount;
                 }
                 else
                 {
@@ -1352,7 +1351,7 @@ void Application::httpResultHandler(const ReplyData& rd)
     }
     else if (rd.funcName == "getChatAdministrators")
     {
-        --_getChatAdminCallCount;
+        ++_getChatAdminCallCount;
 
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
@@ -1384,7 +1383,7 @@ void Application::httpResultHandler(const ReplyData& rd)
             }
         }
 
-        if (_getChatAdminCallCount == 0)
+        if (chats.count() == _getChatAdminCallCount)
         {
             if (tbot::globalConfigParceErrors == 0)
             {
@@ -1399,6 +1398,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                             << ". Error count: " << int(tbot::globalConfigParceErrors);
                 log_error_m << "---";
             }
+            _getChatAdminCallCount = 0;
         }
     }
     else if (rd.funcName == "banChatMember"
