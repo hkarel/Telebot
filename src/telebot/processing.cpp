@@ -224,6 +224,16 @@ void Processing::run()
             usernameText = usernameText.trimmed();
         }
 
+        if (message->sender_chat)
+        {
+            usernameText += QString(" %1 %2 %3 %4")
+                                    .arg(message->sender_chat->title)
+                                    .arg(message->sender_chat->first_name)
+                                    .arg(message->sender_chat->last_name)
+                                    .arg(message->sender_chat->username);
+            usernameText = usernameText.trimmed();
+        }
+
         if (message->forward_from_chat)
         {
             usernameText += QString(" %1 %2 %3 %4")
