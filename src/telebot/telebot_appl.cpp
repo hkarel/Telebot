@@ -1577,6 +1577,15 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             userLogInfo(logLine, user, chat);
             return;
         }
+
+        QSet<qint64> adminIds = chat->adminIds();
+        if (adminIds.contains(user->id))
+        {
+            alog::Line logLine =
+                log_verbose_m << "Admin of chat cannot receive penalty";
+            userLogInfo(logLine, user, chat);
+            return;
+        }
     }
 
     // Ограничение пользователя
