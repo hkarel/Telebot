@@ -381,6 +381,15 @@ bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
         return false;
     }
 
+    if (update.edited_message)
+    {
+        log_verbose_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?' skipped, message was edited",
+            update.update_id, chat->name(), name);
+
+        return false;
+    }
+
     // Учитываем временной сдвиг UTC
     QDateTime dtime = QDateTime::currentDateTimeUtc().addSecs(utc * 60*60);
     int dayOfWeek = dtime.date().dayOfWeek();
