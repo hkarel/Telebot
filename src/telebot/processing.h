@@ -40,6 +40,7 @@ private:
 
     void run() override;
 
+    // Обрабатывает команды для бота
     bool botCommand(const tbot::Update&);
 
 private:

@@ -25,6 +25,7 @@ struct Trigger : public clife_base
         Content  = 0,
         UserName = 1,
         FileMime = 2,
+        UrlLinks = 3,
     };
     typedef QMap<TextType, QString> Text;
 
@@ -161,7 +162,8 @@ struct TriggerRegexp : public Trigger
     // значения:
     //   content  - контент сообщения;
     //   username - имя пользователя;
-    //   filemime - наименование и mimetype вложенного документа.
+    //   filemime - наименование и mimetype вложенного документа;
+    //   urllinks - список URL ссылок доступных в сообщении.
     // Значение параметра по умолчанию равно content
     QString analyze = {"content"};
 

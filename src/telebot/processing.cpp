@@ -280,14 +280,35 @@ void Processing::run()
         tbot::Trigger::Text triggerText;
         triggerText[tbot::Trigger::TextType::Content]  = clearText;
         triggerText[tbot::Trigger::TextType::UserName] = usernameText;
-        triggerText[tbot::Trigger::TextType::FileMime] = "";
 
+        //--- Trigger::TextType::FileMime ---
+        QString filemimeText;
         if (message->document)
         {
-            triggerText[tbot::Trigger::TextType::FileMime] =
-                QString("%1 %2").arg(message->document->file_name)
-                                .arg(message->document->mime_type).trimmed();
+            filemimeText = QString("%1 %2").arg(message->document->file_name)
+                                           .arg(message->document->mime_type);
         }
+        triggerText[tbot::Trigger::TextType::FileMime] = filemimeText.trimmed();
+
+        //--- Trigger::TextType::UrlLinks ---
+        QString urllinksText;
+        auto readEntities = [&urllinksText]
+                            (const QString& text, const MessageEntity& entity)
+        {
+            if (entity.type == "url")
+                urllinksText = text.mid(entity.offset, entity.length) + QChar(' ');
+
+            else if (entity.type == "text_link")
+                urllinksText = entity.url + QChar(' ');
+        };
+        for (const MessageEntity& entity : message->caption_entities)
+            readEntities(message->caption, entity);
+
+        for (const MessageEntity& entity : message->entities)
+            readEntities(message->text, entity);
+
+        triggerText[tbot::Trigger::TextType::UrlLinks] = urllinksText.trimmed();
+        //---
 
         for (tbot::Trigger* trigger : chat->triggers)
         {

@@ -312,6 +312,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
     if      (analyze == "content" ) text = text_[TextType::Content];
     else if (analyze == "username") text = text_[TextType::UserName];
     else if (analyze == "filemime") text = text_[TextType::FileMime];
+    else if (analyze == "urllinks") text = text_[TextType::UrlLinks];
 
     int textLen = text.length();
     if (textLen == 0)
@@ -683,10 +684,14 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         checkFiedType(ytrigger, "analyze", YAML::NodeType::Scalar);
         analyzeO = QString::fromStdString(ytrigger["analyze"].as<string>());
 
-        // Параметр analyze может принимать значения: content, username, filemime
-        // Значение параметра по умолчанию равно content
-        if ((analyzeO != "username") && (analyzeO != "filemime"))
+        // Параметр analyze может принимать значения: content, username, filemime,
+        // urllinks. Значение параметра по умолчанию равно content
+        if (analyzeO != "username"
+            && analyzeO != "filemime"
+            && analyzeO != "urllinks")
+        {
             analyzeO = "content";
+        }
     }
 
     optional<int> timeUtcO;
