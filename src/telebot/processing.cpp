@@ -210,11 +210,18 @@ void Processing::run()
                 clearText = clearCaption + '\n' + clearText;
         }
 
-        QString usernameText = QString("%1 %2 %3")
-                                    .arg(message->from->first_name)
-                                    .arg(message->from->last_name)
-                                    .arg(message->from->username).trimmed();
+        bool isPremium = false;
 
+        //--- Trigger::TextType::UserName ---
+        QString usernameText;
+        if (message->from)
+        {
+            usernameText = QString("%1 %2 %3")
+                                   .arg(message->from->first_name)
+                                   .arg(message->from->last_name)
+                                   .arg(message->from->username).trimmed();
+            isPremium = message->from->is_premium;
+        }
         if (message->forward_from)
         {
             usernameText += QString(" %1 %2 %3")
@@ -223,7 +230,6 @@ void Processing::run()
                                     .arg(message->forward_from->username);
             usernameText = usernameText.trimmed();
         }
-
         if (message->sender_chat)
         {
             usernameText += QString(" %1 %2 %3 %4")
@@ -233,7 +239,6 @@ void Processing::run()
                                     .arg(message->sender_chat->username);
             usernameText = usernameText.trimmed();
         }
-
         if (message->forward_from_chat)
         {
             usernameText += QString(" %1 %2 %3 %4")
@@ -243,7 +248,6 @@ void Processing::run()
                                     .arg(message->forward_from_chat->username);
             usernameText = usernameText.trimmed();
         }
-
         if (message->via_bot)
         {
             usernameText += QString(" %1 %2 %3")
@@ -252,6 +256,7 @@ void Processing::run()
                                     .arg(message->via_bot->username);
             usernameText = usernameText.trimmed();
         }
+        //---
 
         GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
@@ -430,7 +435,8 @@ void Processing::run()
                                            1, 3*60 /*3 мин*/);
                     }
 
-                if (trigger->immediatelyBan)
+                if (trigger->immediatelyBan
+                    || (isPremium && trigger->premiumBan))
                 {
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
