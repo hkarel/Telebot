@@ -45,6 +45,10 @@ public:
     QSet<qint64> ownerIds() const;
     void setOwnerIds(const QSet<qint64>&);
 
+    // Информация о правах Tele-бота в группе
+    ChatMemberAdministrator::Ptr botInfo() const;
+    void setBotInfo(const ChatMemberAdministrator::Ptr&);
+
     struct Compare
     {
         int operator() (const GroupChat* item1, const GroupChat* item2) const
@@ -61,6 +65,7 @@ private:
     QString _name;
     QSet<qint64> _adminIds;
     QSet<qint64> _ownerIds;
+    ChatMemberAdministrator::Ptr _botInfo;
 
     mutable QMutex _lock {QMutex::Recursive};
 };

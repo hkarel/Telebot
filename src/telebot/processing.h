@@ -28,8 +28,12 @@ public:
 signals:
     void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
                        int delay = 0, int attempt = 1, int messageDel = 0);
+
+    // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
+
     void updateBotCommands();
+    void updateChatAdminInfo(qint64 chatId);
 
 public slots:
     void reloadConfig();

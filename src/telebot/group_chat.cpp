@@ -61,6 +61,18 @@ void GroupChat::setOwnerIds(const QSet<qint64>& val)
     _ownerIds = val;
 }
 
+ChatMemberAdministrator::Ptr GroupChat::botInfo() const
+{
+    QMutexLocker locker {&_lock}; (void) locker;
+    return _botInfo;
+}
+
+void GroupChat::setBotInfo(const ChatMemberAdministrator::Ptr& val)
+{
+    QMutexLocker locker {&_lock}; (void) locker;
+    _botInfo = val;
+}
+
 GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
 {
     auto checkFiedType = [&ychat](const string& field, YAML::NodeType::value type)
@@ -277,6 +289,7 @@ GroupChat::List groupChats(GroupChat::List* list)
         {
             QSet<qint64> adminIds = chat->adminIds();
             QSet<qint64> ownerIds = chat->ownerIds();
+            ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
             if (lst::FindResult fr = chats.findRef(chat->id))
             {
                 if (!adminIds.isEmpty())
@@ -284,6 +297,9 @@ GroupChat::List groupChats(GroupChat::List* list)
 
                 if (!ownerIds.isEmpty())
                     chats[fr.index()].setOwnerIds(ownerIds);
+
+                if (botInfo)
+                    chats[fr.index()].setBotInfo(botInfo);
             }
         }
     }

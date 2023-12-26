@@ -117,8 +117,11 @@ public slots:
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
 
+    // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
+
     void updateBotCommands();
+    void updateChatAdminInfo(qint64 chatId);
 
 private:
     Q_OBJECT

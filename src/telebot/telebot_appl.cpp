@@ -1252,6 +1252,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::updateBotCommands,
                           this, &Application::updateBotCommands);
 
+            chk_connect_q(p, &tbot::Processing::updateChatAdminInfo,
+                          this, &Application::updateChatAdminInfo);
+
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
 
@@ -1369,17 +1372,22 @@ void Application::httpResultHandler(const ReplyData& rd)
             {
                 QSet<qint64> adminIds;
                 QSet<qint64> ownerIds;
-                for (const tbot::ChatMemberAdministrator& item : result.items)
-                    if (item.user)
+                tbot::ChatMemberAdministrator::Ptr botInfo;
+                for (const tbot::ChatMemberAdministrator::Ptr& item : result.items)
+                    if (item->user)
                     {
-                        adminIds.insert(item.user->id);
-                        if (item.status == "creator")
-                            ownerIds.insert(item.user->id);
+                        adminIds.insert(item->user->id);
+                        if (item->status == "creator")
+                            ownerIds.insert(item->user->id);
+
+                        if (item->user->id == _botUserId)
+                            botInfo = item;
                     }
 
                 tbot::GroupChat* chat = chats.item(fr.index());
                 chat->setAdminIds(adminIds);
                 chat->setOwnerIds(ownerIds);
+                chat->setBotInfo(botInfo);
             }
         }
 
@@ -1685,12 +1693,18 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                     "User ban. Id chat/spammer: %?/%?. Times: [%?]",
                     chat->id, spammer->user->id, times(spammer->spamTimes));
 
-                tbot::HttpParams params;
-                params["chat_id"] = chat->id;
-                params["user_id"] = spammer->user->id;
-                params["until_date"] = qint64(std::time(nullptr));
-                params["revoke_messages"] = false;
-                sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
+                tbot::ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
+                if (botInfo && botInfo->can_restrict_members)
+                {
+                    tbot::HttpParams params;
+                    params["chat_id"] = chat->id;
+                    params["user_id"] = spammer->user->id;
+                    params["until_date"] = qint64(std::time(nullptr));
+                    params["revoke_messages"] = false;
+                    sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
+                }
+                else
+                    log_error_m << "The bot does not have rights to ban user";
             }
         }
         else
@@ -1729,6 +1743,13 @@ void Application::updateBotCommands()
         Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
         tcp::listener().send(m);
     }
+}
+
+void Application::updateChatAdminInfo(qint64 chatId)
+{
+    tbot::HttpParams params;
+    params["chat_id"] = chatId;
+    sendTgCommand("getChatAdministrators", params);
 }
 
 void Application::loadBotCommands()

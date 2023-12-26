@@ -90,6 +90,20 @@ void Processing::run()
         if (!update.fromJson(data))
             continue;
 
+        // Событие обновления прав для бота/админа
+        if (update.my_chat_member)
+        {
+            if (update.my_chat_member->chat)
+            {
+                // Обновляем информацию по администраторам для группы
+                emit updateChatAdminInfo(update.my_chat_member->chat->id);
+            }
+            else
+                log_error_m << log_format(
+                    R"("update_id":%?. Field my_chat_member->chat is empty)",
+                    update.update_id);
+        }
+
         Message::Ptr message = update.message;
 
         // Не обрабатываем сообщения о вступлении в группу новых участников
@@ -260,6 +274,10 @@ void Processing::run()
 
         GroupChat* chat = chats.item(fr.index());
         QSet<qint64> adminIds = chat->adminIds();
+        ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
+
+        if (botInfo.empty())
+            log_error_m << "Information about bot permissions is not available";
 
         log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text: %?)",
                                     update.update_id, chat->name(), clearText);
@@ -348,13 +366,16 @@ void Processing::run()
             if (trigger->inverse)
                 triggerActive = !triggerActive;
 
-            if (triggerActive)
-            {
-                // Если триггер активирован - удаляем сообщение
-                log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Delete message (chat_id: %?; message_id: %?))",
-                    update.update_id, chat->name(), chatId, messageId);
+            if (!triggerActive)
+                continue;
 
+            // Если триггер активирован - удаляем сообщение
+            log_verbose_m << log_format(
+                R"("update_id":%?. Chat: %?. Delete message (chat_id: %?; message_id: %?))",
+                update.update_id, chat->name(), chatId, messageId);
+
+            if (botInfo && botInfo->can_delete_messages)
+            {
                 if (!message->media_group_id.isEmpty())
                 {
                     QMutexLocker locker {&_threadLock}; (void) locker;
@@ -425,7 +446,7 @@ void Processing::run()
 
                         QString message = trg->messageInfo;
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
-                               .replace("{end}",   timeEnd.toString("HH:mm"));
+                                .replace("{end}",   timeEnd.toString("HH:mm"));
 
                         tbot::HttpParams params;
                         params["chat_id"] = chatId;
@@ -434,9 +455,15 @@ void Processing::run()
                         emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/,
                                            1, 3*60 /*3 мин*/);
                     }
+            }
+            else
+            {
+                log_error_m << "The bot does not have rights to delete message";
+            }
 
-                if (trigger->immediatelyBan
-                    || (isPremium && trigger->premiumBan))
+            if (botInfo && botInfo->can_restrict_members)
+            {
+                if (trigger->immediatelyBan || (isPremium && trigger->premiumBan))
                 {
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
@@ -450,8 +477,12 @@ void Processing::run()
                     // Отправляем отчет о спаме
                     emit reportSpam(chatId, message->from);
                 }
-                break;
             }
+            else
+            {
+                log_error_m << "The bot does not have rights to ban user";
+            }
+            break;
         }
 
         { //Block for QMutexLocker

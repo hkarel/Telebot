@@ -320,50 +320,10 @@ struct Message : public clife_base
     J_SERIALIZE_END
 };
 
-struct Update : public clife_base
+struct ChatMemberAdministrator : public clife_base
 {
-    typedef clife_ptr<Update> Ptr;
+    typedef clife_ptr<ChatMemberAdministrator> Ptr;
 
-    qint32       update_id = {-1};    // The update's unique identifier. Update identifiers start from a certain positive number and increase
-                                      // sequentially. This ID becomes especially handy if you're using webhooks, since it allows you to ignore
-                                      // repeated updates or to restore the correct update sequence, should they get out of order. If there are
-                                      // no new updates for at least a week, then identifier of the next update will be chosen randomly instead
-                                      // of sequentially.
-    Message::Ptr message;             // Optional. New incoming message of any kind - text, photo, sticker, etc.
-    Message::Ptr edited_message;      // Optional. New version of a message that is known to the bot and was edited
-    Message::Ptr channel_post;        // Optional. New incoming channel post of any kind - text, photo, sticker, etc.
-    Message::Ptr edited_channel_post; // Optional. New version of a channel post that is known to the bot and was edited
-
-    //User::Ptr    from;
-
-    J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( update_id           )
-        J_SERIALIZE_OPT ( message             )
-        J_SERIALIZE_OPT ( edited_message      )
-        J_SERIALIZE_OPT ( channel_post        )
-        J_SERIALIZE_OPT ( edited_channel_post )
-    J_SERIALIZE_END
-};
-
-struct HttpResult //: public clife_base
-{
-    //typedef clife_ptr<HttpResult> Ptr;
-
-    bool       ok = {false};
-    QByteArray result;
-    qint32     error_code = {0};
-    QString    description;
-
-    J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( ok          )
-        J_SERIALIZE_OPT ( result      )
-        J_SERIALIZE_OPT ( error_code  )
-        J_SERIALIZE_OPT ( description )
-    J_SERIALIZE_END
-};
-
-struct ChatMemberAdministrator
-{
     QString   status;                           // The member's status in the chat, always “administrator”
     User::Ptr user;                             // Information about the user
     bool      can_be_edited          = {false}; // True, if the bot is allowed to edit administrator privileges of that user
@@ -401,6 +361,75 @@ struct ChatMemberAdministrator
     J_SERIALIZE_END
 };
 
+struct ChatMemberUpdated  : public clife_base
+{
+    typedef clife_ptr<ChatMemberUpdated> Ptr;
+
+    Chat::Ptr chat;       // Chat the user belongs to
+    User::Ptr from;       // Performer of the action, which resulted in the change
+    qint32    date = {0}; // Date the change was done in Unix time
+
+    ChatMemberAdministrator::Ptr old_chat_member; // ChatMember Previous information about the chat member
+    ChatMemberAdministrator::Ptr new_chat_member; // ChatMember New information about the chat member
+
+    //invite_link 	ChatInviteLink 	Optional. Chat invite link, which was used by the user to join the chat; for joining by invite link events only.
+    //via_chat_folder_invite_link 	Boolean 	Optional. True, if the user joined the chat via a chat folder invite link
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( chat            )
+        J_SERIALIZE_ITEM( from            )
+        J_SERIALIZE_OPT ( date            )
+        J_SERIALIZE_OPT ( old_chat_member )
+        J_SERIALIZE_OPT ( new_chat_member )
+    J_SERIALIZE_END
+};
+
+struct Update : public clife_base
+{
+    typedef clife_ptr<Update> Ptr;
+
+    qint32       update_id = {-1};    // The update's unique identifier. Update identifiers start from a certain positive number and increase
+                                      // sequentially. This ID becomes especially handy if you're using webhooks, since it allows you to ignore
+                                      // repeated updates or to restore the correct update sequence, should they get out of order. If there are
+                                      // no new updates for at least a week, then identifier of the next update will be chosen randomly instead
+                                      // of sequentially.
+    Message::Ptr message;             // Optional. New incoming message of any kind - text, photo, sticker, etc.
+    Message::Ptr edited_message;      // Optional. New version of a message that is known to the bot and was edited
+    Message::Ptr channel_post;        // Optional. New incoming channel post of any kind - text, photo, sticker, etc.
+    Message::Ptr edited_channel_post; // Optional. New version of a channel post that is known to the bot and was edited
+
+    ChatMemberUpdated::Ptr my_chat_member; // Optional. The bot's chat member status was updated in a chat. For private chats,
+                                           //           this update is received only when the bot is blocked or unblocked by the user.
+
+    //User::Ptr    from;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( update_id           )
+        J_SERIALIZE_OPT ( message             )
+        J_SERIALIZE_OPT ( edited_message      )
+        J_SERIALIZE_OPT ( channel_post        )
+        J_SERIALIZE_OPT ( edited_channel_post )
+        J_SERIALIZE_OPT ( my_chat_member      )
+    J_SERIALIZE_END
+};
+
+struct HttpResult //: public clife_base
+{
+    //typedef clife_ptr<HttpResult> Ptr;
+
+    bool       ok = {false};
+    QByteArray result;
+    qint32     error_code = {0};
+    QString    description;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( ok          )
+        J_SERIALIZE_OPT ( result      )
+        J_SERIALIZE_OPT ( error_code  )
+        J_SERIALIZE_OPT ( description )
+    J_SERIALIZE_END
+};
+
 /**
   Результат вызова функции getMe()
 */
@@ -433,7 +462,7 @@ struct SendMessage_Result
 */
 struct GetChatAdministrators_Result
 {
-    QList<ChatMemberAdministrator> items;
+    QList<ChatMemberAdministrator::Ptr> items;
     J_SERIALIZE_MAP_ONE( "result", items )
 };
 
