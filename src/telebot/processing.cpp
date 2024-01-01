@@ -433,6 +433,24 @@ void Processing::run()
                 params2["parse_mode"] = "HTML";
                 emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
 
+                // Отправляем сообщение с идентификатором пользователя
+                //   Смотри решение с Markdown разметкой тут:
+                //   https://core.telegram.org/bots/api#markdown-style
+                botMsg = QString("%1 => [%2 %3](tg://user?id=%4)")
+                         .arg(userId)
+                         .arg(message->from->first_name)
+                         .arg(message->from->last_name)
+                         .arg(userId);
+
+                if (!message->from->username.isEmpty())
+                    botMsg += QString(" (@%1)").arg(message->from->username);
+
+                tbot::HttpParams params3;
+                params3["chat_id"] = chatId;
+                params3["text"] = botMsg;
+                params3["parse_mode"] = "Markdown";
+                emit sendTgCommand("sendMessage", params3, 1.3*1000 /*1.3 сек*/);
+
                 if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
                     if (!trg->messageInfo.isEmpty())
                     {
@@ -446,7 +464,7 @@ void Processing::run()
 
                         QString message = trg->messageInfo;
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                .replace("{end}",   timeEnd.toString("HH:mm"));
+                               .replace("{end}",   timeEnd.toString("HH:mm"));
 
                         tbot::HttpParams params;
                         params["chat_id"] = chatId;
