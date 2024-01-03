@@ -1233,10 +1233,13 @@ void Application::httpResultHandler(const ReplyData& rd)
         int procCount = 1;
         config::base().getValue("bot.processing_count", procCount);
 
+        QString commandPrefix;
+        config::base().getValue("bot.command_prefix", commandPrefix);
+
         for (int i = 0; i < procCount; ++i)
         {
             tbot::Processing* p = new tbot::Processing;
-            if (!p->init(_botUserId))
+            if (!p->init(_botUserId, commandPrefix))
             {
                 log_error_m << "Failed init 'tbot::Processing' instance"
                             << ". Program will be stopped";

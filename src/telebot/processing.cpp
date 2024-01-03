@@ -30,9 +30,10 @@ QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
 Processing::Processing()
 {}
 
-bool Processing::init(qint64 botUserId)
+bool Processing::init(qint64 botUserId, const QString& commandPrefix)
 {
     _botUserId = botUserId;
+    _commandPrefix = commandPrefix;
     _configChanged = true;
     return true;
 }
@@ -542,7 +543,7 @@ bool Processing::botCommand(const Update& update)
     if (chat == nullptr)
         return false;
 
-    auto sendMessage = [this](qint64 chatId, const QString& botMsg)
+    auto sendMessage = [this, chatId](const QString& botMsg)
     {
         tbot::HttpParams params;
         params["chat_id"] = chatId;
@@ -551,34 +552,87 @@ bool Processing::botCommand(const Update& update)
         emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/);
     };
 
+    auto deleteCommandMessage = [this, chatId, messageId]()
+    {
+        tbot::HttpParams params;
+        params["chat_id"] = chatId;
+        params["message_id"] = messageId;
+        emit sendTgCommand("deleteMessage", params);
+    };
+
     for (const MessageEntity& entity : message->entities)
     {
         if (entity.type != "bot_command")
             continue;
 
-        QString command = message->text.mid(entity.offset, entity.length);
-        command.remove(QRegularExpression("@.*$"));
+        QString prefix = message->text.mid(entity.offset, entity.length);
+        prefix.remove(QRegularExpression("@.*$"));
+
+        if (prefix != _commandPrefix)
+            continue;
+
+        if (!chat->adminIds().contains(userId))
+        {
+            deleteCommandMessage();
+            sendMessage(u8"Для управления ботом нужны права администратора");
+            return true;
+        }
 
         QString actionLine = message->text.mid(entity.offset + entity.length);
-        QStringList actions = actionLine.split(QChar(' '), QString::SkipEmptyParts);
+        QStringList lines = actionLine.split(QChar(' '), QString::SkipEmptyParts);
 
-        if (command == "/timelimit")
+        auto printCommandsInfo = [&]()
+        {
+            QString botMsg =
+                u8"Список доступных команд:"
+                u8"\r\n%1 help [h]&#185; - "
+                u8"Справка по списку команд;"
+                u8"\r\n"
+
+                u8"\r\n%1 timelimit [tl]&#185; (start|stop|status) - "
+                u8"Активация/деактивация триггеров с типом timelimit;"
+                u8"\r\n"
+
+//                u8"\r\n%1 spamreset [sr]&#185; ID - "
+//                u8"Аннулировать спам-штрафы для пользователя с идентификатором ID;"
+//                u8"\r\n"
+
+//                u8"\r\n%1 globalblack [gb]&#185; ID - "
+//                u8"Добавить пользователя с идентификатором ID в глобальный черный "
+//                u8"список. Пользователь будет заблокирован во всех группах, где "
+//                u8"установлен бот;"
+//                u8"\r\n"
+
+                u8"\r\n []&#185; - Сокращенное обозначение команды";
+
+            sendMessage(botMsg.arg(_commandPrefix));
+        };
+
+        if (lines.isEmpty())
+        {
+            deleteCommandMessage();
+            QString botMsg = u8"Список доступных команд можно посмотреть "
+                             u8"при помощи команды: %1 help";
+            sendMessage(botMsg.arg(_commandPrefix));
+            return true;
+        }
+
+        QString command = lines.takeFirst();
+        QStringList actions = lines;
+
+        if ((command == "help") || (command == "h"))
+        {
+            // Описание команды для Телеграм:
+            // telebot - help Справка по списку команд
+
+            deleteCommandMessage();
+            printCommandsInfo();
+            return true;
+        }
+        else if ((command == "timelimit") || (command == "tl"))
         {
             // Удаляем сообщение с командой
-            tbot::HttpParams params;
-            params["chat_id"] = chatId;
-            params["message_id"] = messageId;
-            sendTgCommand("deleteMessage", params);
-
-            if (!chat->adminIds().contains(userId))
-            {
-                QString botMsg =
-                    u8"Для управления ботом нужны права администратора."
-                    u8"\r\nКоманда /timelimit";
-
-                sendMessage(chatId, botMsg);
-                return true;
-            }
+            deleteCommandMessage();
 
             QString action;
             if (actions.count())
@@ -589,14 +643,14 @@ bool Processing::botCommand(const Update& update)
                 && action != "status")
             {
                 QString botMsg = (action.isEmpty())
-                    ? u8"Для команды /timelimit требуется указать действие."
-                    : u8"Команда /timelimit не используется с указанным действием: %1.";
+                    ? u8"Для команды timelimit требуется указать действие."
+                    : u8"Команда timelimit не используется с указанным действием: %1.";
 
                 botMsg += u8"\r\nДопустимые действия: start/stop/status"
-                          u8"\r\nПример: /timelimit status";
-                botMsg = botMsg.arg(action);
+                          u8"\r\nПример: %2 timelimit status";
+                botMsg = botMsg.arg(_commandPrefix).arg(action);
 
-                sendMessage(chatId, botMsg);
+                sendMessage(botMsg);
                 return true;
             }
 
@@ -605,16 +659,14 @@ bool Processing::botCommand(const Update& update)
                 timelimitInactiveChatsRemove(chatId);
                 emit updateBotCommands();
 
-                QString botMsg = u8"Триггер timelimit активирован";
-                sendMessage(chatId, botMsg);
+                sendMessage(u8"Триггер timelimit активирован");
             }
             else if (action == "stop")
             {
                 timelimitInactiveChatsAdd(chatId);
                 emit updateBotCommands();
 
-                QString botMsg = u8"Триггер timelimit деактивирован";
-                sendMessage(chatId, botMsg);
+                sendMessage(u8"Триггер timelimit деактивирован");
             }
             else if (action == "status")
             {
@@ -673,11 +725,11 @@ bool Processing::botCommand(const Update& update)
                         }
                     }
                     botMsg += "\r\n\r\n";
-                    sendMessage(chatId, botMsg);
+                    sendMessage(botMsg);
                 }
             }
             return true;
-        } // command /timelimit
+        } // command timelimit
     }
     return false;
 }

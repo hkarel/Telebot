@@ -22,7 +22,7 @@ public:
 
     Processing();
 
-    bool init(qint64 botUserId);
+    bool init(qint64 botUserId, const QString& commandPrefix);
     static void addUpdate(const QByteArray&);
 
 signals:
@@ -73,6 +73,7 @@ private:
     QString _spamMessage;
 
     qint64 _botUserId = {0};
+    QString _commandPrefix;
 };
 
 } // namespace tbot
