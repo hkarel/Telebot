@@ -1252,6 +1252,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::reportSpam,
                           this, &Application::reportSpam);
 
+            chk_connect_q(p, &tbot::Processing::resetSpam,
+                          this, &Application::resetSpam);
+
             chk_connect_q(p, &tbot::Processing::updateBotCommands,
                           this, &Application::updateBotCommands);
 
@@ -1562,7 +1565,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
 
                 { //Block for alog::Line
                     alog::Line logLine =
-                            log_debug_m << "Spam penalty has expired (2 day)";
+                        log_debug_m << "Spam penalty has expired (2 day)";
                     userLogInfo(logLine, spammer->user, chat);
                     logLine << ". Time: " << QString::number(spammer->spamTimes.at(j));
                 }
@@ -1729,6 +1732,50 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     log_debug_m << "Report spam ---";
 
     saveReportSpam();
+}
+
+void Application::resetSpam(qint64 chatId, qint64 userId)
+{
+    tbot::User::Ptr user;
+    if (lst::FindResult fr = _spammers.findRef(qMakePair(chatId, userId)))
+    {
+        user = _spammers.item(fr.index())->user;
+        _spammers.remove(fr.index());
+        saveReportSpam();
+    }
+    if (user)
+    {
+        QString username;
+        if (!user->username.isEmpty())
+            username = "@" + user->username;
+
+        // Сообщение для Telegram
+        QString botMsg =
+            u8"Аннулированы спам-штрафы для пользователя [%1 %2](tg://user?id=%3)";
+        botMsg = botMsg.arg(user->first_name).arg(user->last_name).arg(userId);
+
+        if (!username.isEmpty())
+            botMsg += QString(u8" (%1/%2)").arg(username).arg(userId);
+        else
+            botMsg += QString(u8" (id: %1)").arg(userId);
+
+        tbot::HttpParams params;
+        params["chat_id"] = chatId;
+        params["text"] = botMsg;
+        params["parse_mode"] = "Markdown";
+        emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/);
+
+        // Сообщение в лог
+        alog::Line logLine = log_verbose_m << log_format(
+            "Spam penalties canceled. User first/last/uname/id: %?/%?/%?/%?",
+            user->first_name, user->last_name, username, user->id);
+
+        tbot::GroupChat::List chats = tbot::groupChats();
+        if (tbot::GroupChat* chat = chats.findItem(&chatId))
+            logLine << log_format(". Chat name/id: %?/%?", chat->name(), chat->id);
+        else
+            logLine << log_format(". Chat id: %?", chatId);
+    }
 }
 
 void Application::updateBotCommands()

@@ -120,6 +120,9 @@ public slots:
     // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
+    // Аннулирование штрафов за спам-сообщения
+    void resetSpam(qint64 chatId, qint64 userId);
+
     void updateBotCommands();
     void updateChatAdminInfo(qint64 chatId);
 

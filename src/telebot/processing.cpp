@@ -438,17 +438,17 @@ void Processing::run()
                 //   Смотри решение с Markdown разметкой тут:
                 //   https://core.telegram.org/bots/api#markdown-style
                 botMsg = QString("%1 => [%2 %3](tg://user?id=%4)")
-                         .arg(userId)
-                         .arg(message->from->first_name)
-                         .arg(message->from->last_name)
-                         .arg(userId);
+                                 .arg(userId)
+                                 .arg(message->from->first_name)
+                                 .arg(message->from->last_name)
+                                 .arg(userId);
 
                 if (!message->from->username.isEmpty())
                     botMsg += QString(" (@%1)").arg(message->from->username);
 
                 tbot::HttpParams params3;
                 params3["chat_id"] = chatId;
-                params3["text"] = botMsg;
+                params3["text"] = botMsg.replace("_", "\\_");
                 params3["parse_mode"] = "Markdown";
                 emit sendTgCommand("sendMessage", params3, 1.3*1000 /*1.3 сек*/);
 
@@ -538,28 +538,21 @@ bool Processing::botCommand(const Update& update)
     qint32 messageId = message->message_id;
 
     GroupChat::List chats = tbot::groupChats();
-
     GroupChat* chat = chats.findItem(&chatId);
+
     if (chat == nullptr)
         return false;
 
-    auto sendMessage = [this, chatId](const QString& botMsg)
+    auto sendMessage = [this, chatId](const QString& msg)
     {
         tbot::HttpParams params;
         params["chat_id"] = chatId;
-        params["text"] = botMsg;
+        params["text"] = msg;
         params["parse_mode"] = "HTML";
         emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/);
     };
 
-    auto deleteCommandMessage = [this, chatId, messageId]()
-    {
-        tbot::HttpParams params;
-        params["chat_id"] = chatId;
-        params["message_id"] = messageId;
-        emit sendTgCommand("deleteMessage", params);
-    };
-
+    QString botMsg;
     for (const MessageEntity& entity : message->entities)
     {
         if (entity.type != "bot_command")
@@ -571,10 +564,21 @@ bool Processing::botCommand(const Update& update)
         if (prefix != _commandPrefix)
             continue;
 
+        // Удаляем сообщение с командой
+        {
+            tbot::HttpParams params;
+            params["chat_id"] = chatId;
+            params["message_id"] = messageId;
+            emit sendTgCommand("deleteMessage", params);
+        }
+
         if (!chat->adminIds().contains(userId))
         {
-            deleteCommandMessage();
+            // Тайминг сообщения 1.5 сек
             sendMessage(u8"Для управления ботом нужны права администратора");
+
+            // Штрафуем пользователя, который пытается управлять ботом (тайминг 3 сек)
+            emit reportSpam(chatId, message->from);
             return true;
         }
 
@@ -583,7 +587,7 @@ bool Processing::botCommand(const Update& update)
 
         auto printCommandsInfo = [&]()
         {
-            QString botMsg =
+            botMsg =
                 u8"Список доступных команд:"
                 u8"\r\n%1 help [h]&#185; - "
                 u8"Справка по списку команд;"
@@ -593,9 +597,9 @@ bool Processing::botCommand(const Update& update)
                 u8"Активация/деактивация триггеров с типом timelimit;"
                 u8"\r\n"
 
-//                u8"\r\n%1 spamreset [sr]&#185; ID - "
-//                u8"Аннулировать спам-штрафы для пользователя с идентификатором ID;"
-//                u8"\r\n"
+                u8"\r\n%1 spamreset [sr]&#185; ID - "
+                u8"Аннулировать спам-штрафы для пользователя с идентификатором ID;"
+                u8"\r\n"
 
 //                u8"\r\n%1 globalblack [gb]&#185; ID - "
 //                u8"Добавить пользователя с идентификатором ID в глобальный черный "
@@ -610,9 +614,8 @@ bool Processing::botCommand(const Update& update)
 
         if (lines.isEmpty())
         {
-            deleteCommandMessage();
-            QString botMsg = u8"Список доступных команд можно посмотреть "
-                             u8"при помощи команды: %1 help";
+            botMsg = u8"Список доступных команд можно посмотреть "
+                     u8"при помощи команды: %1 help";
             sendMessage(botMsg.arg(_commandPrefix));
             return true;
         }
@@ -625,14 +628,11 @@ bool Processing::botCommand(const Update& update)
             // Описание команды для Телеграм:
             // telebot - help Справка по списку команд
 
-            deleteCommandMessage();
             printCommandsInfo();
             return true;
         }
         else if ((command == "timelimit") || (command == "tl"))
         {
-            // Удаляем сообщение с командой
-            deleteCommandMessage();
 
             QString action;
             if (actions.count())
@@ -642,7 +642,7 @@ bool Processing::botCommand(const Update& update)
                 && action != "stop"
                 && action != "status")
             {
-                QString botMsg = (action.isEmpty())
+                botMsg = (action.isEmpty())
                     ? u8"Для команды timelimit требуется указать действие."
                     : u8"Команда timelimit не используется с указанным действием: %1.";
 
@@ -676,7 +676,7 @@ bool Processing::botCommand(const Update& update)
                     if (trg == nullptr)
                         continue;
 
-                    QString botMsg = u8"Триггер: " + trigger->name;
+                    botMsg = u8"Триггер: " + trigger->name;
                     if (!trg->description.isEmpty())
                         botMsg += QString(" (%1)").arg(trg->description);
 
@@ -729,7 +729,39 @@ bool Processing::botCommand(const Update& update)
                 }
             }
             return true;
-        } // command timelimit
+        }
+        else if ((command == "spamreset") || (command == "sr"))
+        {
+            QString action = u8"пусто";
+            if (actions.count())
+                action = actions[0];
+
+            bool ok;
+            qint64 spamUserId = action.toLongLong(&ok);
+            if (!ok)
+            {
+                log_error_m << log_format(
+                    "Bot command 'spamreset'. Failed convert '%?' to user id", action);
+
+                botMsg = u8"Команда spamreset. Ошибка преобразования "
+                         u8"значения '%1' в идентификатор пользователя";
+                sendMessage(botMsg.arg(action));
+            }
+            else
+            {
+                emit resetSpam(chatId, spamUserId);
+            }
+            return true;
+        }
+        else
+        {
+            log_error_m << log_format(
+                "Unknown bot command: %? %?", _commandPrefix, command);
+
+            botMsg = u8"Неизвестная команда: %1 %2";
+            sendMessage(botMsg.arg(_commandPrefix).arg(command));
+            return true;
+        }
     }
     return false;
 }
