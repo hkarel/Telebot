@@ -1755,9 +1755,12 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
         botMsg = botMsg.arg(user->first_name).arg(user->last_name).arg(userId);
 
         if (!username.isEmpty())
-            botMsg += QString(u8" (%1/%2)").arg(username).arg(userId);
+        {
+            QString s = QString(" (%1/%2)").arg(username).arg(userId);
+            botMsg += s.replace("_", "\\_");
+        }
         else
-            botMsg += QString(u8" (id: %1)").arg(userId);
+            botMsg += QString(" (id: %1)").arg(userId);
 
         tbot::HttpParams params;
         params["chat_id"] = chatId;

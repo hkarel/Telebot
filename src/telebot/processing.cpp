@@ -444,11 +444,14 @@ void Processing::run()
                                  .arg(userId);
 
                 if (!message->from->username.isEmpty())
-                    botMsg += QString(" (@%1)").arg(message->from->username);
+                {
+                    QString s = QString(" (@%1)").arg(message->from->username);
+                    botMsg += s.replace("_", "\\_");
+                }
 
                 tbot::HttpParams params3;
                 params3["chat_id"] = chatId;
-                params3["text"] = botMsg.replace("_", "\\_");
+                params3["text"] = botMsg;
                 params3["parse_mode"] = "Markdown";
                 emit sendTgCommand("sendMessage", params3, 1.3*1000 /*1.3 сек*/);
 
