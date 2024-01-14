@@ -586,6 +586,15 @@ bool Processing::botCommand(const Update& update)
         }
 
         QString actionLine = message->text.mid(entity.offset + entity.length);
+
+        const QRegularExpression::PatternOptions patternOpt =
+                {QRegularExpression::DotMatchesEverythingOption
+                |QRegularExpression::UseUnicodePropertiesOption};
+
+        // Замена непечатных пробельных символов на обычные пробелы
+        static QRegularExpression reSpaces {"[\\s\\.]", patternOpt};
+        actionLine.replace(reSpaces, QChar(' '));
+
         QStringList lines = actionLine.split(QChar(' '), QString::SkipEmptyParts);
 
         auto printCommandsInfo = [&]()
