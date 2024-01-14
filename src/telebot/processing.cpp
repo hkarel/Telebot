@@ -485,7 +485,8 @@ void Processing::run()
 
             if (botInfo && botInfo->can_restrict_members)
             {
-                if (trigger->immediatelyBan || (isPremium && trigger->premiumBan))
+                if (trigger->immediatelyBan
+                    || (isPremium && chat->premiumBan && trigger->premiumBan))
                 {
                     tbot::HttpParams params;
                     params["chat_id"] = chatId;
