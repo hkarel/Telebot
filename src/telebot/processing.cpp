@@ -320,10 +320,10 @@ void Processing::run()
                             (const QString& text, const MessageEntity& entity)
         {
             if (entity.type == "url")
-                urllinksText = text.mid(entity.offset, entity.length) + QChar(' ');
+                urllinksText += text.mid(entity.offset, entity.length) + QChar(' ');
 
             else if (entity.type == "text_link")
-                urllinksText = entity.url + QChar(' ');
+                urllinksText += entity.url + QChar(' ');
         };
         for (const MessageEntity& entity : message->caption_entities)
             readEntities(message->caption, entity);
