@@ -505,6 +505,30 @@ void Processing::run()
             {
                 log_error_m << "The bot does not have rights to ban user";
             }
+
+            //--- Мониторинг скрытого тегирования пользователей ---
+            QList<QPair<qint32 /*offset*/, qint32 /*unicode*/>> textMentions;
+            for (const MessageEntity& entity : message->entities)
+            {
+                if (entity.type != "text_mention")
+                    continue;
+
+                qint64 usrId = (entity.user) ? entity.user->id : 0;
+                if (adminIds.contains(usrId) && (entity.length == 1))
+                    if (entity.offset < message->text.length())
+                    {
+                        QChar ch = message->text[entity.offset];
+                        textMentions.append({entity.offset, qint32(ch.unicode())});
+                    }
+            }
+            if (!textMentions.isEmpty())
+            {
+                log_debug_m << log_format(
+                    R"("update_id":%?. Non print mention symbols {offset, unicode}: %?)",
+                    update.update_id, textMentions);
+            }
+            //---
+
             break;
         }
 
