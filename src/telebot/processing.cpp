@@ -151,7 +151,7 @@ void Processing::run()
             HttpParams params;
             params["chat_id"] = chatId;
             params["message_id"] = messageId;
-            emit sendTgCommand("deleteMessage", params);
+            emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
             continue;
         }
 
@@ -182,7 +182,7 @@ void Processing::run()
                 HttpParams params;
                 params["chat_id"] = chatId;
                 params["message_id"] = messageId;
-                emit sendTgCommand("deleteMessage", params);
+                emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
                 continue;
             }
             else
@@ -387,7 +387,7 @@ void Processing::run()
                         HttpParams params;
                         params["chat_id"] = mg.chatId;
                         params["message_id"] = msgId;
-                        emit sendTgCommand("deleteMessage", params);
+                        emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
                     }
                     mg.messageIds.clear();
                 }
@@ -396,7 +396,7 @@ void Processing::run()
                     HttpParams params;
                     params["chat_id"] = chatId;
                     params["message_id"] = messageId;
-                    emit sendTgCommand("deleteMessage", params);
+                    emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
                 }
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
@@ -597,7 +597,7 @@ bool Processing::botCommand(const Update& update)
             tbot::HttpParams params;
             params["chat_id"] = chatId;
             params["message_id"] = messageId;
-            emit sendTgCommand("deleteMessage", params);
+            emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
         }
 
         if (!chat->adminIds().contains(userId))

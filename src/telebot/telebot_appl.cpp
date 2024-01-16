@@ -1353,7 +1353,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 params["chat_id"] = chatId;
                 params["message_id"] = messageId;
 
-                int delay = rd.messageDel * 1000;
+                int delay = qMax(rd.messageDel*1000, 500 /*0.5 сек*/);
                 sendTgCommand("deleteMessage", params, delay);
             }
         }
