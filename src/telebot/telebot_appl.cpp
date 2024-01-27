@@ -966,7 +966,8 @@ void Application::reloadBotMode()
 
 void Application::reloadGroups()
 {
-    config::work().rereadFile();
+    if (!config::work().rereadFile())
+        return;
 
     _getChatAdminCallCount = 0;
     tbot::globalConfigParceErrors = 0;
