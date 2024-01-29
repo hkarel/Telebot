@@ -61,20 +61,11 @@ public:
         // Имя TG-функции
         QString funcName;
 
-        // Параметры http запроса
-        tbot::HttpParams params;
+        // Параметры для функции sendTgCommand()
+        tbot::TgCommandParams params;
 
         // Результат выполнения http запроса в raw-формате
         QByteArray data;
-
-        // Счетчик попыток выполнения http запроса
-        int attempt = {1};
-
-        // Определяет тайм-аут для удаления сервисных сообщений бота, задается
-        // в секундах. Если значение тайм-аута равно 0 сообщение будет удалено
-        // немедленно, таким образом оно останется только в истории сообщений.
-        // При значении параметра меньше 0 сообщение не удаляется
-        int messageDel = {0};
 
         // Признак успешно выполненного http запроса
         bool success = {true};
@@ -107,12 +98,8 @@ public slots:
 
     void timelimitCheck();
 
-    // Функция для отправки http команды.
-    //   delay - задержка отправки команды, задается в миллисекундах;
-    //   attempt - номер попытки выполняемого запроса.
-    //   messageDel - см. описание в структуре ReplyData
-    void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0, int attempt = 1, int messageDel = 0);
+    // Функция для отправки Телеграм-команды
+    void sendTgCommand(const QString& funcName, const tbot::TgCommandParams&);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);

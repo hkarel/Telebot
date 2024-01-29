@@ -13,7 +13,26 @@
 
 namespace tbot {
 
-typedef QMap<QString, QVariant> HttpParams;
+/**
+  Параметры для функции sendTgCommand()
+*/
+struct TgCommandParams
+{
+    // Список параметров для Телеграм API функций
+    QMap<QString, QVariant> api;
+
+    // Задержка отправки команды, задается в миллисекундах
+    int delay = {0};
+
+    // Номер попытки выполняемого запроса
+    int attempt = {1};
+
+    // Определяет тайм-аут для удаления сервисных сообщений бота, задается
+    // в секундах. Если значение тайм-аута равно 0 сообщение будет удалено
+    // немедленно, таким образом оно останется только в истории сообщений.
+    // При значении параметра меньше 0 сообщение не удаляется
+    int messageDel = {0};
+};
 
 class Processing : public QThreadEx
 {
@@ -26,8 +45,7 @@ public:
     static void addUpdate(const QByteArray&);
 
 signals:
-    void sendTgCommand(const QString& funcName, const tbot::HttpParams&,
-                       int delay = 0, int attempt = 1, int messageDel = 0);
+    void sendTgCommand(const QString& funcName, const tbot::TgCommandParams&);
 
     // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);

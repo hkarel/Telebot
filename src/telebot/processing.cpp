@@ -148,10 +148,11 @@ void Processing::run()
         // Удаляем служебные сообщения Телеграм от имени бота
         if (_botUserId == userId)
         {
-            HttpParams params;
-            params["chat_id"] = chatId;
-            params["message_id"] = messageId;
-            emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
+            TgCommandParams params;
+            params.api["chat_id"] = chatId;
+            params.api["message_id"] = messageId;
+            params.delay = 500 /*0.5 сек*/;
+            emit sendTgCommand("deleteMessage", params);
             continue;
         }
 
@@ -165,9 +166,9 @@ void Processing::run()
 
             if (_spamIsActive && !_spamMessage.isEmpty())
             {
-                tbot::HttpParams params;
-                params["chat_id"] = chatId;
-                params["text"] = _spamMessage;
+                TgCommandParams params;
+                params.api["chat_id"] = chatId;
+                params.api["text"] = _spamMessage;
                 emit sendTgCommand("sendMessage", params);
             }
             continue;
@@ -179,10 +180,11 @@ void Processing::run()
             MediaGroup& mg = _mediaGroups[message->media_group_id];
             if (mg.isBad)
             {
-                HttpParams params;
-                params["chat_id"] = chatId;
-                params["message_id"] = messageId;
-                emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
+                TgCommandParams params;
+                params.api["chat_id"] = chatId;
+                params.api["message_id"] = messageId;
+                params.delay = 500 /*0.5 сек*/;
+                emit sendTgCommand("deleteMessage", params);
                 continue;
             }
             else
@@ -384,19 +386,21 @@ void Processing::run()
                     mg.isBad = true;
                     for (qint64 msgId : mg.messageIds)
                     {
-                        HttpParams params;
-                        params["chat_id"] = mg.chatId;
-                        params["message_id"] = msgId;
-                        emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
+                        TgCommandParams params;
+                        params.api["chat_id"] = mg.chatId;
+                        params.api["message_id"] = msgId;
+                        params.delay = 500 /*0.5 сек*/;
+                        emit sendTgCommand("deleteMessage", params);
                     }
                     mg.messageIds.clear();
                 }
                 else
                 {
-                    HttpParams params;
-                    params["chat_id"] = chatId;
-                    params["message_id"] = messageId;
-                    emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
+                    TgCommandParams params;
+                    params.api["chat_id"] = chatId;
+                    params.api["message_id"] = messageId;
+                    params.delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand("deleteMessage", params);
                 }
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
@@ -428,11 +432,12 @@ void Processing::run()
                 if (!trigger->description.isEmpty())
                     botMsg += QString(" (%1)").arg(trigger->description);
 
-                tbot::HttpParams params2;
-                params2["chat_id"] = chatId;
-                params2["text"] = botMsg;
-                params2["parse_mode"] = "HTML";
-                emit sendTgCommand("sendMessage", params2, 1*1000 /*1 сек*/);
+                TgCommandParams params2;
+                params2.api["chat_id"] = chatId;
+                params2.api["text"] = botMsg;
+                params2.api["parse_mode"] = "HTML";
+                params2.delay = 1*1000 /*1 сек*/;
+                emit sendTgCommand("sendMessage", params2);
 
                 // Отправляем сообщение с идентификатором пользователя
                 //   Смотри решение с Markdown разметкой тут:
@@ -449,11 +454,12 @@ void Processing::run()
                     botMsg += s.replace("_", "\\_");
                 }
 
-                tbot::HttpParams params3;
-                params3["chat_id"] = chatId;
-                params3["text"] = botMsg;
-                params3["parse_mode"] = "Markdown";
-                emit sendTgCommand("sendMessage", params3, 1.3*1000 /*1.3 сек*/);
+                TgCommandParams params3;
+                params3.api["chat_id"] = chatId;
+                params3.api["text"] = botMsg;
+                params3.api["parse_mode"] = "Markdown";
+                params3.delay = 1.3*1000 /*1.3 сек*/;
+                emit sendTgCommand("sendMessage", params3);
 
                 if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
                     if (!trg->messageInfo.isEmpty())
@@ -470,12 +476,13 @@ void Processing::run()
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
                                .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                        tbot::HttpParams params;
-                        params["chat_id"] = chatId;
-                        params["text"] = message;
-                        params["parse_mode"] = "HTML";
-                        emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/,
-                                           1, 3*60 /*3 мин*/);
+                        TgCommandParams params;
+                        params.api["chat_id"] = chatId;
+                        params.api["text"] = message;
+                        params.api["parse_mode"] = "HTML";
+                        params.delay = 1.5*1000 /*1.5 сек*/;
+                        params.messageDel = 3*60 /*3 мин*/;
+                        emit sendTgCommand("sendMessage", params);
                     }
             }
             else
@@ -488,12 +495,13 @@ void Processing::run()
                 if (trigger->immediatelyBan
                     || (isPremium && chat->premiumBan && trigger->premiumBan))
                 {
-                    tbot::HttpParams params;
-                    params["chat_id"] = chatId;
-                    params["user_id"] = userId;
-                    params["until_date"] = qint64(std::time(nullptr));
-                    params["revoke_messages"] = true;
-                    sendTgCommand("banChatMember", params, 3*1000 /*3 сек*/);
+                    TgCommandParams params;
+                    params.api["chat_id"] = chatId;
+                    params.api["user_id"] = userId;
+                    params.api["until_date"] = qint64(std::time(nullptr));
+                    params.api["revoke_messages"] = true;
+                    params.delay = 3*1000 /*3 сек*/;
+                    sendTgCommand("banChatMember", params);
                 }
                 else if (trigger->reportSpam)
                 {
@@ -573,11 +581,12 @@ bool Processing::botCommand(const Update& update)
 
     auto sendMessage = [this, chatId](const QString& msg)
     {
-        tbot::HttpParams params;
-        params["chat_id"] = chatId;
-        params["text"] = msg;
-        params["parse_mode"] = "HTML";
-        emit sendTgCommand("sendMessage", params, 1.5*1000 /*1.5 сек*/);
+        TgCommandParams params;
+        params.api["chat_id"] = chatId;
+        params.api["text"] = msg;
+        params.api["parse_mode"] = "HTML";
+        params.delay = 1.5*1000 /*1.5 сек*/;
+        emit sendTgCommand("sendMessage", params);
     };
 
     QString botMsg;
@@ -594,10 +603,11 @@ bool Processing::botCommand(const Update& update)
 
         // Удаляем сообщение с командой
         {
-            tbot::HttpParams params;
-            params["chat_id"] = chatId;
-            params["message_id"] = messageId;
-            emit sendTgCommand("deleteMessage", params, 500 /*0.5 сек*/);
+            TgCommandParams params;
+            params.api["chat_id"] = chatId;
+            params.api["message_id"] = messageId;
+            params.delay = 500 /*0.5 сек*/;
+            emit sendTgCommand("deleteMessage", params);
         }
 
         if (!chat->adminIds().contains(userId))
