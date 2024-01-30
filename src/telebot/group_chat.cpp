@@ -126,6 +126,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         premiumBan = ychat["premium_ban"].as<bool>();
     }
 
+    bool checkBio = false;
+    if (ychat["check_bio"].IsDefined())
+    {
+        checkFiedType("check_bio", YAML::NodeType::Scalar);
+        checkBio = ychat["check_bio"].as<bool>();
+    }
+
     QSet<qint64> whiteUsers;
     if (ychat["white_users"].IsDefined())
     {
@@ -156,6 +163,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->setName(name);
     chat->skipAdmins = skipAdmins;
     chat->premiumBan = premiumBan;
+    chat->checkBio = checkBio;
     chat->whiteUsers = whiteUsers;
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
@@ -259,6 +267,7 @@ void printGroupChats(GroupChat::List& chats)
 
         logLine << "; skip_admins: " << chat->skipAdmins;
         logLine << "; premium_ban: " << chat->premiumBan;
+        logLine << "; check_bio: "   << chat->checkBio;
 
         nextCommaVal = false;
         logLine << "; white_users: [";

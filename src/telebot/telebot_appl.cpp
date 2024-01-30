@@ -114,8 +114,8 @@ Application::Application(int& argc, char** argv)
     #undef FUNC_REGISTRATION
 
     qRegisterMetaType<ReplyData>("ReplyData");
+    qRegisterMetaType<tbot::TgParams>("tbot::TgParams");
     qRegisterMetaType<tbot::User::Ptr>("tbot::User::Ptr");
-    qRegisterMetaType<tbot::TgCommandParams>("tbot::TgCommandParams");
 }
 
 bool Application::init()
@@ -683,21 +683,9 @@ void Application::webhook_readyRead()
         wd.data = unicodeDecode(wd.data);
         log_verbose_m << "Webhook TCP data: " << wd.data;
 
-        if (!_masterMode)
-        {
-            if (_slaveSocket && !_slaveSocket->isConnected())
-            {
-                // Slave mode
-                tbot::Processing::addUpdate(wd.data);
-            }
-            else
-                log_verbose_m << "Bot in slave mode, message processing skipped";
-        }
-        else
-        {
-            // Master mode
-            tbot::Processing::addUpdate(wd.data);
-        }
+        tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
+        msgData->data = wd.data;
+        sendToProcessing(msgData);
 
         wd.dataSize = -1;
         wd.data.clear();
@@ -809,7 +797,7 @@ void Application::http_finished()
         {
             if (rd.params.attempt == 1)
             {
-                tbot::TgCommandParams params;
+                tbot::TgParams params;
                 params.api = rd.params.api;
                 params.delay = 30*1000 /*30 сек*/;
                 params.attempt = 2;
@@ -818,7 +806,7 @@ void Application::http_finished()
 
             if (rd.params.attempt == 2)
             {
-                tbot::TgCommandParams params;
+                tbot::TgParams params;
                 params.api = rd.params.api;
                 params.delay = 60*1000 /*60 сек*/;
                 params.attempt = 3;
@@ -1002,7 +990,7 @@ void Application::reloadGroups()
     for (int i = 0; i < chats.count(); ++i)
     {
         tbot::GroupChat* chat = chats.item(i);
-        tbot::TgCommandParams params;
+        tbot::TgParams params;
         params.api["chat_id"] = chat->id;
 
         // Команды getChat отправляются с интервалом 70  миллисекунд,  чтобы
@@ -1036,7 +1024,7 @@ void Application::reloadGroups()
 
 void Application::startRequest()
 {
-    tbot::TgCommandParams params;
+    tbot::TgParams params;
     sendTgCommand("getMe", params);
 }
 
@@ -1096,7 +1084,7 @@ void Application::timelimitCheck()
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
                                        .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                                tbot::TgCommandParams params;
+                                tbot::TgParams params;
                                 params.api["chat_id"] = chat->id;
                                 params.api["text"] = message;
                                 params.api["parse_mode"] = "HTML";
@@ -1132,7 +1120,7 @@ void Application::timelimitCheck()
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
                                        .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                                tbot::TgCommandParams params;
+                                tbot::TgParams params;
                                 params.api["chat_id"] = chat->id;
                                 params.api["text"] = message;
                                 params.api["parse_mode"] = "HTML";
@@ -1146,7 +1134,7 @@ void Application::timelimitCheck()
     }
 }
 
-void Application::sendTgCommand(const QString& funcName, const tbot::TgCommandParams& params)
+void Application::sendTgCommand(const QString& funcName, const tbot::TgParams& params)
 {
     QTimer::singleShot(params.delay, [=]()
     {
@@ -1282,57 +1270,74 @@ void Application::httpResultHandler(const ReplyData& rd)
         if (!httpResult.fromJson(rd.data))
             return;
 
-        qint64 chatId = rd.params.api["chat_id"].toLongLong();
-        tbot::GroupChat::List chats = tbot::groupChats();
-        lst::FindResult fr = chats.findRef(chatId);
-
-        if (httpResult.ok)
+        // Обработка основного сообщения для "getChat"
+        if (rd.params.bio.userId == 0)
         {
-            tbot::GetChat_Result result;
-            if (result.fromJson(rd.data))
+            qint64 chatId = rd.params.api["chat_id"].toLongLong();
+            tbot::GroupChat::List chats = tbot::groupChats();
+            lst::FindResult fr = chats.findRef(chatId);
+
+            if (httpResult.ok)
             {
-                if (result.chat.type == "group"
-                    || result.chat.type == "supergroup")
+                tbot::GetChat_Result result;
+                if (result.fromJson(rd.data))
                 {
-                    // Корректируем наименование чата
-                    if (fr.success())
+                    if (result.chat.type == "group"
+                        || result.chat.type == "supergroup")
                     {
-                        QString username = result.chat.username.trimmed();
-                        if (!username.isEmpty())
+                        // Корректируем наименование чата
+                        if (fr.success())
                         {
-                            chats[fr.index()].setName(username);
+                            QString username = result.chat.username.trimmed();
+                            if (!username.isEmpty())
+                            {
+                                chats[fr.index()].setName(username);
+                                tbot::groupChats(&chats);
+                            }
+                        }
+                        tbot::TgParams params;
+                        params.api["chat_id"] = chatId;
+                        sendTgCommand("getChatAdministrators", params);
+                    }
+                    else
+                    {
+                        // Удаляем из списка чатов неподдерживаемый чат
+                        if (fr.success())
+                        {
+                            chats.remove(fr.index());
                             tbot::groupChats(&chats);
+                            log_verbose_m << log_format(
+                                "Removed unsupported chat type '%?' (chat_id: %?)",
+                                result.chat.type, chatId);
                         }
                     }
-                    tbot::TgCommandParams params;
-                    params.api["chat_id"] = chatId;
-                    sendTgCommand("getChatAdministrators", params);
                 }
-                else
+            }
+            else
+            {
+                // Удаляем из списка чатов неподдерживаемый чат
+                if (fr.success())
                 {
-                    // Удаляем из списка чатов неподдерживаемый чат
-                    if (fr.success())
-                    {
-                        chats.remove(fr.index());
-                        tbot::groupChats(&chats);
-                        log_verbose_m << log_format(
-                            "Removed unsupported chat type '%?' (chat_id: %?)",
-                            result.chat.type, chatId);
-                    }
+                    chats.remove(fr.index());
+                    tbot::groupChats(&chats);
+                    log_verbose_m << log_format(
+                        "Removed unavailable chat from chats list (chat_id: %?)",
+                        chatId);
                 }
             }
         }
-        else
+        // Обработка сообщения с BIO
+        else if (rd.params.bio.userId > 0)
         {
-            // Удаляем из списка чатов неподдерживаемый чат
-            if (fr.success())
+            if (httpResult.ok)
             {
-                chats.remove(fr.index());
-                tbot::groupChats(&chats);
-                log_verbose_m << log_format(
-                    "Removed unavailable chat from chats list (chat_id: %?)",
-                    chatId);
+                tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
+                msgData->data = httpResult.result;
+                msgData->bio = rd.params.bio;
+                sendToProcessing(msgData);
             }
+            else
+                log_error_m << "Failed call function 'getChat' to get user BIO";
         }
     }
     else if (rd.funcName == "sendMessage")
@@ -1354,7 +1359,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             if (_botUserId == userId)
             {
-                tbot::TgCommandParams params;
+                tbot::TgParams params;
                 params.api["chat_id"] = chatId;
                 params.api["message_id"] = messageId;
                 params.delay = qMax(rd.params.messageDel*1000, 500 /*0.5 сек*/);
@@ -1640,7 +1645,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             tbot::ChatPermissions chatPermissions;
             QByteArray permissions = chatPermissions.toJson();
 
-            tbot::TgCommandParams params;
+            tbot::TgParams params;
             params.api["chat_id"] = chat->id;
             params.api["user_id"] = spammer->user->id;
             params.api["until_date"] = qint64(std::time(nullptr)) + restrictTime + 5;
@@ -1707,7 +1712,7 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 tbot::ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
                 if (botInfo && botInfo->can_restrict_members)
                 {
-                    tbot::TgCommandParams params;
+                    tbot::TgParams params;
                     params.api["chat_id"] = chat->id;
                     params.api["user_id"] = spammer->user->id;
                     params.api["until_date"] = qint64(std::time(nullptr));
@@ -1768,7 +1773,7 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
         else
             botMsg += QString(" (id: %1)").arg(userId);
 
-        tbot::TgCommandParams params;
+        tbot::TgParams params;
         params.api["chat_id"] = chatId;
         params.api["text"] = botMsg;
         params.api["parse_mode"] = "Markdown";
@@ -1807,7 +1812,7 @@ void Application::updateBotCommands()
 
 void Application::updateChatAdminInfo(qint64 chatId)
 {
-    tbot::TgCommandParams params;
+    tbot::TgParams params;
     params.api["chat_id"] = chatId;
     sendTgCommand("getChatAdministrators", params);
 }
@@ -1826,6 +1831,25 @@ void Application::saveBotCommands(qint64 timemark)
     config::state().setValue("timelimit_inactive.chats",
                              tbot::timelimitInactiveChats().toList());
     config::state().saveFile();
+}
+
+void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
+{
+    if (!_masterMode)
+    {
+        if (_slaveSocket && !_slaveSocket->isConnected())
+        {
+            // Slave mode
+            tbot::Processing::addUpdate(msgData);
+        }
+        else
+            log_verbose_m << "Bot in slave mode, message processing skipped";
+    }
+    else
+    {
+        // Master mode
+        tbot::Processing::addUpdate(msgData);
+    }
 }
 
 void Application::loadReportSpam()

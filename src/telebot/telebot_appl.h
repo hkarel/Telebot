@@ -62,7 +62,7 @@ public:
         QString funcName;
 
         // Параметры для функции sendTgCommand()
-        tbot::TgCommandParams params;
+        tbot::TgParams params;
 
         // Результат выполнения http запроса в raw-формате
         QByteArray data;
@@ -99,7 +99,7 @@ public slots:
     void timelimitCheck();
 
     // Функция для отправки Телеграм-команды
-    void sendTgCommand(const QString& funcName, const tbot::TgCommandParams&);
+    void sendTgCommand(const QString& funcName, const tbot::TgParams&);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
@@ -126,6 +126,8 @@ private:
 
      void loadBotCommands();
      void saveBotCommands(qint64 timemark);
+
+    void sendToProcessing(const tbot::MessageData::Ptr&);
 
 private:
     static QUuidEx _applId;

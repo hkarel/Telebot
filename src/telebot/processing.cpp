@@ -24,7 +24,7 @@ using namespace std;
 
 QMutex Processing::_threadLock;
 QWaitCondition Processing::_threadCond;
-QList<QByteArray> Processing::_updates;
+QList<MessageData::Ptr> Processing::_updates;
 QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
 
 Processing::Processing()
@@ -38,13 +38,13 @@ bool Processing::init(qint64 botUserId, const QString& commandPrefix)
     return true;
 }
 
-void Processing::addUpdate(const QByteArray& data)
+void Processing::addUpdate(const MessageData::Ptr& msgData)
 {
     QMutexLocker locker {&_threadLock}; (void) locker;
 
     //log_debug_m << "Webhook event data: " << data;
 
-    _updates.append(data);
+    _updates.append(msgData);
     _threadCond.wakeOne();
 }
 
@@ -60,7 +60,7 @@ void Processing::run()
     while (true)
     {
         CHECK_QTHREADEX_STOP
-        QByteArray data;
+        MessageData::Ptr msgData;
 
         if (_configChanged)
         {
@@ -82,14 +82,51 @@ void Processing::run()
             if (_updates.isEmpty())
                 continue;
 
-            data = _updates.takeFirst();
+            msgData = _updates.takeFirst();
         }
-        if (data.isEmpty())
+        if (msgData.empty() || msgData->data.isEmpty())
             continue;
 
         Update update;
-        if (!update.fromJson(data))
-            continue;
+        bool isBioMessage = false;
+
+        // Обработка сообщения с BIO
+        if (msgData->bio.userId > 0)
+        {
+            isBioMessage = true;
+            update.update_id = msgData->bio.updateId;
+
+            // Конструирование BIO сообщения
+            UserBio userBio;
+            if (!userBio.fromJson(msgData->data))
+                continue;
+
+            User::Ptr user {new User};
+            user->id = msgData->bio.userId;
+            user->first_name = userBio.first_name;
+            user->last_name  = userBio.last_name;
+            user->username   = userBio.username;
+
+            Chat::Ptr chat {new Chat};
+            chat->id = msgData->bio.chatId;
+            
+            Message::Ptr message {new Message};
+            
+            message->message_id = msgData->bio.messageId;
+            message->text = userBio.bio;
+            message->from = user;
+            message->chat = chat;
+
+            update.message = message;
+
+            //log_verbose_m << "Emulation BIO message: " << update.toJson();
+        }
+        // Обработка обычного сообщения
+        else
+        {
+            if (!update.fromJson(msgData->data))
+                continue;
+        }
 
         // Событие обновления прав для бота/админа
         if (update.my_chat_member)
@@ -148,7 +185,7 @@ void Processing::run()
         // Удаляем служебные сообщения Телеграм от имени бота
         if (_botUserId == userId)
         {
-            TgCommandParams params;
+            TgParams params;
             params.api["chat_id"] = chatId;
             params.api["message_id"] = messageId;
             params.delay = 500 /*0.5 сек*/;
@@ -166,7 +203,7 @@ void Processing::run()
 
             if (_spamIsActive && !_spamMessage.isEmpty())
             {
-                TgCommandParams params;
+                TgParams params;
                 params.api["chat_id"] = chatId;
                 params.api["text"] = _spamMessage;
                 emit sendTgCommand("sendMessage", params);
@@ -180,7 +217,7 @@ void Processing::run()
             MediaGroup& mg = _mediaGroups[message->media_group_id];
             if (mg.isBad)
             {
-                TgCommandParams params;
+                TgParams params;
                 params.api["chat_id"] = chatId;
                 params.api["message_id"] = messageId;
                 params.delay = 500 /*0.5 сек*/;
@@ -282,8 +319,9 @@ void Processing::run()
         if (botInfo.empty())
             log_error_m << "Information about bot permissions is not available";
 
-        log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text: %?)",
-                                    update.update_id, chat->name(), clearText);
+        log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text%?: %?)",
+                                    update.update_id, chat->name(),
+                                    (isBioMessage ? " [BIO]" : ""), clearText);
 
         // Проверка пользователя на принадлежность к списку администраторов
         if (chat->skipAdmins && adminIds.contains(userId))
@@ -294,7 +332,7 @@ void Processing::run()
             continue;
         }
 
-        // Проверка пользователя на принадлежность к белому списку
+        // Проверка пользователя на принадлежность к белому списку группы
         if (chat->whiteUsers.contains(userId))
         {
             log_verbose_m << log_format(
@@ -302,6 +340,9 @@ void Processing::run()
                 update.update_id, chat->name(), message->from->username);
             continue;
         }
+
+        if (isBioMessage && !chat->checkBio)
+            continue;
 
         tbot::Trigger::Text triggerText;
         triggerText[tbot::Trigger::TextType::Content]  = clearText;
@@ -336,6 +377,9 @@ void Processing::run()
         triggerText[tbot::Trigger::TextType::UrlLinks] = urllinksText.trimmed();
         //---
 
+        // Признак удаленного сообщения
+        bool messageDeleted = false;
+
         for (tbot::Trigger* trigger : chat->triggers)
         {
             if (!trigger->active)
@@ -355,7 +399,7 @@ void Processing::run()
                 continue;
             }
 
-            // Проверка пользователя на принадлежность к белому списку
+            // Проверка пользователя на принадлежность к белому списку триггера
             if (trigger->whiteUsers.contains(userId))
             {
                 log_verbose_m << log_format(
@@ -363,6 +407,12 @@ void Processing::run()
                     update.update_id, chat->name(), trigger->name, message->from->username);
                 continue;
             }
+
+            if (isBioMessage && !trigger->checkBio)
+                continue;
+
+            if (!isBioMessage && trigger->onlyBio)
+                continue;
 
             bool triggerActive = trigger->isActive(update, chat, triggerText);
 
@@ -386,7 +436,7 @@ void Processing::run()
                     mg.isBad = true;
                     for (qint64 msgId : mg.messageIds)
                     {
-                        TgCommandParams params;
+                        TgParams params;
                         params.api["chat_id"] = mg.chatId;
                         params.api["message_id"] = msgId;
                         params.delay = 500 /*0.5 сек*/;
@@ -396,12 +446,14 @@ void Processing::run()
                 }
                 else
                 {
-                    TgCommandParams params;
+                    TgParams params;
                     params.api["chat_id"] = chatId;
                     params.api["message_id"] = messageId;
                     params.delay = 500 /*0.5 сек*/;
                     emit sendTgCommand("deleteMessage", params);
                 }
+
+                messageDeleted = true;
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
                 QString botMsg =
@@ -409,20 +461,34 @@ void Processing::run()
                     u8"\r\n---"
                     u8"\r\n%1"
                     u8"\r\n---"
+                    u8"%2"
                     u8"\r\nПричина удаления сообщения"
-                    u8"\r\n%2;"
-                    u8"\r\nтриггер: %3";
+                    u8"\r\n%3%4;"
+                    u8"\r\nтриггер: %5";
 
-                QString messageText = message->text;
-                if (!message->caption.isEmpty())
+                QString messageText;
+                if (!isBioMessage)
                 {
-                    if (messageText.isEmpty())
-                        messageText = message->caption;
-                    else
-                        messageText = message->caption + '\n' + messageText;
+                    messageText = message->text;
+                    if (!message->caption.isEmpty())
+                    {
+                        if (messageText.isEmpty())
+                            messageText = message->caption;
+                        else
+                            messageText = message->caption + '\n' + messageText;
+                    }
                 }
+                else
+                    messageText = msgData->bio.messageOrigin;
+
+                QString bioText;
+                if (isBioMessage)
+                    bioText = u8"\r\nBIO: " + message->text;
+
                 botMsg = botMsg.arg(messageText)
+                               .arg(bioText)
                                .arg(trigger->activationReasonMessage)
+                               .arg(isBioMessage ? u8" [в BIO]" : u8"")
                                .arg(trigger->name);
 
                 botMsg.replace("+", "&#43;");
@@ -432,7 +498,7 @@ void Processing::run()
                 if (!trigger->description.isEmpty())
                     botMsg += QString(" (%1)").arg(trigger->description);
 
-                TgCommandParams params2;
+                TgParams params2;
                 params2.api["chat_id"] = chatId;
                 params2.api["text"] = botMsg;
                 params2.api["parse_mode"] = "HTML";
@@ -454,7 +520,7 @@ void Processing::run()
                     botMsg += s.replace("_", "\\_");
                 }
 
-                TgCommandParams params3;
+                TgParams params3;
                 params3.api["chat_id"] = chatId;
                 params3.api["text"] = botMsg;
                 params3.api["parse_mode"] = "Markdown";
@@ -476,7 +542,7 @@ void Processing::run()
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
                                .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                        TgCommandParams params;
+                        TgParams params;
                         params.api["chat_id"] = chatId;
                         params.api["text"] = message;
                         params.api["parse_mode"] = "HTML";
@@ -495,7 +561,7 @@ void Processing::run()
                 if (trigger->immediatelyBan
                     || (isPremium && chat->premiumBan && trigger->premiumBan))
                 {
-                    TgCommandParams params;
+                    TgParams params;
                     params.api["chat_id"] = chatId;
                     params.api["user_id"] = userId;
                     params.api["until_date"] = qint64(std::time(nullptr));
@@ -540,6 +606,27 @@ void Processing::run()
             break;
         }
 
+        if (chat->checkBio && !messageDeleted && !isBioMessage)
+        {
+            QString messageText = message->text;
+            if (!message->caption.isEmpty())
+            {
+                if (messageText.isEmpty())
+                    messageText = message->caption;
+                else
+                    messageText = message->caption + '\n' + messageText;
+            }
+            TgParams params;
+            params.api["chat_id"] = userId;
+            params.delay = 500 /*0.5 сек*/;
+            params.bio.userId = userId;
+            params.bio.chatId = chatId;
+            params.bio.updateId = update.update_id;
+            params.bio.messageId = messageId;
+            params.bio.messageOrigin = messageText;
+            sendTgCommand("getChat", params);
+        }
+
         { //Block for QMutexLocker
             QMutexLocker locker {&_threadLock}; (void) locker;
             for (const QString& key : _mediaGroups.keys())
@@ -581,7 +668,7 @@ bool Processing::botCommand(const Update& update)
 
     auto sendMessage = [this, chatId](const QString& msg)
     {
-        TgCommandParams params;
+        TgParams params;
         params.api["chat_id"] = chatId;
         params.api["text"] = msg;
         params.api["parse_mode"] = "HTML";
@@ -603,7 +690,7 @@ bool Processing::botCommand(const Update& update)
 
         // Удаляем сообщение с командой
         {
-            TgCommandParams params;
+            TgParams params;
             params.api["chat_id"] = chatId;
             params.api["message_id"] = messageId;
             params.delay = 500 /*0.5 сек*/;

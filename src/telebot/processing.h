@@ -14,9 +14,21 @@
 namespace tbot {
 
 /**
+  Вспомогательная структура для обработки BIO сообщений
+*/
+struct Bio
+{
+    qint64  userId = {0};
+    qint64  chatId = {0};
+    qint32  updateId = {0};
+    qint32  messageId = {0}; // Идентификатор оригинального сообщения
+    QString messageOrigin;   // Текст оригинального сообщения
+};
+
+/**
   Параметры для функции sendTgCommand()
 */
-struct TgCommandParams
+struct TgParams
 {
     // Список параметров для Телеграм API функций
     QMap<QString, QVariant> api;
@@ -32,6 +44,20 @@ struct TgCommandParams
     // немедленно, таким образом оно останется только в истории сообщений.
     // При значении параметра меньше 0 сообщение не удаляется
     int messageDel = {0};
+
+    // Вспомогательное поле для обработки BIO сообщений
+    Bio bio;
+};
+
+struct MessageData
+{
+    typedef container_ptr<MessageData> Ptr;
+
+    // Сообщение в json-формате
+    QByteArray data;
+
+    // Вспомогательное поле для обработки BIO сообщений
+    Bio bio;
 };
 
 class Processing : public QThreadEx
@@ -42,10 +68,10 @@ public:
     Processing();
 
     bool init(qint64 botUserId, const QString& commandPrefix);
-    static void addUpdate(const QByteArray&);
+    static void addUpdate(const MessageData::Ptr&);
 
 signals:
-    void sendTgCommand(const QString& funcName, const tbot::TgCommandParams&);
+    void sendTgCommand(const QString& funcName, const tbot::TgParams&);
 
     // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
@@ -71,7 +97,7 @@ private:
 private:
     static QMutex _threadLock;
     static QWaitCondition _threadCond;
-    static QList<QByteArray> _updates;
+    static QList<MessageData::Ptr> _updates;
 
     volatile bool _configChanged = {true};
 

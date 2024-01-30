@@ -36,6 +36,8 @@ void Trigger::assign(const Trigger& trigger)
     skipAdmins     = trigger.skipAdmins;
     whiteUsers     = trigger.whiteUsers;
     inverse        = trigger.inverse;
+    checkBio       = trigger.checkBio;
+    onlyBio        = trigger.onlyBio;
     reportSpam     = trigger.reportSpam;
     premiumBan     = trigger.premiumBan;
     immediatelyBan = trigger.immediatelyBan;
@@ -658,6 +660,20 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         inverseO = ytrigger["inverse"].as<bool>();
     }
 
+    optional<bool> checkBioO;
+    if (ytrigger["check_bio"].IsDefined())
+    {
+        checkFiedType(ytrigger, "check_bio", YAML::NodeType::Scalar);
+        checkBioO = ytrigger["check_bio"].as<bool>();
+    }
+
+    optional<bool> onlyBioO;
+    if (ytrigger["only_bio"].IsDefined())
+    {
+        checkFiedType(ytrigger, "only_bio", YAML::NodeType::Scalar);
+        onlyBioO = ytrigger["only_bio"].as<bool>();
+    }
+
     optional<bool> reportSpamO;
     if (ytrigger["report_spam"].IsDefined())
     {
@@ -950,6 +966,8 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(trigger->skipAdmins, skipAdminsO);
         assignValue(trigger->whiteUsers, whiteUsersO);
         assignValue(trigger->inverse, inverseO);
+        assignValue(trigger->checkBio, checkBioO);
+        assignValue(trigger->onlyBio, onlyBioO);
         assignValue(trigger->reportSpam, reportSpamO);
         assignValue(trigger->premiumBan, premiumBanO);
         assignValue(trigger->immediatelyBan, immediatelyBanO);
@@ -1175,6 +1193,8 @@ void printTriggers(Trigger::List& triggers)
         logLine << "]";
 
         logLine << "; inverse: " << trigger->inverse
+                << "; check_bio: " << trigger->checkBio
+                << "; only_bio: " << trigger->onlyBio
                 << "; report_spam: " << trigger->reportSpam
                 << "; premium_ban: " << trigger->premiumBan
                 << "; immediately_ban: " << trigger->immediatelyBan;

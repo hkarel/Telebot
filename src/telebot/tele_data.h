@@ -47,6 +47,23 @@ struct User : public clife_base
     J_SERIALIZE_END
 };
 
+struct UserBio
+{
+    qint64  id = {0};
+    QString first_name;  // User's or bot's first name
+    QString last_name;   // Optional. User's or bot's last name
+    QString username;    // Optional. User's or bot's username
+    QString bio;         // Optional
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( id         )
+        J_SERIALIZE_ITEM( first_name )
+        J_SERIALIZE_OPT ( last_name  )
+        J_SERIALIZE_OPT ( username   )
+        J_SERIALIZE_OPT ( bio        )
+    J_SERIALIZE_END
+};
+
 struct Location : public clife_base
 {
     typedef clife_ptr<Location> Ptr;
@@ -384,11 +401,9 @@ struct ChatMemberUpdated  : public clife_base
     J_SERIALIZE_END
 };
 
-struct Update : public clife_base
+struct Update
 {
-    typedef clife_ptr<Update> Ptr;
-
-    qint32       update_id = {-1};    // The update's unique identifier. Update identifiers start from a certain positive number and increase
+    qint32       update_id = {0};     // The update's unique identifier. Update identifiers start from a certain positive number and increase
                                       // sequentially. This ID becomes especially handy if you're using webhooks, since it allows you to ignore
                                       // repeated updates or to restore the correct update sequence, should they get out of order. If there are
                                       // no new updates for at least a week, then identifier of the next update will be chosen randomly instead
@@ -400,7 +415,6 @@ struct Update : public clife_base
 
     ChatMemberUpdated::Ptr my_chat_member; // Optional. The bot's chat member status was updated in a chat. For private chats,
                                            //           this update is received only when the bot is blocked or unblocked by the user.
-
     //User::Ptr    from;
 
     J_SERIALIZE_BEGIN
@@ -413,10 +427,8 @@ struct Update : public clife_base
     J_SERIALIZE_END
 };
 
-struct HttpResult //: public clife_base
+struct HttpResult
 {
-    //typedef clife_ptr<HttpResult> Ptr;
-
     bool       ok = {false};
     QByteArray result;
     qint32     error_code = {0};
