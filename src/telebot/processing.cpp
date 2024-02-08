@@ -128,7 +128,7 @@ void Processing::run()
                 continue;
         }
 
-        // Событие обновления прав для бота/админа
+        // Событие обновления прав для бота
         if (update.my_chat_member)
         {
             if (update.my_chat_member->chat)
@@ -140,6 +140,36 @@ void Processing::run()
                 log_error_m << log_format(
                     R"("update_id":%?. Field my_chat_member->chat is empty)",
                     update.update_id);
+        }
+
+        // Событие обновления прав для админа/пользователя
+        if (update.chat_member)
+        {
+            bool updateAdmins = false;
+            if (update.chat_member->old_chat_member
+                && update.chat_member->new_chat_member)
+            {
+                QString oldStatus = update.chat_member->old_chat_member->status;
+                QString newStatus = update.chat_member->new_chat_member->status;
+
+                if ((oldStatus == "member") && (newStatus == "administrator"))
+                    updateAdmins = true;
+
+                if ((oldStatus == "administrator") && (newStatus == "member"))
+                    updateAdmins = true;
+            }
+            if (updateAdmins)
+            {
+                if (update.chat_member->chat)
+                {
+                    // Обновляем информацию по администраторам для группы
+                    emit updateChatAdminInfo(update.chat_member->chat->id);
+                }
+                else
+                    log_error_m << log_format(
+                        R"("update_id":%?. Field chat_member->chat is empty)",
+                        update.update_id);
+            }
         }
 
         Message::Ptr message = update.message;

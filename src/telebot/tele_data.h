@@ -415,6 +415,11 @@ struct Update
 
     ChatMemberUpdated::Ptr my_chat_member; // Optional. The bot's chat member status was updated in a chat. For private chats,
                                            //           this update is received only when the bot is blocked or unblocked by the user.
+
+    ChatMemberUpdated::Ptr chat_member;    // Optional. A chat member's status was updated in a chat. The bot must be an administrator
+                                           //           in the chat and must explicitly specify "chat_member" in the list of allowed_updates
+                                           //           to receive these updates.
+
     //User::Ptr    from;
 
     J_SERIALIZE_BEGIN
@@ -424,6 +429,7 @@ struct Update
         J_SERIALIZE_OPT ( channel_post        )
         J_SERIALIZE_OPT ( edited_channel_post )
         J_SERIALIZE_OPT ( my_chat_member      )
+        J_SERIALIZE_OPT ( chat_member         )
     J_SERIALIZE_END
 };
 
