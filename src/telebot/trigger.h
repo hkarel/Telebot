@@ -179,6 +179,10 @@ struct TriggerRegexp : public Trigger
     // Значение параметра по умолчанию равно content
     QString analyze = {"content"};
 
+    // Если триггер сработал при вступлении нового пользователя в группу,
+    // то пользователь будет заблокирован
+    bool newUserBan = {false};
+
     // Список регулярных выражений для сокращения исходного текста
     QList<QRegularExpression> regexpRemove;
 

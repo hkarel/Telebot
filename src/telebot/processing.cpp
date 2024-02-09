@@ -174,10 +174,6 @@ void Processing::run()
 
         Message::Ptr message = update.message;
 
-        // Не обрабатываем сообщения о вступлении в группу новых участников
-        if (message && message->new_chat_members.count())
-            continue;
-
         // Не обрабатываем сообщения о покинувших группу участниках
         if (message && message->left_chat_member)
             continue;
@@ -198,22 +194,15 @@ void Processing::run()
                                       update.update_id);
             continue;
         }
-        if (message->from.empty())
-        {
-            log_error_m << log_format(R"("update_id":%?. User struct is empty)",
-                                      update.update_id);
-            continue;
-        }
 
         if (botCommand(update))
             continue;
 
         qint64 chatId = message->chat->id;
-        qint64 userId = message->from->id;
         qint32 messageId = message->message_id;
 
         // Удаляем служебные сообщения Телеграм от имени бота
-        if (_botUserId == userId)
+        if (message->from && (_botUserId == message->from->id /*userId*/))
         {
             TgParams params;
             params.api["chat_id"] = chatId;
@@ -240,6 +229,13 @@ void Processing::run()
             }
             continue;
         }
+
+        GroupChat* chat = chats.item(fr.index());
+        QSet<qint64> adminIds = chat->adminIds();
+        ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
+
+        if (botInfo.empty())
+            log_error_m << "Information about bot permissions is not available";
 
         if (!message->media_group_id.isEmpty())
         {
@@ -294,89 +290,17 @@ void Processing::run()
                 clearText = clearCaption + '\n' + clearText;
         }
 
-        bool isPremium = false;
-
-        //--- Trigger::TextType::UserName ---
-        QString usernameText;
-        if (message->from)
-        {
-            usernameText = QString("%1 %2 %3")
-                                   .arg(message->from->first_name)
-                                   .arg(message->from->last_name)
-                                   .arg(message->from->username).trimmed();
-            isPremium = message->from->is_premium;
-        }
-        if (message->forward_from)
-        {
-            usernameText += QString(" %1 %2 %3")
-                                    .arg(message->forward_from->first_name)
-                                    .arg(message->forward_from->last_name)
-                                    .arg(message->forward_from->username);
-            usernameText = usernameText.trimmed();
-        }
-        if (message->sender_chat)
-        {
-            usernameText += QString(" %1 %2 %3 %4")
-                                    .arg(message->sender_chat->title)
-                                    .arg(message->sender_chat->first_name)
-                                    .arg(message->sender_chat->last_name)
-                                    .arg(message->sender_chat->username);
-            usernameText = usernameText.trimmed();
-        }
-        if (message->forward_from_chat)
-        {
-            usernameText += QString(" %1 %2 %3 %4")
-                                    .arg(message->forward_from_chat->title)
-                                    .arg(message->forward_from_chat->first_name)
-                                    .arg(message->forward_from_chat->last_name)
-                                    .arg(message->forward_from_chat->username);
-            usernameText = usernameText.trimmed();
-        }
-        if (message->via_bot)
-        {
-            usernameText += QString(" %1 %2 %3")
-                                    .arg(message->via_bot->first_name)
-                                    .arg(message->via_bot->last_name)
-                                    .arg(message->via_bot->username);
-            usernameText = usernameText.trimmed();
-        }
-        //---
-
-        GroupChat* chat = chats.item(fr.index());
-        QSet<qint64> adminIds = chat->adminIds();
-        ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
-
-        if (botInfo.empty())
-            log_error_m << "Information about bot permissions is not available";
-
         log_verbose_m << log_format(R"("update_id":%?. Chat: %?. Clear text%?: %?)",
                                     update.update_id, chat->name(),
                                     (isBioMessage ? " [BIO]" : ""), clearText);
-
-        // Проверка пользователя на принадлежность к списку администраторов
-        if (chat->skipAdmins && adminIds.contains(userId))
-        {
-            log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Triggers skipped, user @%? is admin)",
-                update.update_id, chat->name(), message->from->username);
-            continue;
-        }
-
-        // Проверка пользователя на принадлежность к белому списку группы
-        if (chat->whiteUsers.contains(userId))
-        {
-            log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Triggers skipped, user @%? in group whitelist)",
-                update.update_id, chat->name(), message->from->username);
-            continue;
-        }
 
         if (isBioMessage && !chat->checkBio)
             continue;
 
         tbot::Trigger::Text triggerText;
+
+        //--- Trigger::TextType::Content ---
         triggerText[tbot::Trigger::TextType::Content]  = clearText;
-        triggerText[tbot::Trigger::TextType::UserName] = usernameText;
 
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
@@ -407,57 +331,120 @@ void Processing::run()
         triggerText[tbot::Trigger::TextType::UrlLinks] = urllinksText.trimmed();
         //---
 
-        // Признак удаленного сообщения
-        bool messageDeleted = false;
+        // Признак сообщения с информацией о новых пользователях
+        bool isNewUsersMessage = message->new_chat_members.count();
 
-        for (tbot::Trigger* trigger : chat->triggers)
+        QList<User::Ptr> users;
+        if (isNewUsersMessage)
+            users = message->new_chat_members;
+        else
+            users.append(message->from);
+
+        // Признак нового пользователя (только что вошел в группу)
+        bool isNewUser = false;
+        if (isNewUsersMessage || (isBioMessage && msgData->isNewUser))
+            isNewUser = true;
+
+        for (int i = 0; i < users.count(); ++i)
         {
-            if (!trigger->active)
+            User::Ptr user = users[i];
+            if (user.empty())
             {
-                log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, it not active)",
-                    update.update_id, chat->name(), trigger->name);
+                log_error_m << log_format(R"("update_id":%?. User struct is empty)",
+                                          update.update_id);
                 continue;
             }
 
             // Проверка пользователя на принадлежность к списку администраторов
-            if (trigger->skipAdmins && adminIds.contains(userId))
+            if (chat->skipAdmins && adminIds.contains(user->id))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user @%? is admin)",
-                    update.update_id, chat->name(), trigger->name, message->from->username);
+                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? is admin)",
+                    update.update_id, chat->name(),
+                    user->first_name, user->last_name, user->username, user->id);
                 continue;
             }
 
-            // Проверка пользователя на принадлежность к белому списку триггера
-            if (trigger->whiteUsers.contains(userId))
+            // Проверка пользователя на принадлежность к белому списку группы
+            if (chat->whiteUsers.contains(user->id))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user @%? in trigger whitelist)",
-                    update.update_id, chat->name(), trigger->name, message->from->username);
+                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in group whitelist)",
+                    update.update_id, chat->name(),
+                    user->first_name, user->last_name, user->username, user->id);
                 continue;
             }
 
-            if (isBioMessage && !trigger->checkBio)
-                continue;
+            // Признак премиум аккаунта у пользователя
+            bool isPremium = false;
 
-            if (!isBioMessage && trigger->onlyBio)
-                continue;
+            //--- Trigger::TextType::UserName ---
+            QString usernameText;
+            if (user /*message->from*/)
+            {
+                usernameText = QString("%1 %2 %3")
+                                       .arg(user->first_name)
+                                       .arg(user->last_name)
+                                       .arg(user->username).trimmed();
+                isPremium = user->is_premium;
+            }
+            if (message->forward_from)
+            {
+                usernameText += QString(" %1 %2 %3")
+                                        .arg(message->forward_from->first_name)
+                                        .arg(message->forward_from->last_name)
+                                        .arg(message->forward_from->username);
+                usernameText = usernameText.trimmed();
+            }
+            if (message->sender_chat)
+            {
+                usernameText += QString(" %1 %2 %3 %4")
+                                        .arg(message->sender_chat->title)
+                                        .arg(message->sender_chat->first_name)
+                                        .arg(message->sender_chat->last_name)
+                                        .arg(message->sender_chat->username);
+                usernameText = usernameText.trimmed();
+            }
+            if (message->forward_from_chat)
+            {
+                usernameText += QString(" %1 %2 %3 %4")
+                                        .arg(message->forward_from_chat->title)
+                                        .arg(message->forward_from_chat->first_name)
+                                        .arg(message->forward_from_chat->last_name)
+                                        .arg(message->forward_from_chat->username);
+                usernameText = usernameText.trimmed();
+            }
+            if (message->via_bot)
+            {
+                usernameText += QString(" %1 %2 %3")
+                                        .arg(message->via_bot->first_name)
+                                        .arg(message->via_bot->last_name)
+                                        .arg(message->via_bot->username);
+                usernameText = usernameText.trimmed();
+            }
+            triggerText[tbot::Trigger::TextType::UserName] = usernameText;
+            //---
 
-            bool triggerActive = trigger->isActive(update, chat, triggerText);
+            auto stringUserInfo = [&](const User::Ptr& user) -> QString
+            {
+                // Формируем строку с описанием пользователя
+                //   Смотри решение с Markdown разметкой тут:
+                //   https://core.telegram.org/bots/api#markdown-style
+                QString str = QString("%1 => [%2 %3](tg://user?id=%4)")
+                                      .arg(user->id)
+                                      .arg(user->first_name)
+                                      .arg(user->last_name)
+                                      .arg(user->id);
 
-            if (trigger->inverse)
-                triggerActive = !triggerActive;
+                if (!user->username.isEmpty())
+                {
+                    QString s = QString(" (@%1)").arg(user->username);
+                    str += s.replace("_", "\\_");
+                }
+                return str;
+            };
 
-            if (!triggerActive)
-                continue;
-
-            // Если триггер активирован - удаляем сообщение
-            log_verbose_m << log_format(
-                R"("update_id":%?. Chat: %?. Delete message (chat_id: %?; message_id: %?))",
-                update.update_id, chat->name(), chatId, messageId);
-
-            if (botInfo && botInfo->can_delete_messages)
+            auto deleteMessage = [&](tbot::Trigger* trigger)
             {
                 if (!message->media_group_id.isEmpty())
                 {
@@ -483,18 +470,16 @@ void Processing::run()
                     emit sendTgCommand("deleteMessage", params);
                 }
 
-                messageDeleted = true;
-
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
                 QString botMsg =
-                    u8"Бот удалил сообщение"
-                    u8"\r\n---"
-                    u8"\r\n%1"
-                    u8"\r\n---"
-                    u8"%2"
-                    u8"\r\nПричина удаления сообщения"
-                    u8"\r\n%3%4;"
-                    u8"\r\nтриггер: %5";
+                        u8"Бот удалил сообщение"
+                        u8"\r\n---"
+                        u8"\r\n%1"
+                        u8"\r\n---"
+                        u8"%2"
+                        u8"\r\nПричина удаления сообщения"
+                        u8"\r\n%3%4;"
+                        u8"\r\nтриггер: %5";
 
                 QString messageText;
                 if (!isBioMessage)
@@ -535,24 +520,28 @@ void Processing::run()
                 params2.delay = 1*1000 /*1 сек*/;
                 emit sendTgCommand("sendMessage", params2);
 
+//                // Отправляем сообщение с идентификатором пользователя
+//                //   Смотри решение с Markdown разметкой тут:
+//                //   https://core.telegram.org/bots/api#markdown-style
+//                botMsg = QString("%1 => [%2 %3](tg://user?id=%4)")
+//                         .arg(user->id)
+//                         .arg(user->first_name)
+//                         .arg(user->last_name)
+//                         .arg(user->id);
+
+//                if (!user->username.isEmpty())
+//                {
+//                    QString s = QString(" (@%1)").arg(user->username);
+//                    botMsg += s.replace("_", "\\_");
+//                }
+
+                // Формируем сообщение с идентификатором пользователя
+                //botMsg = stringUserInfo(user);
+
                 // Отправляем сообщение с идентификатором пользователя
-                //   Смотри решение с Markdown разметкой тут:
-                //   https://core.telegram.org/bots/api#markdown-style
-                botMsg = QString("%1 => [%2 %3](tg://user?id=%4)")
-                                 .arg(userId)
-                                 .arg(message->from->first_name)
-                                 .arg(message->from->last_name)
-                                 .arg(userId);
-
-                if (!message->from->username.isEmpty())
-                {
-                    QString s = QString(" (@%1)").arg(message->from->username);
-                    botMsg += s.replace("_", "\\_");
-                }
-
                 TgParams params3;
                 params3.api["chat_id"] = chatId;
-                params3.api["text"] = botMsg;
+                params3.api["text"] = stringUserInfo(user);
                 params3.api["parse_mode"] = "Markdown";
                 params3.delay = 1.3*1000 /*1.3 сек*/;
                 emit sendTgCommand("sendMessage", params3);
@@ -570,7 +559,7 @@ void Processing::run()
 
                         QString message = trg->messageInfo;
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
-                               .replace("{end}",   timeEnd.toString("HH:mm"));
+                                .replace("{end}",   timeEnd.toString("HH:mm"));
 
                         TgParams params;
                         params.api["chat_id"] = chatId;
@@ -580,81 +569,218 @@ void Processing::run()
                         params.messageDel = 3*60 /*3 мин*/;
                         emit sendTgCommand("sendMessage", params);
                     }
-            }
-            else
-            {
-                log_error_m << "The bot does not have rights to delete message";
-            }
+            };
 
-            if (botInfo && botInfo->can_restrict_members)
+            auto restrictUser = [&](tbot::Trigger* trigger)
             {
-                if (trigger->immediatelyBan
-                    || (isPremium && chat->premiumBan && trigger->premiumBan))
-                {
-                    TgParams params;
-                    params.api["chat_id"] = chatId;
-                    params.api["user_id"] = userId;
-                    params.api["until_date"] = qint64(std::time(nullptr));
-                    params.api["revoke_messages"] = true;
-                    params.delay = 3*1000 /*3 сек*/;
-                    sendTgCommand("banChatMember", params);
-                }
-                else if (trigger->reportSpam)
-                {
-                    // Отправляем отчет о спаме
-                    emit reportSpam(chatId, message->from);
-                }
-            }
-            else
-            {
-                log_error_m << "The bot does not have rights to ban user";
-            }
+                bool newUserBan = false;
+                if (TriggerRegexp* trg = dynamic_cast<TriggerRegexp*>(trigger))
+                    newUserBan = trg->newUserBan;
 
-            //--- Мониторинг скрытого тегирования пользователей ---
-            QList<QPair<qint32 /*offset*/, qint32 /*unicode*/>> textMentions;
-            for (const MessageEntity& entity : message->entities)
+                if (isNewUser)
+                {
+                    if (newUserBan || trigger->immediatelyBan)
+                    {
+                        log_verbose_m << log_format(
+                            R"("update_id":%?. Chat: %?. Ban new user %?/%?/@%?/%?)",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id);
+
+                        TgParams params;
+                        params.api["chat_id"] = chatId;
+                        params.api["user_id"] = user->id;
+                        params.api["until_date"] = qint64(std::time(nullptr));
+                        params.api["revoke_messages"] = true;
+                        params.delay = 500 /*0.5 сек*/;
+                        sendTgCommand("banChatMember", params);
+
+                        // Отправляем в Телеграм сообщение с описанием причины
+                        // блокировки пользователя
+                        QString botMsg =
+                                u8"Бот заблокировал пользователя"
+                                u8"\r\n%1"
+                                u8"\r\n---"
+                                u8"\r\nПричина блокировки"
+                                u8"\r\n%2%3;"
+                                u8"\r\nтриггер: %4";
+
+                        botMsg = botMsg.arg(stringUserInfo(user))
+                                       .arg(trigger->activationReasonMessage)
+                                       .arg(isBioMessage ? u8" [в BIO]" : u8"")
+                                       .arg(trigger->name);
+
+                        // botMsg.replace("+", "&#43;");
+                        // botMsg.replace("<", "&#60;");
+                        // botMsg.replace(">", "&#62;");
+
+                        if (!trigger->description.isEmpty())
+                            botMsg += QString(" (%1)").arg(trigger->description);
+
+                        TgParams params2;
+                        params2.api["chat_id"] = chatId;
+                        params2.api["text"] = botMsg;
+                        params2.api["parse_mode"] = "Markdown";
+                        params2.delay = 1*1000 /*1 сек*/;
+                        emit sendTgCommand("sendMessage", params2);
+                    }
+                    else
+                    {
+                        log_verbose_m << log_format(
+                            R"("update_id":%?. Chat: %?. Skipped new user %?/%?/@%?/%?)",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id);
+                    }
+                }
+                else
+                {
+                    if (trigger->immediatelyBan
+                        || (isPremium && chat->premiumBan && trigger->premiumBan))
+                    {
+                        TgParams params;
+                        params.api["chat_id"] = chatId;
+                        params.api["user_id"] = user->id;
+                        params.api["until_date"] = qint64(std::time(nullptr));
+                        params.api["revoke_messages"] = true;
+                        params.delay = 3*1000 /*3 сек*/;
+                        sendTgCommand("banChatMember", params);
+                    }
+                    else if (trigger->reportSpam)
+                    {
+                        // Отправляем отчет о спаме
+                        emit reportSpam(chatId, user);
+                    }
+                }
+            };
+
+            // Признак удаленного сообщения
+            bool messageDeleted = false;
+
+            for (tbot::Trigger* trigger : chat->triggers)
             {
-                if (entity.type != "text_mention")
+                if (!trigger->active)
+                {
+                    log_verbose_m << log_format(
+                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, it not active)",
+                        update.update_id, chat->name(), trigger->name);
+                    continue;
+                }
+
+                // Для анализа новых пользователей используем только TriggerRegexp
+                if (isNewUser && !dynamic_cast<TriggerRegexp*>(trigger))
                     continue;
 
-                qint64 usrId = (entity.user) ? entity.user->id : 0;
-                if (adminIds.contains(usrId) && (entity.length == 1))
-                    if (entity.offset < message->text.length())
+                if (isBioMessage && !trigger->checkBio)
+                    continue;
+
+                if (!isBioMessage && trigger->onlyBio)
+                    continue;
+
+                // Проверка пользователя на принадлежность к списку администраторов
+                if (trigger->skipAdmins && adminIds.contains(user->id))
+                {
+                    log_verbose_m << log_format(
+                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? is admin)",
+                        update.update_id, chat->name(), trigger->name,
+                        user->first_name, user->last_name, user->username, user->id);
+                    continue;
+                }
+
+                // Проверка пользователя на принадлежность к белому списку триггера
+                if (trigger->whiteUsers.contains(user->id))
+                {
+                    log_verbose_m << log_format(
+                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? in trigger whitelist)",
+                        update.update_id, chat->name(), trigger->name,
+                        user->first_name, user->last_name, user->username, user->id);
+                    continue;
+                }
+
+                bool triggerActive = trigger->isActive(update, chat, triggerText);
+
+                if (trigger->inverse)
+                    triggerActive = !triggerActive;
+
+                if (!triggerActive)
+                    continue;
+
+                // Если триггер активирован, то запускаем механизмы удаления сообщения
+                // и бана пользователя
+
+                if (botInfo && botInfo->can_delete_messages)
+                {
+                    if (!isNewUser)
                     {
-                        QChar ch = message->text[entity.offset];
-                        textMentions.append({entity.offset, qint32(ch.unicode())});
+                        log_verbose_m << log_format(
+                            R"("update_id":%?. Chat: %?. Delete message (message_id: %?), user %?/%?/@%?/%?)",
+                            update.update_id, chat->name(), messageId,
+                            user->first_name, user->last_name, user->username, user->id);
+
+                        deleteMessage(trigger);
+                        messageDeleted = true;
                     }
-            }
-            if (!textMentions.isEmpty())
-            {
-                log_debug_m << log_format(
-                    R"("update_id":%?. Non print mention symbols {offset, unicode}: %?)",
-                    update.update_id, textMentions);
-            }
-            //---
-
-            break;
-        }
-
-        if (chat->checkBio && !messageDeleted && !isBioMessage)
-        {
-            QString messageText = message->text;
-            if (!message->caption.isEmpty())
-            {
-                if (messageText.isEmpty())
-                    messageText = message->caption;
+                }
                 else
-                    messageText = message->caption + '\n' + messageText;
+                {
+                    log_error_m << "The bot does not have rights to delete message";
+                }
+
+                if (botInfo && botInfo->can_restrict_members)
+                {
+                    restrictUser(trigger);
+                }
+                else
+                {
+                    log_error_m << "The bot does not have rights to ban user";
+                }
+
+                break;
             }
-            TgParams params;
-            params.api["chat_id"] = userId;
-            params.delay = 500 /*0.5 сек*/;
-            params.bio.userId = userId;
-            params.bio.chatId = chatId;
-            params.bio.updateId = update.update_id;
-            params.bio.messageId = messageId;
-            params.bio.messageOrigin = messageText;
-            sendTgCommand("getChat", params);
+
+            // Отправляем запрос на получение BIO
+            if (chat->checkBio && !messageDeleted && !isBioMessage)
+            {
+                QString messageText = message->text;
+                if (!message->caption.isEmpty())
+                {
+                    if (messageText.isEmpty())
+                        messageText = message->caption;
+                    else
+                        messageText = message->caption + '\n' + messageText;
+                }
+                TgParams params;
+                params.api["chat_id"] = user->id;
+                params.delay = 500 /*0.5 сек*/;
+                params.bio.userId = user->id;
+                params.bio.chatId = chatId;
+                params.bio.updateId = update.update_id;
+                params.bio.messageId = messageId;
+                params.bio.messageOrigin = messageText.trimmed();
+                params.isNewUser = isNewUsersMessage;
+                sendTgCommand("getChat", params);
+            }
+
+        } // for (int i = 0; i < users.count(); ++i)
+
+        //--- Мониторинг скрытого тегирования пользователей ---
+        QList<QPair<qint32 /*offset*/, qint32 /*unicode*/>> textMentions;
+        for (const MessageEntity& entity : message->entities)
+        {
+            if (entity.type != "text_mention")
+                continue;
+
+            qint64 usrId = (entity.user) ? entity.user->id : 0;
+            if (adminIds.contains(usrId) && (entity.length == 1))
+                if (entity.offset < message->text.length())
+                {
+                    QChar ch = message->text[entity.offset];
+                    textMentions.append({entity.offset, qint32(ch.unicode())});
+                }
+        }
+        if (!textMentions.isEmpty())
+        {
+            log_debug_m << log_format(
+                R"("update_id":%?. Non print mention symbols {offset, unicode}: %?)",
+                update.update_id, textMentions);
         }
 
         { //Block for QMutexLocker
@@ -685,6 +811,9 @@ bool Processing::botCommand(const Update& update)
         // После выхода из функции будет обрабатываться следующее сообщение
         return true;
     }
+
+    if (message->from.empty())
+        return false;
 
     qint64 chatId = message->chat->id;
     qint64 userId = message->from->id;

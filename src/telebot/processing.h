@@ -47,6 +47,9 @@ struct TgParams
 
     // Вспомогательное поле для обработки BIO сообщений
     Bio bio;
+
+    // Пользователь только что вступил в группу
+    bool isNewUser = {false};
 };
 
 struct MessageData
@@ -58,6 +61,9 @@ struct MessageData
 
     // Вспомогательное поле для обработки BIO сообщений
     Bio bio;
+
+    // Пользователь только что вступил в группу
+    bool isNewUser = {false};
 };
 
 class Processing : public QThreadEx

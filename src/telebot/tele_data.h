@@ -278,8 +278,8 @@ struct Message : public clife_base
 //    venue 	Venue 	Optional. Message is a venue, information about the venue. For backward compatibility, when this field is set, the location field will also be set
 //    location 	Location 	Optional. Message is a shared location, information about the location
 
-    QList<User>  new_chat_members; // Optional. New members that were added to the group or supergroup and information about them (the bot itself may be one of these members)
-    User::Ptr    left_chat_member; // Optional. A member was removed from the group, information about them (this member may be the bot itself)
+    QList<User::Ptr> new_chat_members; // Optional. New members that were added to the group or supergroup and information about them (the bot itself may be one of these members)
+    User::Ptr left_chat_member;        // Optional. A member was removed from the group, information about them (this member may be the bot itself)
 
 //    new_chat_title 	String 	Optional. A chat title was changed to this value
 //    new_chat_photo 	Array of PhotoSize 	Optional. A chat photo was change to this value

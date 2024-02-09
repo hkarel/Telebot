@@ -1334,6 +1334,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
                 msgData->data = httpResult.result;
                 msgData->bio = rd.params.bio;
+                msgData->isNewUser = rd.params.isNewUser;
                 sendToProcessing(msgData);
             }
             else
@@ -1464,13 +1465,15 @@ void Application::httpResultHandler(const ReplyData& rd)
                 Spammer* spammer = _spammers.item(fr.index());
                 logLine << spammer->user->first_name;
 
-                logLine << "/";
-                if (!spammer->user->last_name.isEmpty())
-                    logLine << spammer->user->last_name;
+                //logLine << "/";
+                //if (!spammer->user->last_name.isEmpty())
+                //    logLine << spammer->user->last_name;
+                logLine << "/" << spammer->user->last_name;
 
-                logLine << "/";
-                if (!spammer->user->username.isEmpty())
-                    logLine << "@" << spammer->user->username;
+                //logLine << "/";
+                //if (!spammer->user->username.isEmpty())
+                //    logLine << "@" << spammer->user->username;
+                logLine << "/@" << spammer->user->username;
             }
             else
                 logLine << "//";
@@ -1540,14 +1543,14 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
     auto userLogInfo = [](alog::Line& logLine, const tbot::User::Ptr& user,
                           tbot::GroupChat* chat)
     {
-        QString username;
-        if (user && !user->username.isEmpty())
-            username = "@" + user->username;
+        //QString username;
+        //if (user && !user->username.isEmpty())
+        //    username = "@" + user->username;
 
         if (user)
             logLine << log_format(
-                ". User first/last/uname/id: %?/%?/%?/%?",
-                user->first_name, user->last_name, username, user->id);
+                ". User first/last/uname/id: %?/%?/@%?/%?",
+                user->first_name, user->last_name, user->username, user->id);
 
         if (chat)
             logLine << log_format(
@@ -1756,18 +1759,14 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
     }
     if (user)
     {
-        QString username;
-        if (!user->username.isEmpty())
-            username = "@" + user->username;
-
         // Сообщение для Telegram
         QString botMsg =
             u8"Аннулированы спам-штрафы для пользователя [%1 %2](tg://user?id=%3)";
         botMsg = botMsg.arg(user->first_name).arg(user->last_name).arg(userId);
 
-        if (!username.isEmpty())
+        if (!user->username.isEmpty())
         {
-            QString s = QString(" (%1/%2)").arg(username).arg(userId);
+            QString s = QString(" (@%1/%2)").arg(user->username).arg(userId);
             botMsg += s.replace("_", "\\_");
         }
         else
@@ -1782,8 +1781,8 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
 
         // Сообщение в лог
         alog::Line logLine = log_verbose_m << log_format(
-            "Spam penalties canceled. User first/last/uname/id: %?/%?/%?/%?",
-            user->first_name, user->last_name, username, user->id);
+            "Spam penalties canceled. User first/last/uname/id: %?/%?/@%?/%?",
+            user->first_name, user->last_name, user->username, user->id);
 
         tbot::GroupChat::List chats = tbot::groupChats();
         if (tbot::GroupChat* chat = chats.findItem(&chatId))

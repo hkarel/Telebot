@@ -718,6 +718,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         }
     }
 
+    optional<bool> newUserBanO;
+    if (ytrigger["newuser_ban"].IsDefined())
+    {
+        checkFiedType(ytrigger, "newuser_ban", YAML::NodeType::Scalar);
+        newUserBanO = ytrigger["newuser_ban"].as<bool>();
+    }
+
     optional<int> timeUtcO;
     if (ytrigger["utc"].IsDefined())
     {
@@ -887,6 +894,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(triggerRegexp->caseInsensitive, caseInsensitiveO);
         assignValue(triggerRegexp->multiline, multilineO);
         assignValue(triggerRegexp->analyze, analyzeO);
+        assignValue(triggerRegexp->newUserBan, newUserBanO);
 
         QRegularExpression::PatternOptions patternOpt =
             {QRegularExpression::DotMatchesEverythingOption
@@ -1116,7 +1124,8 @@ void printTriggers(Trigger::List& triggers)
                     << "; active: " << triggerRegexp->active
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
                     << "; multiline: " << triggerRegexp->multiline
-                    << "; analyze: " << triggerRegexp->analyze;
+                    << "; analyze: " << triggerRegexp->analyze
+                    << "; newuser_ban: " << triggerRegexp->newUserBan;
 
             nextCommaVal = false;
             logLine << "; regexp_remove: [";
