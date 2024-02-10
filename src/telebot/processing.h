@@ -4,6 +4,7 @@
 
 #include "shared/list.h"
 #include "shared/defmac.h"
+#include "shared/container_ptr.h"
 #include "shared/steady_timer.h"
 #include "shared/qt/qthreadex.h"
 
@@ -30,6 +31,11 @@ struct Bio
 */
 struct TgParams
 {
+    typedef container_ptr<TgParams> Ptr;
+
+    // Наименование вызываемой TG-функции
+    QString funcName;
+
     // Список параметров для Телеграм API функций
     QMap<QString, QVariant> api;
 
@@ -51,6 +57,20 @@ struct TgParams
     // Пользователь только что вступил в группу
     bool isNewUser = {false};
 };
+
+inline TgParams::Ptr tgfunction(const char* funcName)
+{
+    TgParams::Ptr p = TgParams::Ptr::create_join();
+    p->funcName = funcName;
+    return p;
+}
+
+inline TgParams::Ptr tgfunction(const QString& funcName)
+{
+    TgParams::Ptr p = TgParams::Ptr::create_join();
+    p->funcName = funcName;
+    return p;
+}
 
 struct MessageData
 {
@@ -77,7 +97,7 @@ public:
     static void addUpdate(const MessageData::Ptr&);
 
 signals:
-    void sendTgCommand(const QString& funcName, const tbot::TgParams&);
+    void sendTgCommand(const tbot::TgParams::Ptr&);
 
     // Обработка штрафов за спам-сообщения
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);

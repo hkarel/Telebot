@@ -114,8 +114,8 @@ Application::Application(int& argc, char** argv)
     #undef FUNC_REGISTRATION
 
     qRegisterMetaType<ReplyData>("ReplyData");
-    qRegisterMetaType<tbot::TgParams>("tbot::TgParams");
     qRegisterMetaType<tbot::User::Ptr>("tbot::User::Ptr");
+    qRegisterMetaType<tbot::TgParams::Ptr>("tbot::TgParams::Ptr");
 }
 
 bool Application::init()
@@ -759,26 +759,28 @@ void Application::http_finished()
     auto printToLog = [&rd]()
     {
         log_debug_m << log_format("Http answer (reply id: %?) func   : %? (attempt: %?)",
-                                  rd.replyNumer, rd.funcName, rd.params.attempt);
+                                  rd.replyNumer, rd.params->funcName, rd.params->attempt);
 
         { //Block for alog::Line
-            alog::Line logLine =
-                    log_debug_m << log_format("Http answer (reply id: %?) params : ",
-                                              rd.replyNumer);
-            for (auto&& it = rd.params.api.cbegin(); it != rd.params.api.cend(); ++it)
+            alog::Line logLine = log_debug_m << log_format(
+                                  "Http answer (reply id: %?) params : ", rd.replyNumer);
+
+            for (auto&& it = rd.params->api.cbegin(); it != rd.params->api.cend(); ++it)
                 logLine << it.key() << ": " << it.value().toString() << "; ";
         }
         log_debug_m << log_format("Http answer (reply id: %?) return : %?",
                                   rd.replyNumer, rd.data);
     };
 
-    if (rd.funcName == "getChat"
-        || (rd.funcName == "getChatAdministrators"))
+    if (rd.params->funcName == "getChat"
+        || (rd.params->funcName == "getChatAdministrators"))
     {
-        if ((rd.funcName == "getChat") && _printGetChat)
+        if (_printGetChat
+            && rd.params->funcName == "getChat")
             printToLog();
 
-        if ((rd.funcName == "getChatAdministrators") && _printGetChatAdministrators)
+        if (_printGetChatAdministrators
+            && rd.params->funcName == "getChatAdministrators")
             printToLog();
     }
     else
@@ -791,26 +793,26 @@ void Application::http_finished()
     }
     else
     {
-        if (rd.funcName == "deleteMessage"
-            || rd.funcName == "banChatMember"
-            || rd.funcName == "restrictChatMember")
+        if (rd.params->funcName == "deleteMessage"
+            || rd.params->funcName == "banChatMember"
+            || rd.params->funcName == "restrictChatMember")
         {
-            if (rd.params.attempt == 1)
+            if (rd.params->attempt == 1)
             {
-                tbot::TgParams params;
-                params.api = rd.params.api;
-                params.delay = 30*1000 /*30 сек*/;
-                params.attempt = 2;
-                sendTgCommand(rd.funcName, params);
+                auto params = tbot::tgfunction(rd.params->funcName);
+                params->api = rd.params->api;
+                params->delay = 30*1000 /*30 сек*/;
+                params->attempt = 2;
+                sendTgCommand(params);
             }
 
-            if (rd.params.attempt == 2)
+            if (rd.params->attempt == 2)
             {
-                tbot::TgParams params;
-                params.api = rd.params.api;
-                params.delay = 60*1000 /*60 сек*/;
-                params.attempt = 3;
-                sendTgCommand(rd.funcName, params);
+                auto params = tbot::tgfunction(rd.params->funcName);
+                params->api = rd.params->api;
+                params->delay = 60*1000 /*60 сек*/;
+                params->attempt = 3;
+                sendTgCommand(params);
             }
         }
     }
@@ -990,16 +992,16 @@ void Application::reloadGroups()
     for (int i = 0; i < chats.count(); ++i)
     {
         tbot::GroupChat* chat = chats.item(i);
-        tbot::TgParams params;
-        params.api["chat_id"] = chat->id;
+        auto params = tbot::tgfunction("getChat");
+        params->api["chat_id"] = chat->id;
 
         // Команды getChat отправляются с интервалом 70  миллисекунд,  чтобы
         // уложиться в ограничение Телеграм на 30 запросов в секунду от бота.
         // Интервал 70 миллисекунд обеспечивает двукратный запас  по времени,
         // это обусловлено тем, что после вызова getChat идет вызов команды
         // getChatAdministrators
-        params.delay = 70 * i;
-        sendTgCommand("getChat", params);
+        params->delay = 70 * i;
+        sendTgCommand(params);
     }
 
     if (_masterMode)
@@ -1024,8 +1026,8 @@ void Application::reloadGroups()
 
 void Application::startRequest()
 {
-    tbot::TgParams params;
-    sendTgCommand("getMe", params);
+    auto params = tbot::tgfunction("getMe");
+    sendTgCommand(params);
 }
 
 void Application::timelimitCheck()
@@ -1084,12 +1086,12 @@ void Application::timelimitCheck()
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
                                        .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                                tbot::TgParams params;
-                                params.api["chat_id"] = chat->id;
-                                params.api["text"] = message;
-                                params.api["parse_mode"] = "HTML";
-                                params.messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
-                                sendTgCommand("sendMessage", params);
+                                auto params = tbot::tgfunction("sendMessage");
+                                params->api["chat_id"] = chat->id;
+                                params->api["text"] = message;
+                                params->api["parse_mode"] = "HTML";
+                                params->messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
+                                sendTgCommand(params);
                             }
                         }
                     }
@@ -1120,12 +1122,12 @@ void Application::timelimitCheck()
                                 message.replace("{begin}", timeBegin.toString("HH:mm"))
                                        .replace("{end}",   timeEnd.toString("HH:mm"));
 
-                                tbot::TgParams params;
-                                params.api["chat_id"] = chat->id;
-                                params.api["text"] = message;
-                                params.api["parse_mode"] = "HTML";
-                                params.messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
-                                sendTgCommand("sendMessage", params);
+                                auto params = tbot::tgfunction("sendMessage");
+                                params->api["chat_id"] = chat->id;
+                                params->api["text"] = message;
+                                params->api["parse_mode"] = "HTML";
+                                params->messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
+                                sendTgCommand(params);
                             }
                         }
                     }
@@ -1134,15 +1136,19 @@ void Application::timelimitCheck()
     }
 }
 
-void Application::sendTgCommand(const QString& funcName, const tbot::TgParams& params)
+void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
 {
-    QTimer::singleShot(params.delay, [=]()
+    QTimer::singleShot(params->delay, [=]()
     {
+        // Не обрабатываем команды если приложение получило команду на остановку
+        if (_stop)
+            return;
+
         QString urlStr = "https://api.telegram.org/bot%1/%2";
-        urlStr = urlStr.arg(_botId).arg(funcName);
+        urlStr = urlStr.arg(_botId).arg(params->funcName);
 
         QUrlQuery query;
-        for (auto&& it = params.api.cbegin(); it != params.api.cend(); ++it)
+        for (auto&& it = params->api.cbegin(); it != params->api.cend(); ++it)
             query.addQueryItem(it.key(), it.value().toString());
 
         QUrl url {urlStr};
@@ -1165,22 +1171,23 @@ void Application::sendTgCommand(const QString& funcName, const tbot::TgParams& p
 
         rd.reply = reply;
         rd.replyNumer = ++httpReplyNumber;
-        rd.funcName = funcName;
         rd.params = params;
 
         auto printToLog = [&rd, &url]()
         {
             log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
-                                      rd.funcName, rd.replyNumer, url.toString());
+                                      rd.params->funcName, rd.replyNumer, url.toString());
         };
 
-        if (rd.funcName == "getChat"
-            || (rd.funcName == "getChatAdministrators"))
+        if (rd.params->funcName == "getChat"
+            || (rd.params->funcName == "getChatAdministrators"))
         {
-            if ((rd.funcName == "getChat") && _printGetChat)
+            if (_printGetChat
+                && rd.params->funcName == "getChat")
                 printToLog();
 
-            if ((rd.funcName == "getChatAdministrators") && _printGetChatAdministrators)
+            if (_printGetChatAdministrators
+                && rd.params->funcName == "getChatAdministrators")
                 printToLog();
         }
         else
@@ -1190,7 +1197,7 @@ void Application::sendTgCommand(const QString& funcName, const tbot::TgParams& p
 
 void Application::httpResultHandler(const ReplyData& rd)
 {
-    if (rd.funcName == "getMe")
+    if (rd.params->funcName == "getMe")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
@@ -1264,16 +1271,16 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         reloadConfig();
     }
-    else if (rd.funcName == "getChat")
+    else if (rd.params->funcName == "getChat")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
             return;
 
         // Обработка основного сообщения для "getChat"
-        if (rd.params.bio.userId == 0)
+        if (rd.params->bio.userId == 0)
         {
-            qint64 chatId = rd.params.api["chat_id"].toLongLong();
+            qint64 chatId = rd.params->api["chat_id"].toLongLong();
             tbot::GroupChat::List chats = tbot::groupChats();
             lst::FindResult fr = chats.findRef(chatId);
 
@@ -1295,9 +1302,9 @@ void Application::httpResultHandler(const ReplyData& rd)
                                 tbot::groupChats(&chats);
                             }
                         }
-                        tbot::TgParams params;
-                        params.api["chat_id"] = chatId;
-                        sendTgCommand("getChatAdministrators", params);
+                        auto params = tbot::tgfunction("getChatAdministrators");
+                        params->api["chat_id"] = chatId;
+                        sendTgCommand(params);
                     }
                     else
                     {
@@ -1327,21 +1334,21 @@ void Application::httpResultHandler(const ReplyData& rd)
             }
         }
         // Обработка сообщения с BIO
-        else if (rd.params.bio.userId > 0)
+        else if (rd.params->bio.userId > 0)
         {
             if (httpResult.ok)
             {
                 tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
                 msgData->data = httpResult.result;
-                msgData->bio = rd.params.bio;
-                msgData->isNewUser = rd.params.isNewUser;
+                msgData->bio = rd.params->bio;
+                msgData->isNewUser = rd.params->isNewUser;
                 sendToProcessing(msgData);
             }
             else
                 log_error_m << "Failed call function 'getChat' to get user BIO";
         }
     }
-    else if (rd.funcName == "sendMessage")
+    else if (rd.params->funcName == "sendMessage")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
@@ -1352,7 +1359,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         // Удаляем служебные сообщения бота
         tbot::SendMessage_Result result;
-        if ((rd.params.messageDel >= 0) && result.fromJson(rd.data))
+        if ((rd.params->messageDel >= 0) && result.fromJson(rd.data))
         {
             qint64 chatId = result.message.chat->id;
             qint64 userId = result.message.from->id;
@@ -1360,15 +1367,15 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             if (_botUserId == userId)
             {
-                tbot::TgParams params;
-                params.api["chat_id"] = chatId;
-                params.api["message_id"] = messageId;
-                params.delay = qMax(rd.params.messageDel*1000, 500 /*0.5 сек*/);
-                sendTgCommand("deleteMessage", params);
+                auto params = tbot::tgfunction("deleteMessage");
+                params->api["chat_id"] = chatId;
+                params->api["message_id"] = messageId;
+                params->delay = qMax(rd.params->messageDel*1000, 200 /*0.2 сек*/);
+                sendTgCommand(params);
             }
         }
     }
-    else if (rd.funcName == "getChatAdministrators")
+    else if (rd.params->funcName == "getChatAdministrators")
     {
         ++_getChatAdminCallCount;
 
@@ -1379,7 +1386,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         if (!httpResult.ok)
             return;
 
-        qint64 chatId = rd.params.api["chat_id"].toLongLong();
+        qint64 chatId = rd.params->api["chat_id"].toLongLong();
         tbot::GroupChat::List chats = tbot::groupChats();
         if (lst::FindResult fr = chats.findRef(chatId))
         {
@@ -1425,15 +1432,15 @@ void Application::httpResultHandler(const ReplyData& rd)
             _getChatAdminCallCount = 0;
         }
     }
-    else if (rd.funcName == "banChatMember"
-             || rd.funcName == "restrictChatMember")
+    else if (rd.params->funcName == "banChatMember"
+             || rd.params->funcName == "restrictChatMember")
     {
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
             return;
 
-        qint64 chatId = rd.params.api["chat_id"].toLongLong();
-        qint64 userId = rd.params.api["user_id"].toLongLong();
+        qint64 chatId = rd.params->api["chat_id"].toLongLong();
+        qint64 userId = rd.params->api["user_id"].toLongLong();
 
         tbot::GroupChat::List chats = tbot::groupChats();
         tbot::GroupChat* chat = chats.findItem(&chatId);
@@ -1443,7 +1450,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         { //Block for alog::Line
             alog::Line logLine = httpResult.ok ? log_verbose_m : log_error_m;
 
-            if (rd.funcName == "banChatMember")
+            if (rd.params->funcName == "banChatMember")
             {
                 if (httpResult.ok)
                     logLine << "User is banned";
@@ -1487,9 +1494,9 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             if (httpResult.ok)
             {
-                if (rd.funcName == "restrictChatMember")
+                if (rd.params->funcName == "restrictChatMember")
                 {
-                    uint untilDate = rd.params.api["until_date"].toUInt();
+                    uint untilDate = rd.params->api["until_date"].toUInt();
                     logLine << ". Restricted to " << QDateTime::fromTime_t(untilDate);
                 }
             }
@@ -1499,7 +1506,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 return;
             }
         }
-        if (fr.success() && (rd.funcName == "banChatMember"))
+        if (fr.success() && (rd.params->funcName == "banChatMember"))
             _spammers.remove(fr.index());
     }
 }
@@ -1648,14 +1655,14 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
             tbot::ChatPermissions chatPermissions;
             QByteArray permissions = chatPermissions.toJson();
 
-            tbot::TgParams params;
-            params.api["chat_id"] = chat->id;
-            params.api["user_id"] = spammer->user->id;
-            params.api["until_date"] = qint64(std::time(nullptr)) + restrictTime + 5;
-            params.api["permissions"] = permissions;
-            params.api["use_independent_chat_permissions"] = false;
-            params.delay = 3*1000 /*3 сек*/;
-            sendTgCommand("restrictChatMember", params);
+            auto params = tbot::tgfunction("restrictChatMember");
+            params->api["chat_id"] = chat->id;
+            params->api["user_id"] = spammer->user->id;
+            params->api["until_date"] = qint64(std::time(nullptr)) + restrictTime + 5;
+            params->api["permissions"] = permissions;
+            params->api["use_independent_chat_permissions"] = false;
+            params->delay = 3*1000 /*3 сек*/;
+            sendTgCommand(params);
         }
     };
 
@@ -1715,13 +1722,13 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 tbot::ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
                 if (botInfo && botInfo->can_restrict_members)
                 {
-                    tbot::TgParams params;
-                    params.api["chat_id"] = chat->id;
-                    params.api["user_id"] = spammer->user->id;
-                    params.api["until_date"] = qint64(std::time(nullptr));
-                    params.api["revoke_messages"] = false;
-                    params.delay = 3*1000 /*3 сек*/;
-                    sendTgCommand("banChatMember", params);
+                    auto params = tbot::tgfunction("banChatMember");
+                    params->api["chat_id"] = chat->id;
+                    params->api["user_id"] = spammer->user->id;
+                    params->api["until_date"] = qint64(std::time(nullptr));
+                    params->api["revoke_messages"] = false;
+                    params->delay = 3*1000 /*3 сек*/;
+                    sendTgCommand(params);
                 }
                 else
                     log_error_m << "The bot does not have rights to ban user";
@@ -1772,12 +1779,12 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
         else
             botMsg += QString(" (id: %1)").arg(userId);
 
-        tbot::TgParams params;
-        params.api["chat_id"] = chatId;
-        params.api["text"] = botMsg;
-        params.api["parse_mode"] = "Markdown";
-        params.delay = 1.5*1000 /*1.5 сек*/;
-        emit sendTgCommand("sendMessage", params);
+        auto params = tbot::tgfunction("sendMessage");
+        params->api["chat_id"] = chatId;
+        params->api["text"] = botMsg;
+        params->api["parse_mode"] = "Markdown";
+        params->delay = 500 /*0.5 сек*/;
+        emit sendTgCommand(params);
 
         // Сообщение в лог
         alog::Line logLine = log_verbose_m << log_format(
@@ -1811,9 +1818,9 @@ void Application::updateBotCommands()
 
 void Application::updateChatAdminInfo(qint64 chatId)
 {
-    tbot::TgParams params;
-    params.api["chat_id"] = chatId;
-    sendTgCommand("getChatAdministrators", params);
+    auto params = tbot::tgfunction("getChatAdministrators");
+    params->api["chat_id"] = chatId;
+    sendTgCommand(params);
 }
 
 void Application::loadBotCommands()

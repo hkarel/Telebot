@@ -58,11 +58,8 @@ public:
         QNetworkReply* reply = {nullptr};
         quint64 replyNumer = {0};
 
-        // Имя TG-функции
-        QString funcName;
-
         // Параметры для функции sendTgCommand()
-        tbot::TgParams params;
+        tbot::TgParams::Ptr params;
 
         // Результат выполнения http запроса в raw-формате
         QByteArray data;
@@ -99,7 +96,7 @@ public slots:
     void timelimitCheck();
 
     // Функция для отправки Телеграм-команды
-    void sendTgCommand(const QString& funcName, const tbot::TgParams&);
+    void sendTgCommand(const tbot::TgParams::Ptr&);
 
     // Функция-обработчик http ответов
     void httpResultHandler(const ReplyData&);
