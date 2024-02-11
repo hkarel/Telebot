@@ -886,6 +886,10 @@ bool Processing::botCommand(const Update& update)
                 u8"Справка по списку команд;"
                 u8"\r\n"
 
+                u8"\r\n%1 version [v]&#185; - "
+                u8"Версия бота;"
+                u8"\r\n"
+
                 u8"\r\n%1 timelimit [tl]&#185; (start|stop|status) - "
                 u8"Активация/деактивация триггеров с типом timelimit;"
                 u8"\r\n"
@@ -922,6 +926,13 @@ bool Processing::botCommand(const Update& update)
             // telebot - help Справка по списку команд
 
             printCommandsInfo();
+            return true;
+        }
+        else if ((command == "version") || (command == "v"))
+        {
+            botMsg = u8"Версия бота: %1 (gitrev:&#160;%2)"
+                     u8"\r\nРепозиторий проекта: https://github.com/hkarel/Telebot";
+            sendMessage(botMsg.arg(VERSION_PROJECT).arg(GIT_REVISION));
             return true;
         }
         else if ((command == "timelimit") || (command == "tl"))
