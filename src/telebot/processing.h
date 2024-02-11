@@ -125,6 +125,8 @@ private:
     static QWaitCondition _threadCond;
     static QList<MessageData::Ptr> _updates;
 
+    static QHash<qint64 /*user_id*/, steady_timer> _temporaryNewUsers;
+
     volatile bool _configChanged = {true};
 
     struct MediaGroup

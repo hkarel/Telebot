@@ -25,6 +25,7 @@ using namespace std;
 QMutex Processing::_threadLock;
 QWaitCondition Processing::_threadCond;
 QList<MessageData::Ptr> Processing::_updates;
+QHash<qint64, steady_timer> Processing::_temporaryNewUsers;
 QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
 
 Processing::Processing()
@@ -83,6 +84,12 @@ void Processing::run()
                 continue;
 
             msgData = _updates.takeFirst();
+
+            for (qint64 key : _temporaryNewUsers.keys())
+            {
+                if (_temporaryNewUsers[key].elapsed() > 20*1000 /*20 сек*/)
+                    _temporaryNewUsers.remove(key);
+            }
         }
         if (msgData.empty() || msgData->data.isEmpty())
             continue;
@@ -142,7 +149,11 @@ void Processing::run()
                     update.update_id);
         }
 
-        // Событие обновления прав для админа/пользователя
+        // Признак нового пользователя (только что вошел в группу)
+        bool isNewUser = false;
+
+        // Событие обновления прав для админа/пользователя или вступления нового
+        // пользователя в группу
         if (update.chat_member)
         {
             bool updateAdmins = false;
@@ -157,6 +168,21 @@ void Processing::run()
 
                 if ((oldStatus == "administrator") && (newStatus == "member"))
                     updateAdmins = true;
+
+                // Новый пользователь вступил в группу
+                if ((oldStatus == "left") && (newStatus == "member"))
+                {
+                    isNewUser = true;
+
+                    // Всех обманываем и конструируем сообщение
+                    Message::Ptr message {new Message};
+
+                    message->message_id = -1;
+                    message->from = update.chat_member->from;
+                    message->chat = update.chat_member->chat;
+
+                    update.message = message;
+                }
             }
             if (updateAdmins)
             {
@@ -340,8 +366,6 @@ void Processing::run()
         else
             users.append(message->from);
 
-        // Признак нового пользователя (только что вошел в группу)
-        bool isNewUser = false;
         if (isNewUsersMessage || (isBioMessage && msgData->isNewUser))
             isNewUser = true;
 
@@ -353,6 +377,21 @@ void Processing::run()
                 log_error_m << log_format(R"("update_id":%?. User struct is empty)",
                                           update.update_id);
                 continue;
+            }
+
+            // Исключаем двойное срабатывание триггеров для новых пользователей
+            if (isNewUser && !isBioMessage)
+            {
+                QMutexLocker locker {&_threadLock}; (void) locker;
+                if (_temporaryNewUsers.contains(user->id))
+                {
+                    log_verbose_m << log_format(
+                        R"("update_id":%?. Chat: %?. Redetect new user %?/%?/@%?/%?. User skipped)",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+                    continue;
+                }
+                _temporaryNewUsers[user->id] = steady_timer();
             }
 
             // Проверка пользователя на принадлежность к списку администраторов
@@ -520,28 +559,13 @@ void Processing::run()
                 params2->delay = 1*1000 /*1 сек*/;
                 emit sendTgCommand(params2);
 
-//                // Отправляем сообщение с идентификатором пользователя
-//                //   Смотри решение с Markdown разметкой тут:
-//                //   https://core.telegram.org/bots/api#markdown-style
-//                botMsg = QString("%1 => [%2 %3](tg://user?id=%4)")
-//                         .arg(user->id)
-//                         .arg(user->first_name)
-//                         .arg(user->last_name)
-//                         .arg(user->id);
-
-//                if (!user->username.isEmpty())
-//                {
-//                    QString s = QString(" (@%1)").arg(user->username);
-//                    botMsg += s.replace("_", "\\_");
-//                }
-
                 // Формируем сообщение с идентификатором пользователя
-                //botMsg = stringUserInfo(user);
+                botMsg = stringUserInfo(user);
 
                 // Отправляем сообщение с идентификатором пользователя
                 auto params3 = tgfunction("sendMessage");
                 params3->api["chat_id"] = chatId;
-                params3->api["text"] = stringUserInfo(user);
+                params3->api["text"] = botMsg;
                 params3->api["parse_mode"] = "Markdown";
                 params3->delay = 1.3*1000 /*1.3 сек*/;
                 emit sendTgCommand(params3);
@@ -604,10 +628,16 @@ void Processing::run()
                                 u8"\r\n%2%3;"
                                 u8"\r\nтриггер: %4";
 
+                        QString reasonMessage = trigger->activationReasonMessage;
+                        reasonMessage.replace("_", "\\_");
+
+                        QString triggerName = trigger->name;
+                        triggerName.replace("_", "\\_");
+
                         botMsg = botMsg.arg(stringUserInfo(user))
-                                       .arg(trigger->activationReasonMessage)
-                                       .arg(isBioMessage ? u8" [в BIO]" : u8"")
-                                       .arg(trigger->name);
+                                       .arg(reasonMessage)
+                                       .arg(isBioMessage ? u8" \\[в BIO]" : u8"")
+                                       .arg(triggerName);
 
                         // botMsg.replace("+", "&#43;");
                         // botMsg.replace("<", "&#60;");
@@ -755,7 +785,7 @@ void Processing::run()
                 params->bio.updateId = update.update_id;
                 params->bio.messageId = messageId;
                 params->bio.messageOrigin = messageText.trimmed();
-                params->isNewUser = isNewUsersMessage;
+                params->isNewUser = isNewUser;
                 sendTgCommand(params);
             }
 
