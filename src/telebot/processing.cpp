@@ -25,7 +25,7 @@ using namespace std;
 QMutex Processing::_threadLock;
 QWaitCondition Processing::_threadCond;
 QList<MessageData::Ptr> Processing::_updates;
-QHash<qint64, steady_timer> Processing::_temporaryNewUsers;
+QMap<Processing::TemporaryKey, steady_timer> Processing::_temporaryNewUsers;
 QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
 
 Processing::Processing()
@@ -85,7 +85,7 @@ void Processing::run()
 
             msgData = _updates.takeFirst();
 
-            for (qint64 key : _temporaryNewUsers.keys())
+            for (const TemporaryKey& key : _temporaryNewUsers.keys())
             {
                 if (_temporaryNewUsers[key].elapsed() > 20*1000 /*20 сек*/)
                     _temporaryNewUsers.remove(key);
@@ -383,7 +383,9 @@ void Processing::run()
             if (isNewUser && !isBioMessage)
             {
                 QMutexLocker locker {&_threadLock}; (void) locker;
-                if (_temporaryNewUsers.contains(user->id))
+
+                TemporaryKey temporaryKey {chatId, user->id};
+                if (_temporaryNewUsers.contains(temporaryKey))
                 {
                     log_verbose_m << log_format(
                         R"("update_id":%?. Chat: %?. Redetect new user %?/%?/@%?/%?. User skipped)",
@@ -391,7 +393,7 @@ void Processing::run()
                         user->first_name, user->last_name, user->username, user->id);
                     continue;
                 }
-                _temporaryNewUsers[user->id] = steady_timer();
+                _temporaryNewUsers[temporaryKey] = steady_timer();
             }
 
             // Проверка пользователя на принадлежность к списку администраторов
