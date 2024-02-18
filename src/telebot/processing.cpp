@@ -684,8 +684,8 @@ void Processing::run()
                 }
             };
 
-            // Признак удаленного сообщения
             bool messageDeleted = false;
+            bool userRestricted = false;
 
             for (tbot::Trigger* trigger : chat->triggers)
             {
@@ -759,6 +759,7 @@ void Processing::run()
                 if (botInfo && botInfo->can_restrict_members)
                 {
                     restrictUser(trigger);
+                    userRestricted = true;
                 }
                 else
                 {
@@ -769,7 +770,7 @@ void Processing::run()
             }
 
             // Отправляем запрос на получение BIO
-            if (chat->checkBio && !messageDeleted && !isBioMessage)
+            if (chat->checkBio && !isBioMessage && !messageDeleted && !userRestricted)
             {
                 QString messageText = message->text;
                 if (!message->caption.isEmpty())
