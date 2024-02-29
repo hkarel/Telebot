@@ -3,7 +3,11 @@
 #include "shared/list.h"
 #include "shared/clife_base.h"
 #include "shared/clife_ptr.h"
+#include "shared/clife_alloc.h"
+#include "shared/steady_timer.h"
 #include "pproto/serialize/json.h"
+
+#include "compare.h"
 
 namespace tbot {
 
@@ -19,6 +23,7 @@ typedef clife_ptr<Message> MessagePtr;
 struct User : public clife_base
 {
     typedef clife_ptr<User> Ptr;
+    typedef lst::List<User, CompareId<User>, clife_alloc<User>> List;
 
     qint64  id                          = {0};
     bool    is_bot                      = {false}; // True, if this user is a bot
@@ -31,6 +36,9 @@ struct User : public clife_base
     bool    can_join_groups             = {false}; // Optional. True, if the bot can be invited to groups. Returned only in getMe.
     bool    can_read_all_group_messages = {false}; // Optional. True, if privacy mode is disabled for the bot. Returned only in getMe.
     bool    supports_inline_queries     = {false}; // Optional. True, if the bot supports inline queries. Returned only in getMe.
+
+    // Вспомогательное поле, не относится к API Telegram, используется ботом в системе Anti-Raid мониторинга
+    steady_timer antiraid_timer;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( id                          )

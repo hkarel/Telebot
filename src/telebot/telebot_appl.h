@@ -107,6 +107,10 @@ public slots:
     // Аннулирование штрафов за спам-сообщения
     void resetSpam(qint64 chatId, qint64 userId);
 
+    // Учет пользователей и сообщений в системе Anti-Raid
+    void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);
+    void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
+
     void updateBotCommands();
     void updateChatAdminInfo(qint64 chatId);
 
@@ -121,8 +125,11 @@ private:
     void loadReportSpam();
     void saveReportSpam();
 
-     void loadBotCommands();
-     void saveBotCommands(qint64 timemark);
+    void loadBotCommands();
+    void saveBotCommands(qint64 timemark);
+
+    void loadAntiRaidCache();
+    void saveAntiRaidCache();
 
     void sendToProcessing(const tbot::MessageData::Ptr&);
 
@@ -133,6 +140,7 @@ private:
 
     int _stopTimerId = {-1};
     int _slaveTimerId = {-1};
+    int _antiraidTimerId = {-1};
     int _timelimitTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 
@@ -213,6 +221,47 @@ private:
     // для публикации сообщений об начале и окончании работы триггера
     TimeLimit::List _timelimitBegins;
     TimeLimit::List _timelimitEnds;
+
+    struct AntiRaid
+    {
+        qint64 chatId = {0};
+
+        // Время окончания действия Anti-Raid режима (в UTC)
+        QDateTime deactiveTime;
+
+        // Временный список новых участников, используется для детектирования
+        // Anti-Raid атаки
+        tbot::User::List usersTmp;
+
+        // Список участников вступивших в группу во время Anti-Raid атаки, все
+        // пользователи из этого списка будут заблокированы
+        tbot::User::List usersBan;
+
+        // Механизм приостановки удаления следующего  пользователя,  пока
+        // не будет получено подтверждение удаления текущего пользователя
+        bool skipUsersBan = {false};
+        steady_timer skipUsersBanTimer;
+
+        // Идентификаторы сообщений, которые успели написать заблокированные
+        // пользователи
+        QList<qint32> messageIds;
+
+        // Механизм приостановки удаления следующего  сообщения,  пока
+        // не будет получено подтверждение удаления текущего сообщения
+        bool skipMessageIds = {false};
+        steady_timer skipMessageIdsTimer;
+
+        // Счетчик пропуска команд блокировки пользователей
+        int sleepBanCount = {0};
+
+        // Счетчик пропуска команд удаления сообщений
+        int sleepMsgCount = {0};
+
+        typedef lst::List<AntiRaid, tbot::CompareChat<AntiRaid>> List;
+    };
+
+    AntiRaid::List _antiRaidCache;
+    int _antiRaidSaveStep = {0};
 
     struct WebhookData
     {

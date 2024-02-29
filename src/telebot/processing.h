@@ -56,6 +56,9 @@ struct TgParams
 
     // Пользователь только что вступил в группу
     bool isNewUser = {false};
+
+    // Команда для режима Anti-Raid
+    bool isAntiRaid = {false};
 };
 
 inline TgParams::Ptr tgfunction(const char* funcName)
@@ -107,6 +110,10 @@ signals:
 
     void updateBotCommands();
     void updateChatAdminInfo(qint64 chatId);
+
+    // Учет пользователей и сообщений в системе Anti-Raid
+    void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);
+    void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
 public slots:
     void reloadConfig();

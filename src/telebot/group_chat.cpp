@@ -16,8 +16,6 @@
 
 namespace tbot {
 
-using namespace std;
-
 extern atomic_int globalConfigParceErrors;
 
 struct group_logic_error : public std::logic_error
@@ -61,6 +59,18 @@ void GroupChat::setOwnerIds(const QSet<qint64>& val)
     _ownerIds = val;
 }
 
+QStringList GroupChat::adminNames() const
+{
+    QMutexLocker locker {&_lock}; (void) locker;
+    return _adminNames;
+}
+
+void GroupChat::setAdminNames(const QStringList& val)
+{
+    QMutexLocker locker {&_lock}; (void) locker;
+    _adminNames = val;
+}
+
 ChatMemberAdministrator::Ptr GroupChat::botInfo() const
 {
     QMutexLocker locker {&_lock}; (void) locker;
@@ -75,13 +85,14 @@ void GroupChat::setBotInfo(const ChatMemberAdministrator::Ptr& val)
 
 GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
 {
-    auto checkFiedType = [&ychat](const string& field, YAML::NodeType::value type)
+    auto checkFiedType = [](const YAML::Node& ynode, const string& field,
+                            YAML::NodeType::value type)
     {
-        if (ychat[field].IsNull())
+        if (ynode[field].IsNull())
             throw group_logic_error(
                 "For 'group_chats' node a field '" + field + "' can not be null");
 
-        if (ychat[field].Type() != type)
+        if (ynode[field].Type() != type)
             throw group_logic_error(
                 "For 'group_chats' node a field '" + field + "' "
                 "must have type '" + yamlTypeName(type) + "'");
@@ -90,7 +101,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     qint64 id = {0};
     if (ychat["id"].IsDefined())
     {
-        checkFiedType("id", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "id", YAML::NodeType::Scalar);
         id = ychat["id"].as<int64_t>();
     }
     if (id == 0)
@@ -99,14 +110,14 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     QString name;
     if (ychat["name"].IsDefined())
     {
-        checkFiedType("name", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "name", YAML::NodeType::Scalar);
         name = QString::fromStdString(ychat["name"].as<string>());
     }
 
     QStringList triggerNames;
     if (ychat["triggers"].IsDefined())
     {
-        checkFiedType("triggers", YAML::NodeType::Sequence);
+        checkFiedType(ychat, "triggers", YAML::NodeType::Sequence);
         const YAML::Node& ytriggers = ychat["triggers"];
         for (const YAML::Node& ytrigger : ytriggers)
             triggerNames.append(QString::fromStdString(ytrigger.as<string>()));
@@ -115,28 +126,28 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     bool skipAdmins = true;
     if (ychat["skip_admins"].IsDefined())
     {
-        checkFiedType("skip_admins", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "skip_admins", YAML::NodeType::Scalar);
         skipAdmins = ychat["skip_admins"].as<bool>();
     }
 
     bool premiumBan = false;
     if (ychat["premium_ban"].IsDefined())
     {
-        checkFiedType("premium_ban", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "premium_ban", YAML::NodeType::Scalar);
         premiumBan = ychat["premium_ban"].as<bool>();
     }
 
     bool checkBio = false;
     if (ychat["check_bio"].IsDefined())
     {
-        checkFiedType("check_bio", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "check_bio", YAML::NodeType::Scalar);
         checkBio = ychat["check_bio"].as<bool>();
     }
 
     QSet<qint64> whiteUsers;
     if (ychat["white_users"].IsDefined())
     {
-        checkFiedType("white_users", YAML::NodeType::Sequence);
+        checkFiedType(ychat, "white_users", YAML::NodeType::Sequence);
         const YAML::Node& ywhite_users = ychat["white_users"];
         for (const YAML::Node& ywhite : ywhite_users)
             whiteUsers.insert(ywhite.as<int64_t>());
@@ -145,17 +156,45 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     qint32 userSpamLimit = 5;
     if (ychat["user_spam_limit"].IsDefined())
     {
-        checkFiedType("user_spam_limit", YAML::NodeType::Scalar);
+        checkFiedType(ychat, "user_spam_limit", YAML::NodeType::Scalar);
         userSpamLimit = ychat["user_spam_limit"].as<int>();
     }
 
     QVector<qint32> userRestricts;
     if (ychat["user_restricts"].IsDefined())
     {
-        checkFiedType("user_restricts", YAML::NodeType::Sequence);
+        checkFiedType(ychat, "user_restricts", YAML::NodeType::Sequence);
         const YAML::Node& yuser_restricts = ychat["user_restricts"];
         for (const YAML::Node& yrestrict : yuser_restricts)
             userRestricts.append(yrestrict.as<int32_t>());
+    }
+
+    GroupChat::AntiRaid antiRaid;
+    if (ychat["anti_raid"].IsDefined())
+    {
+        checkFiedType(ychat, "anti_raid", YAML::NodeType::Map);
+        const YAML::Node yantiraid = ychat["anti_raid"];
+
+        if (yantiraid["active"].IsDefined())
+        {
+            checkFiedType(yantiraid, "active", YAML::NodeType::Scalar);
+            antiRaid.active = yantiraid["active"].as<bool>();
+        }
+        if (yantiraid["time_frame"].IsDefined())
+        {
+            checkFiedType(yantiraid, "time_frame", YAML::NodeType::Scalar);
+            antiRaid.timeFrame = yantiraid["time_frame"].as<int>();
+        }
+        if (yantiraid["users_limit"].IsDefined())
+        {
+            checkFiedType(yantiraid, "users_limit", YAML::NodeType::Scalar);
+            antiRaid.usersLimit = yantiraid["users_limit"].as<int>();
+        }
+        if (yantiraid["duration"].IsDefined())
+        {
+            checkFiedType(yantiraid, "duration", YAML::NodeType::Scalar);
+            antiRaid.duration = yantiraid["duration"].as<int>();
+        }
     }
 
     GroupChat::Ptr chat {new GroupChat};
@@ -167,6 +206,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->whiteUsers = whiteUsers;
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
+    chat->antiRaid = antiRaid;
 
     Trigger::List triggers = tbot::triggers();
     for (const QString& triggerName : triggerNames)
@@ -282,6 +322,13 @@ void printGroupChats(GroupChat::List& chats)
         for (qint32 item : chat->userRestricts)
             logLine << nextComma() << item;
         logLine << "]";
+
+        logLine << log_format("; anti_raid: {active: %?, time_frame: %?"
+                              ", users_limit: %?, duration: %?}",
+                              chat->antiRaid.active,
+                              chat->antiRaid.timeFrame,
+                              chat->antiRaid.usersLimit,
+                              chat->antiRaid.duration);
     }
     log_info_m << "---";
 }
@@ -307,6 +354,8 @@ GroupChat::List groupChats(GroupChat::List* list)
         {
             QSet<qint64> adminIds = chat->adminIds();
             QSet<qint64> ownerIds = chat->ownerIds();
+            QStringList  adminNames = chat->adminNames();
+            bool antiRaidTurnOn = chat->antiRaidTurnOn;
             ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
             if (lst::FindResult fr = chats.findRef(chat->id))
             {
@@ -315,6 +364,11 @@ GroupChat::List groupChats(GroupChat::List* list)
 
                 if (!ownerIds.isEmpty())
                     chats[fr.index()].setOwnerIds(ownerIds);
+
+                if (!adminNames.isEmpty())
+                    chats[fr.index()].setAdminNames(adminNames);
+
+                chats[fr.index()].antiRaidTurnOn = antiRaidTurnOn;
 
                 if (botInfo)
                     chats[fr.index()].setBotInfo(botInfo);

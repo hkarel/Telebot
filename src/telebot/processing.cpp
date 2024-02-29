@@ -416,6 +416,14 @@ void Processing::run()
                 continue;
             }
 
+            // Проверка на Anti-Raid режим
+            if (chat->antiRaid.active && isNewUser && !isBioMessage)
+            {
+                emit antiRaidUser(chatId, message->from);
+                if (chat->antiRaidTurnOn)
+                    continue;
+            }
+
             // Признак премиум аккаунта у пользователя
             bool isPremium = false;
 
@@ -513,14 +521,14 @@ void Processing::run()
 
                 // Отправляем в Телеграм сообщение с описанием причины удаления сообщения
                 QString botMsg =
-                        u8"Бот удалил сообщение"
-                        u8"\r\n---"
-                        u8"\r\n%1"
-                        u8"\r\n---"
-                        u8"%2"
-                        u8"\r\nПричина удаления сообщения"
-                        u8"\r\n%3%4;"
-                        u8"\r\nтриггер: %5";
+                    u8"Бот удалил сообщение"
+                    u8"\r\n---"
+                    u8"\r\n%1"
+                    u8"\r\n---"
+                    u8"%2"
+                    u8"\r\nПричина удаления сообщения"
+                    u8"\r\n%3%4;"
+                    u8"\r\nтриггер: %5";
 
                 QString messageText;
                 if (!isBioMessage)
@@ -623,12 +631,12 @@ void Processing::run()
                         // Отправляем в Телеграм сообщение с описанием причины
                         // блокировки пользователя
                         QString botMsg =
-                                u8"Бот заблокировал пользователя"
-                                u8"\r\n%1"
-                                u8"\r\n---"
-                                u8"\r\nПричина блокировки"
-                                u8"\r\n%2%3;"
-                                u8"\r\nтриггер: %4";
+                            u8"Бот заблокировал пользователя"
+                            u8"\r\n%1"
+                            u8"\r\n---"
+                            u8"\r\nПричина блокировки"
+                            u8"\r\n%2%3;"
+                            u8"\r\nтриггер: %4";
 
                         QString reasonMessage = trigger->activationReasonMessage;
                         reasonMessage.replace("_", "\\_");
@@ -770,7 +778,8 @@ void Processing::run()
             }
 
             // Отправляем запрос на получение BIO
-            if (chat->checkBio && !isBioMessage && !messageDeleted && !userRestricted)
+            if (chat->checkBio
+                && !isBioMessage && !messageDeleted && !userRestricted)
             {
                 QString messageText = message->text;
                 if (!message->caption.isEmpty())
@@ -792,6 +801,12 @@ void Processing::run()
                 sendTgCommand(params);
             }
 
+            // Проверка на Anti-Raid режим
+            if (chat->antiRaid.active && chat->antiRaidTurnOn
+                && !isBioMessage && !messageDeleted && !userRestricted)
+            {
+                emit antiRaidMessage(chatId, user->id, messageId);
+            }
         } // for (int i = 0; i < users.count(); ++i)
 
         //--- Мониторинг скрытого тегирования пользователей ---

@@ -93,9 +93,10 @@ void SslServer::incomingConnection(qintptr socketDescriptor)
 Application::Application(int& argc, char** argv)
     : QCoreApplication(argc, argv)
 {
-    _stopTimerId = startTimer(1000);
-    _slaveTimerId = startTimer(10*1000 /*10 сек*/);
-    _timelimitTimerId = startTimer(15*1000 /*15 сек*/);
+    _stopTimerId         = startTimer(1000);
+    _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
+    _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
+    _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
     _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -192,6 +193,7 @@ bool Application::init()
     reportSpam(0, {}); // Выводим в лог текущий спам-список
 
     loadBotCommands();
+    loadAntiRaidCache();
 
     startRequest();
     return true;
@@ -234,6 +236,7 @@ void Application::deinit()
     _networkAccManager.reset();
 
     saveReportSpam();
+    saveAntiRaidCache();
 }
 
 void Application::timerEvent(QTimerEvent* event)
@@ -244,6 +247,7 @@ void Application::timerEvent(QTimerEvent* event)
         {
             KILL_TIMER(_stopTimerId)
             KILL_TIMER(_slaveTimerId)
+            KILL_TIMER(_antiraidTimerId)
             KILL_TIMER(_timelimitTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
@@ -291,6 +295,186 @@ void Application::timerEvent(QTimerEvent* event)
                 }
                 _waitCloseSockets.remove(i--);
             }
+
+        //--- Anti-Raid ---
+        tbot::GroupChat::List chats = tbot::groupChats();
+        for (AntiRaid* antiRaid : _antiRaidCache)
+        {
+            qint64 chatId = antiRaid->chatId;
+            tbot::GroupChat* chat = chats.findItem(&chatId);
+
+            if (chat == nullptr)
+            {
+                // Не удаляем  элемент  AntiRaid из _antiRaidCache так как
+                // при старте приложения список _antiRaidCache заполняется
+                // раньше списка групп, поэтому он будет полностью вычищен
+                // в этой точке.
+                // _antiRaidCache.remove(i--);
+                continue;
+            }
+            if (!chat->antiRaid.active)
+                continue;
+
+            if (chat->antiRaidTurnOn)
+            {
+                QDateTime currentTime = QDateTime::currentDateTimeUtc();
+                if ((currentTime > antiRaid->deactiveTime) || !chat->antiRaid.active)
+                {
+                    chat->antiRaidTurnOn = false;
+                    antiRaid->deactiveTime = QDateTime();
+
+                    // Отправляем в Телеграм сообщение о деактивации Anti-Raid режима
+                    QString botMsg =
+                        u8"Бот деактивировал <i>Anti-Raid</i> режим."
+                        u8"\r\nНовые пользователи могут присоединяться к группе";
+
+                    auto params = tbot::tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg;
+                    params->api["parse_mode"] = "HTML";
+                    params->messageDel = -1;
+                    emit sendTgCommand(params);
+                }
+            }
+            else
+            {
+                // Удаляем из кеша пользователей тех, у кого временное
+                // значение вышло за границу timeFrame
+                int timeFrame = chat->antiRaid.timeFrame * 1000;
+                for (int i = 0; i < antiRaid->usersTmp.count(); ++i)
+                    if (antiRaid->usersTmp[i].antiraid_timer.elapsed() > timeFrame)
+                        antiRaid->usersTmp.remove(i--);
+
+                int usersLimit = chat->antiRaid.usersLimit;
+                if (antiRaid->usersTmp.count() >= usersLimit)
+                {
+                    // Активируем Anti-Raid режим
+                    chat->antiRaidTurnOn = true;
+
+                    int duration = chat->antiRaid.duration * 60; // в секундах
+                    QDateTime currentTime = QDateTime::currentDateTimeUtc();
+                    antiRaid->deactiveTime = currentTime.addSecs(duration);
+
+                    for (tbot::User* user : antiRaid->usersTmp)
+                    {
+                        log_verbose_m << log_format(
+                            "Chat: %?. Anti-Raid mode is active, user %?/%?/@%?/%? added to ban list",
+                            chat->name(), user->first_name, user->last_name, user->username, user->id);
+
+                        user->add_ref();
+                        antiRaid->usersBan.add(user);
+                    }
+                    antiRaid->usersBan.sort();
+                    antiRaid->usersTmp.clear();
+
+                    // Пауза в удалении участников на 3x2 => 6 секунд
+                    antiRaid->sleepBanCount = 3;
+
+                    // Пауза в удалении сообщений на 6 секунд
+                    antiRaid->sleepMsgCount = 6;
+
+                    // Отправляем в Телеграм сообщение об активации Anti-Raid режима
+                    QString botMsg =
+                        u8"❗️❗️❗️ <b>ВНИМАНИЕ</b> ❗️❗️❗️"
+                        u8"\r\nЗафиксирована <i>Raid-атака</i> на группу."
+                        u8"\r\nБот активировал <i>Anti-Raid</i> режим."
+                        u8"\r\nАдминистраторам группы необходимо"
+                        u8"\r\nв кратчайщие сроки запретить публикацию"
+                        u8"\r\nвсех видов сообщений."
+                        u8"\r\nПользователи присоединившиеся к группе"
+                        u8"\r\nв <i>Anti-Raid</i> режиме будут заблокированы."
+                        u8"\r\n---"
+                        u8"\r\n%1";
+
+                    QString anames;
+                    for (const QString& s : chat->adminNames())
+                        anames += "@" + s + " ";
+
+                    auto params = tbot::tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg.arg(anames);
+                    params->api["parse_mode"] = "HTML";
+                    params->messageDel = -1;
+                    emit sendTgCommand(params);
+                }
+            }
+
+            if (antiRaid->skipMessageIds
+                && antiRaid->skipMessageIdsTimer.elapsed() > 10*1000 /*10 сек*/)
+            {
+                antiRaid->skipMessageIds = false;
+            }
+
+            if (antiRaid->sleepMsgCount > 0)
+                --antiRaid->sleepMsgCount;
+            else
+                antiRaid->sleepMsgCount = 0;
+
+            if (antiRaid->messageIds.count()
+                && !antiRaid->skipMessageIds
+                && !antiRaid->sleepMsgCount)
+            {
+                qint32 messageId = antiRaid->messageIds[0];
+                antiRaid->skipMessageIds = true;
+                antiRaid->skipMessageIdsTimer.reset();
+
+                auto params = tbot::tgfunction("deleteMessage");
+                params->api["chat_id"] = chatId;
+                params->api["message_id"] = messageId;
+                params->isAntiRaid = true;
+                emit sendTgCommand(params);
+
+                log_verbose_m << log_format(
+                    "Chat: %?. Anti-Raid mode active, remove message %?",
+                    chat->name(), messageId);
+            }
+        }
+    }
+    else if (event->timerId() == _antiraidTimerId)
+    {
+        for (AntiRaid* antiRaid : _antiRaidCache)
+        {
+            if (antiRaid->sleepBanCount > 0)
+            {
+                --antiRaid->sleepBanCount;
+                continue;
+            }
+
+            if (antiRaid->messageIds.count())
+                continue;
+
+            if (antiRaid->skipUsersBan
+                && antiRaid->skipUsersBanTimer.elapsed() > 10*1000 /*10 сек*/)
+            {
+                antiRaid->skipUsersBan = false;
+            }
+            if (antiRaid->skipUsersBan)
+                continue;
+
+            qint64 chatId = antiRaid->chatId;
+            if (antiRaid->usersBan.count())
+            {
+                tbot::User* user = antiRaid->usersBan.item(0);
+                antiRaid->skipUsersBan = true;
+                antiRaid->skipUsersBanTimer.reset();
+
+                auto params = tbot::tgfunction("banChatMember");
+                params->api["chat_id"] = chatId;
+                params->api["user_id"] = user->id;
+                params->api["until_date"] = qint64(std::time(nullptr));
+                params->api["revoke_messages"] = true;
+                params->isAntiRaid = true;
+                //params->delay = 30*1000; Для отладки
+                sendTgCommand(params);
+            }
+        }
+
+        // Резервное сохранение списка Anti-Raid пользователей
+        if (_antiRaidSaveStep++ >= 10 /*интервал 10x2 => 20 сек*/)
+        {
+            _antiRaidSaveStep = 0;
+            saveAntiRaidCache();
+        }
     }
     else if (event->timerId() == _slaveTimerId)
     {
@@ -786,6 +970,58 @@ void Application::http_finished()
     else
         printToLog();
 
+    if (rd.params->isAntiRaid)
+    {
+        qint64 chatId = rd.params->api["chat_id"].toLongLong();
+        if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chatId))
+        {
+            if (rd.params->funcName == "banChatMember")
+            {
+                if (!rd.success)
+                {
+                    // Пауза в удалении Anti-Raid участников на 40x2 => 80 секунд
+                    antiRaid->sleepBanCount = 40;
+                    log_debug_m << log_format(
+                        "Chat: %?. Set Anti-Raid sleep count %? for ban users",
+                        chatId, antiRaid->sleepBanCount);
+                }
+
+                qint64 userId = rd.params->api["user_id"].toLongLong();
+                if (lst::FindResult fr = antiRaid->usersBan.findRef(userId))
+                {
+                    // Удаляем участника из списка, чтобы избежать зацикливания
+                    tbot::User* user = antiRaid->usersBan.item(fr.index());
+                    log_verbose_m << log_format(
+                        "Chat: %?. Remove from Anti-Raid list user %?/%?/@%?/%?",
+                        chatId, user->first_name, user->last_name, user->username, user->id);
+
+                    antiRaid->skipUsersBan = false;
+                    antiRaid->usersBan.remove(fr.index());
+                }
+            }
+            if (rd.params->funcName == "deleteMessage")
+            {
+                if (!rd.success)
+                {
+                    // Пауза в удалении Anti-Raid сообщений на 3 секунды
+                    antiRaid->sleepMsgCount = 3;
+                    log_debug_m << log_format(
+                        "Chat: %?. Set Anti-Raid sleep count %? for remove messages",
+                        chatId, antiRaid->sleepMsgCount);
+                }
+
+                // Удаляем сообщение из списка, чтобы избежать зацикливания
+                qint32 messageId = rd.params->api["message_id"].toInt();
+                log_verbose_m << log_format(
+                    "Chat: %?. Remove from Anti-Raid list message %?",
+                    chatId, messageId);
+
+                antiRaid->skipMessageIds = false;
+                antiRaid->messageIds.removeAll(messageId);
+            }
+        }
+    }
+
     if (rd.success)
     {
         QMetaObject::invokeMethod(this, "httpResultHandler", Qt::QueuedConnection,
@@ -805,7 +1041,6 @@ void Application::http_finished()
                 params->attempt = 2;
                 sendTgCommand(params);
             }
-
             if (rd.params->attempt == 2)
             {
                 auto params = tbot::tgfunction(rd.params->funcName);
@@ -868,10 +1103,10 @@ void Application::reloadConfig()
     }
 
     _printGetChat = true;
-    config::base().getValue("print_log.get_chat", _printGetChat);
+    config::base().getValue("print_log.get_chat_info", _printGetChat);
 
     _printGetChatAdministrators = true;
-    config::base().getValue("print_log.get_chatadministrators", _printGetChatAdministrators);
+    config::base().getValue("print_log.get_chat_administrators", _printGetChatAdministrators);
 
     reloadBotMode();
     reloadGroups();
@@ -1002,6 +1237,13 @@ void Application::reloadGroups()
         // getChatAdministrators
         params->delay = 70 * i;
         sendTgCommand(params);
+
+        if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chat->id))
+        {
+            QDateTime currentTime = QDateTime::currentDateTimeUtc();
+            if (antiRaid->deactiveTime > currentTime)
+                chat->antiRaidTurnOn = true;
+        }
     }
 
     if (_masterMode)
@@ -1261,6 +1503,12 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::updateChatAdminInfo,
                           this, &Application::updateChatAdminInfo);
 
+            chk_connect_q(p, &tbot::Processing::antiRaidUser,
+                          this, &Application::antiRaidUser);
+
+            chk_connect_q(p, &tbot::Processing::antiRaidMessage,
+                          this, &Application::antiRaidMessage);
+
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
 
@@ -1395,11 +1643,15 @@ void Application::httpResultHandler(const ReplyData& rd)
             {
                 QSet<qint64> adminIds;
                 QSet<qint64> ownerIds;
+                QStringList  adminNames;
                 tbot::ChatMemberAdministrator::Ptr botInfo;
                 for (const tbot::ChatMemberAdministrator::Ptr& item : result.items)
                     if (item->user)
                     {
                         adminIds.insert(item->user->id);
+                        if (!item->user->username.isEmpty() && !item->user->is_bot)
+                            adminNames.append(item->user->username);
+
                         if (item->status == "creator")
                             ownerIds.insert(item->user->id);
 
@@ -1410,6 +1662,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 tbot::GroupChat* chat = chats.item(fr.index());
                 chat->setAdminIds(adminIds);
                 chat->setOwnerIds(ownerIds);
+                chat->setAdminNames(adminNames);
                 chat->setBotInfo(botInfo);
             }
         }
@@ -1445,7 +1698,7 @@ void Application::httpResultHandler(const ReplyData& rd)
         tbot::GroupChat::List chats = tbot::groupChats();
         tbot::GroupChat* chat = chats.findItem(&chatId);
 
-        lst::FindResult fr = _spammers.findRef(qMakePair(chatId, userId));
+        lst::FindResult frSpmr = _spammers.findRef(qMakePair(chatId, userId));
 
         { //Block for alog::Line
             alog::Line logLine = httpResult.ok ? log_verbose_m : log_error_m;
@@ -1467,9 +1720,9 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             logLine << ", first/last/uname/id: ";
 
-            if (fr.success())
+            if (frSpmr.success())
             {
-                Spammer* spammer = _spammers.item(fr.index());
+                Spammer* spammer = _spammers.item(frSpmr.index());
                 logLine << spammer->user->first_name;
 
                 //logLine << "/";
@@ -1506,8 +1759,8 @@ void Application::httpResultHandler(const ReplyData& rd)
                 return;
             }
         }
-        if (fr.success() && (rd.params->funcName == "banChatMember"))
-            _spammers.remove(fr.index());
+        if (frSpmr.success() && (rd.params->funcName == "banChatMember"))
+            _spammers.remove(frSpmr.index());
     }
 }
 
@@ -1799,6 +2052,72 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
     }
 }
 
+void Application::antiRaidUser(qint64 chatId, const tbot::User::Ptr& user)
+{
+    tbot::GroupChat::List chats = tbot::groupChats();
+    if (tbot::GroupChat* chat = chats.findItem(&chatId))
+    {
+        if (!chat->antiRaid.active)
+            return;
+
+        if (_antiRaidCache.sortState() != lst::SortState::Up)
+            _antiRaidCache.sort();
+
+        AntiRaid* antiRaid = _antiRaidCache.findItem(&chatId);
+        if (!antiRaid)
+        {
+            antiRaid = _antiRaidCache.add();
+            antiRaid->chatId = chatId;
+            _antiRaidCache.sort();
+        }
+
+        tbot::User::List* users = &antiRaid->usersTmp;
+        if (chat->antiRaidTurnOn)
+            users = &antiRaid->usersBan;
+
+        if (users->sortState() != lst::SortState::Up)
+            users->sort();
+
+        lst::FindResult fr = users->findRef(user->id);
+        if (fr.failed())
+        {
+            if (chat->antiRaidTurnOn)
+                log_verbose_m << log_format(
+                    "Chat: %?. Anti-Raid mode is active, user %?/%?/@%?/%? added to ban list",
+                    chat->name(), user->first_name, user->last_name, user->username, user->id);
+
+            user->add_ref();
+            users->addInSort(user, fr);
+        }
+    }
+}
+
+void Application::antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId)
+{
+    tbot::GroupChat::List chats = tbot::groupChats();
+    if (tbot::GroupChat* chat = chats.findItem(&chatId))
+    {
+        if (!chat->antiRaid.active)
+            return;
+
+        if (!chat->antiRaidTurnOn)
+            return;
+
+        if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chatId))
+            if (tbot::User* user = antiRaid->usersBan.findItem(&userId))
+            {
+                log_verbose_m << log_format(
+                    "Chat: %?. Anti-Raid mode is active, user %?/%?/@%?/%? in ban list"
+                    ". Message %? added to remove list",
+                    chat->name(), user->first_name, user->last_name, user->username,
+                    user->id, messageId);
+
+                if (!antiRaid->messageIds.contains(messageId))
+                    antiRaid->messageIds.append(messageId);
+            }
+    }
+}
+
 void Application::updateBotCommands()
 {
     qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
@@ -1874,10 +2193,10 @@ void Application::loadReportSpam()
 
             conf->getValue(node, "spam_times", spammer->spamTimes);
         }
+        _spammers.sort();
         return true;
     };
     config::state().getValue("spammers", loadFunc, false);
-    _spammers.sort();
 }
 
 void Application::saveReportSpam()
@@ -1900,4 +2219,112 @@ void Application::saveReportSpam()
     config::state().remove("spammers");
     config::state().setValue("spammers", saveFunc);
     config::state().saveFile();
+}
+
+void Application::loadAntiRaidCache()
+{
+    QString configFile;
+    config::base().getValue("anti_raid.file", configFile);
+
+    if (!QFile::exists(configFile))
+    {
+        log_warn_m << "Anti-Raid config file not exists " << configFile;
+        return;
+    }
+
+    YamlConfig yconfig;
+    if (!yconfig.readFile(configFile.toStdString()))
+    {
+        log_error_m << "Anti-Raid config file structure is corrupted";
+        return;
+    }
+
+    YamlConfig::Func loadFunc = [this](YamlConfig* conf, YAML::Node& nodes, bool)
+    {
+        for (const YAML::Node& node : nodes)
+        {
+            AntiRaid* antiRaid = _antiRaidCache.add();
+            conf->getValue(node, "chat_id", antiRaid->chatId);
+
+            qint64 deactiveTime = 0;
+            conf->getValue(node, "deactive_time", deactiveTime);
+            antiRaid->deactiveTime = QDateTime::fromMSecsSinceEpoch(deactiveTime);
+
+            QList<QString> users;
+            conf->getValue(node, "users", users);
+            for (const QString& userStr : users)
+            {
+                tbot::User* user = antiRaid->usersBan.add();
+                user->fromJson(userStr.toUtf8());
+            }
+            antiRaid->usersBan.sort();
+
+            antiRaid->messageIds.clear();
+            conf->getValue(node, "messages", antiRaid->messageIds);
+        }
+        _antiRaidCache.sort();
+        return true;
+    };
+    yconfig.setValue("anti_raid", loadFunc);
+}
+
+void Application::saveAntiRaidCache()
+{
+    QString configFile;
+    config::base().getValue("anti_raid.file", configFile);
+
+    YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
+    {
+        for (AntiRaid* antiRaid : _antiRaidCache)
+        {
+            QDateTime currentTime = QDateTime::currentDateTimeUtc();
+
+            if (antiRaid->usersBan.empty()
+                && antiRaid->messageIds.empty()
+                && currentTime > antiRaid->deactiveTime)
+                continue;
+
+            YAML::Node araid;
+            conf->setValue(araid, "chat_id", antiRaid->chatId);
+
+            qint64 deactiveTime = antiRaid->deactiveTime.toMSecsSinceEpoch();
+            conf->setValue(araid, "deactive_time", deactiveTime);
+
+            if (antiRaid->usersBan.count())
+            {
+                QList<QString> users;
+                for (tbot::User* user : antiRaid->usersBan)
+                {
+                    QString u {user->toJson()};
+                    users.append(u);
+                }
+                conf->setValue(araid, "users", users);
+                conf->setNodeStyle(araid, "users", YAML::EmitterStyle::Block);
+            }
+
+            if (antiRaid->messageIds.count())
+                conf->setValue(araid, "messages", antiRaid->messageIds);
+
+            node.push_back(araid);
+        }
+        return true;
+    };
+
+    YamlConfig yconfig;
+    yconfig.setValue("anti_raid", saveFunc);
+
+    static bool lastDataIsEmpty {false};
+    if (YAML::Node root = yconfig.node("."))
+    {
+        if (root.size())
+        {
+            lastDataIsEmpty = false;
+            yconfig.saveFile(configFile.toStdString());
+        }
+        else if ((root.size() == 0) && !lastDataIsEmpty)
+        {
+            lastDataIsEmpty = true;
+            yconfig.saveFile(configFile.toStdString());
+        }
+    }
 }

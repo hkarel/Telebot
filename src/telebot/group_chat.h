@@ -1,8 +1,12 @@
 #pragma once
 
+#include "compare.h"
 #include "trigger.h"
+#include <atomic>
 
 namespace tbot {
+
+using namespace std;
 
 struct GroupChat : public clife_base
 {
@@ -45,27 +49,48 @@ public:
     // Ограничение пользователя за публикацию спам-сообщений
     QVector<qint32> userRestricts;
 
+    // Механизм противодействия Anti-Raid атаке
+    struct AntiRaid
+    {
+        // Признак активации Anti-Raid механизма
+        bool active = {false};
+
+        // Временной фрейм задает интервал в течении которого происходит учет
+        // вступивших в группу новых участников. Параметр задается в секундах
+        int timeFrame = {30};
+
+        // Предельное количество  новых  участников,  которое  может  вступить
+        // в группу за время time_frame.  При превышении  указанного  значения
+        // активируется anti-raid режим
+        int usersLimit = {50};
+
+        // Временной интервал в течении которого anti-raid  механизм  находится
+        // в активной фазе. Все новые участники вступившие в группу в это время
+        // будут заблокированы. Параметр задается в минутах
+        int duration = {60};
+    };
+    AntiRaid antiRaid;
+
+    // Признак включенного режима Anti-Raid
+    atomic_bool antiRaidTurnOn = {false};
+
     // Список идентификаторов администраторов группы
     QSet<qint64> adminIds() const;
     void setAdminIds(const QSet<qint64>&);
 
-    // Список владельцев группы
+    // Список идентификаторов владельцев группы
     QSet<qint64> ownerIds() const;
     void setOwnerIds(const QSet<qint64>&);
+
+    // Список username администраторов группы
+    QStringList adminNames() const;
+    void setAdminNames(const QStringList&);
 
     // Информация о правах Tele-бота в группе
     ChatMemberAdministrator::Ptr botInfo() const;
     void setBotInfo(const ChatMemberAdministrator::Ptr&);
 
-    struct Compare
-    {
-        int operator() (const GroupChat* item1, const GroupChat* item2) const
-            {return LIST_COMPARE_ITEM(item1->id, item2->id);}
-
-        int operator() (const qint64* id, const GroupChat* item2) const
-            {return LIST_COMPARE_ITEM(*id, item2->id);}
-    };
-    typedef lst::List<GroupChat, Compare, clife_alloc<GroupChat>> List;
+    typedef lst::List<GroupChat, CompareId<GroupChat>, clife_alloc<GroupChat>> List;
 
 private:
     DISABLE_DEFAULT_COPY(GroupChat)
@@ -73,6 +98,7 @@ private:
     QString _name;
     QSet<qint64> _adminIds;
     QSet<qint64> _ownerIds;
+    QStringList  _adminNames;
     ChatMemberAdministrator::Ptr _botInfo;
 
     mutable QMutex _lock {QMutex::Recursive};
