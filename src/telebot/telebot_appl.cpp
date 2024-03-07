@@ -871,6 +871,10 @@ void Application::webhook_readyRead()
     if (wd.data.size() == wd.dataSize)
     {
         wd.data = unicodeDecode(wd.data);
+        int pos = wd.data.indexOf('\n');
+        if (pos > 0)
+            wd.data.remove(pos, 1);
+
         log_verbose_m << "Webhook TCP data: " << wd.data;
 
         tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
