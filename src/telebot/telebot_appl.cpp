@@ -323,6 +323,9 @@ void Application::timerEvent(QTimerEvent* event)
                     chat->antiRaidTurnOn = false;
                     antiRaid->deactiveTime = QDateTime();
 
+                    log_verbose_m << log_format("Chat: %?. Anti-Raid mode turn off",
+                                                chat->name());
+
                     // Отправляем в Телеграм сообщение о деактивации Anti-Raid режима
                     QString botMsg =
                         u8"Бот деактивировал <i>Anti-Raid</i> режим."
@@ -350,6 +353,9 @@ void Application::timerEvent(QTimerEvent* event)
                 {
                     // Активируем Anti-Raid режим
                     chat->antiRaidTurnOn = true;
+
+                    log_verbose_m << log_format("Chat: %?. Anti-Raid mode turn on",
+                                                chat->name());
 
                     int duration = chat->antiRaid.duration * 60; // в секундах
                     QDateTime currentTime = QDateTime::currentDateTimeUtc();
