@@ -251,6 +251,7 @@ void Processing::run()
                 auto params = tgfunction("sendMessage");
                 params->api["chat_id"] = chatId;
                 params->api["text"] = _spamMessage;
+                params->messageDel = -1;
                 emit sendTgCommand(params);
             }
             continue;
