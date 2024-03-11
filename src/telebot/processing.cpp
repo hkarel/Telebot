@@ -655,7 +655,10 @@ void Processing::run()
                         // botMsg.replace(">", "&#62;");
 
                         if (!trigger->description.isEmpty())
-                            botMsg += QString(" (%1)").arg(trigger->description);
+                        {
+                            QString s = QString(" (%1)").arg(trigger->description);
+                            botMsg += s.replace("[", "\\[");
+                        }
 
                         auto params2 = tgfunction("sendMessage");
                         params2->api["chat_id"] = chatId;
