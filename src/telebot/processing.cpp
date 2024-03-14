@@ -546,6 +546,12 @@ void Processing::run()
                 else
                     messageText = msgData->bio.messageOrigin;
 
+                if (messageText.length() > 1000)
+                {
+                    messageText.resize(1000);
+                    messageText += u8"…";
+                }
+
                 QString bioText;
                 if (isBioMessage)
                     bioText = u8"\r\nBIO: " + message->text;
