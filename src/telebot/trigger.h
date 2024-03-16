@@ -146,6 +146,9 @@ struct TriggerWord : public Trigger
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
 
+    // Активировать триггер если сообщение не содержит текста
+    bool emptyText = {false};
+
     // Список слов
     QStringList wordList;
 

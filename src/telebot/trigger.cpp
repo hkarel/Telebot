@@ -277,6 +277,12 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
     activationReasonMessage.clear();
     QString text = text_[TextType::Content];
 
+    if (text.isEmpty() && emptyText)
+    {
+        activationReasonMessage = u8"отсутствие текста";
+        return true;
+    }
+
     if (text.isEmpty())
         return false;
 
@@ -303,6 +309,7 @@ void TriggerWord::assign(const TriggerWord& trigger)
     Trigger::assign(trigger);
 
     caseInsensitive = trigger.caseInsensitive;
+    emptyText = trigger.emptyText;
     wordList = trigger.wordList;
 }
 
@@ -636,6 +643,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         caseInsensitiveO = ytrigger["case_insensitive"].as<bool>();
     }
 
+    optional<bool> emptyTextO;
+    if (ytrigger["empty_text"].IsDefined())
+    {
+        checkFiedType(ytrigger, "empty_text", YAML::NodeType::Scalar);
+        emptyTextO = ytrigger["empty_text"].as<bool>();
+    }
+
     optional<bool> skipAdminsO;
     if (ytrigger["skip_admins"].IsDefined())
     {
@@ -881,6 +895,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
             triggerWord->assign(*t);
 
         assignValue(triggerWord->caseInsensitive, caseInsensitiveO);
+        assignValue(triggerWord->emptyText, emptyTextO);
         assignValue(triggerWord->wordList, wordListO);
         trigger = triggerWord;
     }
@@ -1110,7 +1125,8 @@ void printTriggers(Trigger::List& triggers)
         {
             logLine << "; type: word"
                     << "; active: " << triggerWord->active
-                    << "; case_insensitive: " << triggerWord->caseInsensitive;
+                    << "; case_insensitive: " << triggerWord->caseInsensitive
+                    << "; empty_text: " << triggerWord->emptyText;
 
             nextCommaVal = false;
             logLine << "; word_list: [";

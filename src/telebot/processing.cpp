@@ -327,7 +327,7 @@ void Processing::run()
         tbot::Trigger::Text triggerText;
 
         //--- Trigger::TextType::Content ---
-        triggerText[tbot::Trigger::TextType::Content]  = clearText;
+        triggerText[tbot::Trigger::TextType::Content] = clearText.trimmed();
 
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
@@ -435,7 +435,8 @@ void Processing::run()
                 usernameText = QString("%1 %2 %3")
                                        .arg(user->first_name)
                                        .arg(user->last_name)
-                                       .arg(user->username).trimmed();
+                                       .arg(user->username);
+                usernameText = usernameText.trimmed();
                 isPremium = user->is_premium;
             }
             if (message->forward_from)
