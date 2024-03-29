@@ -428,6 +428,9 @@ void Processing::run()
             // Признак премиум аккаунта у пользователя
             bool isPremium = false;
 
+            //--- Trigger::TextType::UserId ---
+            triggerText[tbot::Trigger::TextType::UserId] = user->id;
+
             //--- Trigger::TextType::UserName ---
             QString usernameText;
             if (user /*message->from*/)
@@ -615,13 +618,9 @@ void Processing::run()
 
             auto restrictUser = [&](tbot::Trigger* trigger)
             {
-                bool newUserBan = false;
-                if (TriggerRegexp* trg = dynamic_cast<TriggerRegexp*>(trigger))
-                    newUserBan = trg->newUserBan;
-
                 if (isNewUser)
                 {
-                    if (newUserBan || trigger->immediatelyBan)
+                    if (trigger->newUserBan || trigger->immediatelyBan)
                     {
                         log_verbose_m << log_format(
                             R"("update_id":%?. Chat: %?. Ban new user %?/%?/@%?/%?)",

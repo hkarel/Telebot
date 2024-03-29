@@ -39,6 +39,7 @@ void Trigger::assign(const Trigger& trigger)
     checkBio       = trigger.checkBio;
     onlyBio        = trigger.onlyBio;
     reportSpam     = trigger.reportSpam;
+    newUserBan     = trigger.newUserBan;
     premiumBan     = trigger.premiumBan;
     immediatelyBan = trigger.immediatelyBan;
 }
@@ -52,9 +53,8 @@ void TriggerLinkBase::assign(const TriggerLinkBase& trigger)
 }
 
 bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
-                                  const Text& text_) const
+                                  const Text& /*text*/) const
 {
-    (void) text_;
     activationReasonMessage.clear();
 
     Message::Ptr message = update.message;
@@ -147,9 +147,8 @@ bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
 }
 
 bool TriggerLinkEnable::isActive(const Update& update, GroupChat* chat,
-                                 const Text& text_) const
+                                 const Text& /*text*/) const
 {
-    (void) text_;
     activationReasonMessage.clear();
 
     Message::Ptr message = update.message;
@@ -275,7 +274,7 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
                            const Text& text_) const
 {
     activationReasonMessage.clear();
-    QString text = text_[TextType::Content];
+    QString text = text_[TextType::Content].toString();
 
     if (text.isEmpty() && emptyText)
     {
@@ -319,10 +318,10 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
     QString text;
     activationReasonMessage.clear();
 
-    if      (analyze == "content" ) text = text_[TextType::Content];
-    else if (analyze == "username") text = text_[TextType::UserName];
-    else if (analyze == "filemime") text = text_[TextType::FileMime];
-    else if (analyze == "urllinks") text = text_[TextType::UrlLinks];
+    if      (analyze == "content" ) text = text_[TextType::Content ].toString();
+    else if (analyze == "username") text = text_[TextType::UserName].toString();
+    else if (analyze == "filemime") text = text_[TextType::FileMime].toString();
+    else if (analyze == "urllinks") text = text_[TextType::UrlLinks].toString();
 
     int textLen = text.length();
     if (textLen == 0)
@@ -379,7 +378,7 @@ void TriggerRegexp::assign(const TriggerRegexp& trigger)
 }
 
 bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
-                                const Text& text) const
+                                const Text& /*text*/) const
 {
     activationReasonMessage.clear();
 
@@ -464,6 +463,34 @@ void TriggerTimeLimit::timesRangeOfDay(int dayOfWeek, Times& times) const
         dayOfWeek, name);
 }
 
+bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
+                                const Text& text_) const
+{
+    activationReasonMessage.clear();
+    qint64 userId = text_[TextType::UserId].toLongLong();
+
+    for (const Group& group : groups)
+        if (group.userIds.contains(userId))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The user id '%?' was found",
+                update.update_id, chat->name(), name, userId);
+
+            activationReasonMessage = QString(u8"пользователь %1 в черном списке => (%2)")
+                                             .arg(userId).arg(group.description);
+            return true;
+        }
+
+    return false;
+}
+
+void TriggerBlackUser::assign(const TriggerBlackUser& trigger)
+{
+    Trigger::assign(trigger);
+    groups = trigger.groups;
+}
+
 const char* yamlTypeName(YAML::NodeType::value type)
 {
     switch (int(type))
@@ -524,11 +551,12 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         && type != "link_disable"
         && type != "word"
         && type != "regexp"
-        && type != "timelimit")
+        && type != "timelimit"
+        && type != "blackuser")
     {
         throw trigger_logic_error(
             "In a 'trigger' node a field 'type' can take one of the following "
-            "values: link_enable, link_disable/link, word, regexp. "
+            "values: link_enable, link_disable/link, word, regexp, timelimit, blackuser. "
             "Current value: " + type.toStdString());
     }
 
@@ -859,6 +887,32 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         }
     }
 
+    optional<TriggerBlackUser::Group::List> blackUserGroupsO;
+    if (ytrigger["group_list"].IsDefined())
+    {
+        blackUserGroupsO = TriggerBlackUser::Group::List();
+        checkFiedType(ytrigger, "group_list", YAML::NodeType::Sequence);
+        const YAML::Node& ygroup_list = ytrigger["group_list"];
+        for (const YAML::Node& ygroup : ygroup_list)
+        {
+            TriggerBlackUser::Group group;
+            if (ygroup["description"].IsDefined())
+            {
+                checkFiedType(ygroup, "description", YAML::NodeType::Scalar);
+                group.description =
+                    QString::fromStdString(ygroup["description"].as<string>());
+            }
+            if (ygroup["user_list"].IsDefined())
+            {
+                checkFiedType(ygroup, "user_list", YAML::NodeType::Sequence);
+                const YAML::Node& yuser_list = ygroup["user_list"];
+                for (const YAML::Node& yuser : yuser_list)
+                    group.userIds.insert(yuser.as<int64_t>());
+            }
+            blackUserGroupsO->append(group);
+        }
+    }
+
     auto assignValue = [](auto& dest, const auto& source)
     {
         if (source) dest = source.value();
@@ -909,7 +963,6 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(triggerRegexp->caseInsensitive, caseInsensitiveO);
         assignValue(triggerRegexp->multiline, multilineO);
         assignValue(triggerRegexp->analyze, analyzeO);
-        assignValue(triggerRegexp->newUserBan, newUserBanO);
 
         QRegularExpression::PatternOptions patternOpt =
             {QRegularExpression::DotMatchesEverythingOption
@@ -978,6 +1031,16 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
 
         trigger = triggerTimeLmt;
     }
+    else if (type == "blackuser")
+    {
+        TriggerBlackUser::Ptr triggerBlackUser {new TriggerBlackUser};
+
+        if (TriggerBlackUser* t = dynamic_cast<TriggerBlackUser*>(baseTrigger))
+            triggerBlackUser->assign(*t);
+
+        assignValue(triggerBlackUser->groups, blackUserGroupsO);
+        trigger = triggerBlackUser;
+    }
 
     if (trigger)
     {
@@ -992,6 +1055,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         assignValue(trigger->checkBio, checkBioO);
         assignValue(trigger->onlyBio, onlyBioO);
         assignValue(trigger->reportSpam, reportSpamO);
+        assignValue(trigger->newUserBan, newUserBanO);
         assignValue(trigger->premiumBan, premiumBanO);
         assignValue(trigger->immediatelyBan, immediatelyBanO);
     }
@@ -1140,8 +1204,7 @@ void printTriggers(Trigger::List& triggers)
                     << "; active: " << triggerRegexp->active
                     << "; case_insensitive: " << triggerRegexp->caseInsensitive
                     << "; multiline: " << triggerRegexp->multiline
-                    << "; analyze: " << triggerRegexp->analyze
-                    << "; newuser_ban: " << triggerRegexp->newUserBan;
+                    << "; analyze: " << triggerRegexp->analyze;
 
             nextCommaVal = false;
             logLine << "; regexp_remove: [";
@@ -1208,6 +1271,29 @@ void printTriggers(Trigger::List& triggers)
                                   triggerTimeLmt->hideMessageBegin,
                                   triggerTimeLmt->hideMessageEnd);
         }
+        else if (TriggerBlackUser* triggerBlackUsr = dynamic_cast<TriggerBlackUser*>(trigger))
+        {
+            logLine << "; type: blackuser"
+                    << "; active: " << triggerBlackUsr->active;
+
+            nextCommaVal = false;
+            logLine << "; group_list: [";
+            for (const TriggerBlackUser::Group& group : triggerBlackUsr->groups)
+            {
+                logLine << nextComma();
+                logLine << log_format("{description: %?", group.description);
+
+                nextCommaVal2 = false;
+                logLine << ", user_list: [";
+                for (qint64 id : group.userIds)
+                {
+                    logLine << nextComma2();
+                    logLine << id;
+                }
+                logLine << "]}";
+            }
+            logLine << "]";
+        }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;
 
@@ -1221,6 +1307,7 @@ void printTriggers(Trigger::List& triggers)
                 << "; check_bio: " << trigger->checkBio
                 << "; only_bio: " << trigger->onlyBio
                 << "; report_spam: " << trigger->reportSpam
+                << "; newuser_ban: " << trigger->newUserBan
                 << "; premium_ban: " << trigger->premiumBan
                 << "; immediately_ban: " << trigger->immediatelyBan;
 

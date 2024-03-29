@@ -23,11 +23,12 @@ struct Trigger : public clife_base
     enum class TextType
     {
         Content  = 0,
-        UserName = 1,
-        FileMime = 2,
-        UrlLinks = 3,
+        UserId   = 1,
+        UserName = 2,
+        FileMime = 3,
+        UrlLinks = 4,
     };
-    typedef QMap<TextType, QString> Text;
+    typedef QMap<TextType, QVariant> Text;
 
     // Имя триггера
     QString name;
@@ -62,6 +63,10 @@ struct Trigger : public clife_base
 
     // Отправлять отчет о спаме в систему учета штрафов
     bool reportSpam = {true};
+
+    // Если триггер сработал при вступлении нового пользователя в группу,
+    // то пользователь будет заблокирован
+    bool newUserBan = {false};
 
     // Если триггер однозначно идентифицирует спам-сообщение, и пользователь
     // имеет премиум аккаунт, то пользователя можно заблокировать сразу.
@@ -146,7 +151,7 @@ struct TriggerWord : public Trigger
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
 
-    // Активировать триггер если сообщение не содержит текста
+    // Активировать триггер если сообщение не содержит текст
     bool emptyText = {false};
 
     // Список слов
@@ -181,10 +186,6 @@ struct TriggerRegexp : public Trigger
     //   urllinks - список URL ссылок доступных в сообщении.
     // Значение параметра по умолчанию равно content
     QString analyze = {"content"};
-
-    // Если триггер сработал при вступлении нового пользователя в группу,
-    // то пользователь будет заблокирован
-    bool newUserBan = {false};
 
     // Список регулярных выражений для сокращения исходного текста
     QList<QRegularExpression> regexpRemove;
@@ -236,6 +237,29 @@ struct TriggerTimeLimit : public Trigger
 
     void assign(const TriggerTimeLimit&);
     void timesRangeOfDay(int dayOfWeek, Times& times) const;
+};
+
+struct TriggerBlackUser : public Trigger
+{
+    typedef clife_ptr<TriggerBlackUser> Ptr;
+
+    TriggerBlackUser() = default;
+    DISABLE_DEFAULT_COPY(TriggerBlackUser)
+
+    struct Group
+    {
+        QString description;  // Причина почему пользователь оказался в черном списке
+        QSet<qint64> userIds; // Список идентификаторов пользователей
+
+        typedef QList<Group> List;
+    };
+
+    // Список групп запрещенных пользователей
+    Group::List groups;
+
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
+
+    void assign(const TriggerBlackUser&);
 };
 
 const char* yamlTypeName(YAML::NodeType::value type);

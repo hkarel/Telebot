@@ -23,7 +23,6 @@ typedef clife_ptr<Message> MessagePtr;
 struct User : public clife_base
 {
     typedef clife_ptr<User> Ptr;
-    typedef lst::List<User, CompareId<User>, clife_alloc<User>> List;
 
     qint64  id                          = {0};
     bool    is_bot                      = {false}; // True, if this user is a bot
@@ -39,6 +38,8 @@ struct User : public clife_base
 
     // Вспомогательное поле, не относится к API Telegram, используется ботом в системе Anti-Raid мониторинга
     steady_timer antiraid_timer;
+
+    typedef lst::List<User, CompareId<User>, clife_alloc<User>> List;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( id                          )
