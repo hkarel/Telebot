@@ -22,11 +22,12 @@ struct Trigger : public clife_base
 
     enum class TextType
     {
-        Content  = 0,
-        UserId   = 1,
-        UserName = 2,
-        FileMime = 3,
-        UrlLinks = 4,
+        Content    = 0,
+        UserId     = 1,
+        FrwdUserId = 2, // Forward UserId
+        UserName   = 3,
+        FileMime   = 4,
+        UrlLinks   = 5,
     };
     typedef QMap<TextType, QVariant> Text;
 

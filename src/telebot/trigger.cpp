@@ -468,8 +468,10 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
 {
     activationReasonMessage.clear();
     qint64 userId = text_[TextType::UserId].toLongLong();
+    qint64 forwardUserId = text_[TextType::FrwdUserId].toLongLong();
 
     for (const Group& group : groups)
+    {
         if (group.userIds.contains(userId))
         {
             log_verbose_m << log_format(
@@ -477,11 +479,24 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 ". The user id '%?' was found",
                 update.update_id, chat->name(), name, userId);
 
-            activationReasonMessage = QString(u8"пользователь %1 в черном списке => (%2)")
-                                             .arg(userId).arg(group.description);
+            activationReasonMessage =
+                QString(u8"пользователь %1 в черном списке => (%2)")
+                       .arg(userId).arg(group.description);
             return true;
         }
+        if (group.userIds.contains(forwardUserId))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The forward-user id '%?' was found",
+                update.update_id, chat->name(), name, forwardUserId);
 
+            activationReasonMessage =
+                QString(u8"forward-пользователь %1 в черном списке => (%2)")
+                       .arg(forwardUserId).arg(group.description);
+            return true;
+        }
+    }
     return false;
 }
 

@@ -329,6 +329,10 @@ void Processing::run()
         //--- Trigger::TextType::Content ---
         triggerText[tbot::Trigger::TextType::Content] = clearText.trimmed();
 
+        //--- Trigger::TextType::FrwdUserId ---
+        if (message->forward_from)
+            triggerText[tbot::Trigger::TextType::FrwdUserId] = message->forward_from->id;
+
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
         if (message->document)
