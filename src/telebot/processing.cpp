@@ -335,12 +335,30 @@ void Processing::run()
 
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
+        if (message->audio)
+        {
+            filemimeText += QString(" %1 %2 %3 %4")
+                                    .arg(message->audio->performer)
+                                    .arg(message->audio->title)
+                                    .arg(message->audio->file_name)
+                                    .arg(message->audio->mime_type);
+            filemimeText = filemimeText.trimmed();
+        }
         if (message->document)
         {
-            filemimeText = QString("%1 %2").arg(message->document->file_name)
-                                           .arg(message->document->mime_type);
+            filemimeText += QString(" %1 %2")
+                                    .arg(message->document->file_name)
+                                    .arg(message->document->mime_type);
+            filemimeText = filemimeText.trimmed();
         }
-        triggerText[tbot::Trigger::TextType::FileMime] = filemimeText.trimmed();
+        if (message->video)
+        {
+            filemimeText += QString(" %1 %2")
+                                    .arg(message->video->file_name)
+                                    .arg(message->video->mime_type);
+            filemimeText = filemimeText.trimmed();
+        }
+        triggerText[tbot::Trigger::TextType::FileMime] = filemimeText;
 
         //--- Trigger::TextType::UrlLinks ---
         QString urllinksText;
@@ -439,10 +457,10 @@ void Processing::run()
             QString usernameText;
             if (user /*message->from*/)
             {
-                usernameText = QString("%1 %2 %3")
-                                       .arg(user->first_name)
-                                       .arg(user->last_name)
-                                       .arg(user->username);
+                usernameText += QString(" %1 %2 %3")
+                                        .arg(user->first_name)
+                                        .arg(user->last_name)
+                                        .arg(user->username);
                 usernameText = usernameText.trimmed();
                 isPremium = user->is_premium;
             }

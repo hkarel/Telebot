@@ -218,20 +218,72 @@ struct Chat : public clife_base
     DECLARE_J_SERIALIZE_FUNC
 };
 
-struct Document : public clife_base
+struct Audio : public clife_base
 {
-    typedef clife_ptr<Document> Ptr;
+    typedef clife_ptr<Audio> Ptr;
 
     QString file_id;        // Identifier for this file, which can be used to download or reuse the file
     QString file_unique_id; // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
-  //PhotoSize thumbnail;    // Optional. Document thumbnail as defined by sender
+    qint32  duration = {0}; // Duration of the audio in seconds as defined by sender
+    QString performer;      // Optional. Performer of the audio as defined by sender or by audio tags
+    QString title;          // Optional. Title of the audio as defined by sender or by audio tags
     QString file_name;      // Optional. Original filename as defined by sender
     QString mime_type;      // Optional. MIME type of the file as defined by sender
-    qint32 file_size = {0}; // Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.
+    qint32  file_size = 0;  // Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.
+  //PhotoSize thumbnail;    // Optional. Thumbnail of the album cover to which the music file belongs
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( file_id        )
         J_SERIALIZE_ITEM( file_unique_id )
+        J_SERIALIZE_ITEM( duration       )
+        J_SERIALIZE_OPT ( performer      )
+        J_SERIALIZE_OPT ( title          )
+        J_SERIALIZE_OPT ( file_name      )
+        J_SERIALIZE_OPT ( mime_type      )
+        J_SERIALIZE_OPT ( file_size      )
+    J_SERIALIZE_END
+};
+
+struct Document : public clife_base
+{
+    typedef clife_ptr<Document> Ptr;
+
+    QString file_id;         // Identifier for this file, which can be used to download or reuse the file
+    QString file_unique_id;  // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
+  //PhotoSize thumbnail;     // Optional. Document thumbnail as defined by sender
+    QString file_name;       // Optional. Original filename as defined by sender
+    QString mime_type;       // Optional. MIME type of the file as defined by sender
+    qint32  file_size = {0}; // Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( file_id        )
+        J_SERIALIZE_ITEM( file_unique_id )
+        J_SERIALIZE_OPT ( file_name      )
+        J_SERIALIZE_OPT ( mime_type      )
+        J_SERIALIZE_OPT ( file_size      )
+    J_SERIALIZE_END
+};
+
+struct Video : public clife_base
+{
+    typedef clife_ptr<Video> Ptr;
+
+    QString file_id;         // Identifier for this file, which can be used to download or reuse the file
+    QString file_unique_id;  // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
+    qint32  width = {0};     // Video width as defined by sender
+    qint32  height = {0};    // Video height as defined by sender
+    qint32  duration = {0};  // Duration of the video in seconds as defined by sender
+  //PhotoSize thumbnail;     // Optional. Video thumbnail
+    QString file_name;       // Optional. Original filename as defined by sender
+    QString mime_type;       // Optional. MIME type of the file as defined by sender
+    qint32  file_size = {0}; // Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( file_id        )
+        J_SERIALIZE_ITEM( file_unique_id )
+        J_SERIALIZE_ITEM( width          )
+        J_SERIALIZE_ITEM( height         )
+        J_SERIALIZE_ITEM( duration       )
         J_SERIALIZE_OPT ( file_name      )
         J_SERIALIZE_OPT ( mime_type      )
         J_SERIALIZE_OPT ( file_size      )
@@ -266,14 +318,13 @@ struct Message : public clife_base
     QString      text;                            // Optional. For text messages, the actual UTF-8 text of the message
     QList<MessageEntity> entities;                // Optional. For text messages, special entities like usernames, URLs, bot commands, etc. that appear in the text
 
-//    animation 	Animation 	Optional. Message is an animation, information about the animation. For backward compatibility, when this field is set, the document field will also be set
-//    audio 	Audio 	Optional. Message is an audio file, information about the file
-
+    Audio::Ptr    audio;    // Optional. Message is an audio file, information about the file
     Document::Ptr document; // Optional. Message is a general file, information about the file
+    Video::Ptr    video;    // Optional. Message is a video, information about the video
 
+//    animation  Animation 	Optional. Message is an animation, information about the animation. For backward compatibility, when this field is set, the document field will also be set
 //    photo 	Array of PhotoSize 	Optional. Message is a photo, available sizes of the photo
-//    sticker 	Sticker 	Optional. Message is a sticker, information about the sticker
-//    video 	Video 	Optional. Message is a video, information about the video
+//    sticker 	Sticker  Optional. Message is a sticker, information about the sticker
 //    video_note 	VideoNote 	Optional. Message is a video note, information about the video message
 //    voice 	Voice 	Optional. Message is a voice message, information about the file
 
@@ -338,7 +389,9 @@ struct Message : public clife_base
         J_SERIALIZE_OPT ( author_signature        )
         J_SERIALIZE_OPT ( text                    )
         J_SERIALIZE_OPT ( entities                )
+        J_SERIALIZE_OPT ( audio                   )
         J_SERIALIZE_OPT ( document                )
+        J_SERIALIZE_OPT ( video                   )
         J_SERIALIZE_OPT ( caption                 )
         J_SERIALIZE_OPT ( caption_entities        )
         J_SERIALIZE_OPT ( new_chat_members        )
