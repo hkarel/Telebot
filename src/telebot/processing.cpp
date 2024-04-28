@@ -264,33 +264,6 @@ void Processing::run()
         if (botInfo.empty())
             log_error_m << "Information about bot permissions is not available";
 
-        if (!message->media_group_id.isEmpty())
-        {
-            QMutexLocker locker {&_threadLock}; (void) locker;
-            MediaGroup& mg = _mediaGroups[message->media_group_id];
-            if (mg.isBad)
-            {
-                auto params = tgfunction("deleteMessage");
-                params->api["chat_id"] = chatId;
-                params->api["message_id"] = messageId;
-                params->delay = 200 /*0.2 сек*/;
-                emit sendTgCommand(params);
-                continue;
-            }
-            else
-            {
-                if (mg.chatId == 0)
-                    mg.chatId = chatId;
-
-                if (mg.chatId != chatId)
-                {
-                    break_point
-                    log_error_m << "Failed chat id for media group";
-                }
-                mg.messageIds.insert(messageId);
-            }
-        }
-
         QString clearText = message->text;
         for (int i = message->entities.count() - 1; i >= 0; --i)
         {
@@ -323,6 +296,33 @@ void Processing::run()
 
         if (isBioMessage && !chat->checkBio)
             continue;
+
+        if (!message->media_group_id.isEmpty())
+        {
+            QMutexLocker locker {&_threadLock}; (void) locker;
+            MediaGroup& mg = _mediaGroups[message->media_group_id];
+            if (mg.isBad)
+            {
+                auto params = tgfunction("deleteMessage");
+                params->api["chat_id"] = chatId;
+                params->api["message_id"] = messageId;
+                params->delay = 200 /*0.2 сек*/;
+                emit sendTgCommand(params);
+                continue;
+            }
+            else
+            {
+                if (mg.chatId == 0)
+                    mg.chatId = chatId;
+
+                if (mg.chatId != chatId)
+                {
+                    break_point
+                    log_error_m << "Failed chat id for media group";
+                }
+                mg.messageIds[messageId] = clearText.trimmed().isEmpty();
+            }
+        }
 
         tbot::Trigger::Text triggerText;
 
@@ -526,8 +526,18 @@ void Processing::run()
                 {
                     QMutexLocker locker {&_threadLock}; (void) locker;
                     MediaGroup& mg = _mediaGroups[message->media_group_id];
+
+                    if (dynamic_cast<TriggerEmptyText*>(trigger))
+                    {
+                        // Если на момент срабатывания триггера TriggerEmptyText
+                        // не все сообщения в медиагруппе пустые - выходим из функции
+                        for (qint64 msgId : mg.messageIds.keys())
+                            if (!mg.messageIds[msgId])
+                                return;
+                    }
+
                     mg.isBad = true;
-                    for (qint64 msgId : mg.messageIds)
+                    for (qint64 msgId : mg.messageIds.keys())
                     {
                         auto params = tgfunction("deleteMessage");
                         params->api["chat_id"] = mg.chatId;

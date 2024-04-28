@@ -509,7 +509,7 @@ bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
     {
         log_verbose_m << log_format(
             "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
-            ". The empty text",
+            ". The empty message",
             update.update_id, chat->name(), name);
 
         activationReasonMessage = u8"отсутствие текста";

@@ -144,7 +144,7 @@ private:
 
         // Идентификатор чата для сообщений медиа-группы
         qint64 chatId = {0};
-        QSet<qint64> messageIds;
+        QMap<qint64 /*message_id*/, bool /*empty text trait*/> messageIds;
 
         // Таймер для очистки _mediaGroups
         steady_timer timer;
