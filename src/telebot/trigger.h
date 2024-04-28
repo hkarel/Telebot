@@ -152,9 +152,6 @@ struct TriggerWord : public Trigger
     // Признак сравнения без учета регистра
     bool caseInsensitive = {true};
 
-    // Активировать триггер если сообщение не содержит текст
-    bool emptyText = {false};
-
     // Список слов
     QStringList wordList;
 
@@ -261,6 +258,18 @@ struct TriggerBlackUser : public Trigger
     bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 
     void assign(const TriggerBlackUser&);
+};
+
+struct TriggerEmptyText : public Trigger
+{
+    typedef clife_ptr<TriggerEmptyText> Ptr;
+
+    TriggerEmptyText() = default;
+    DISABLE_DEFAULT_COPY(TriggerEmptyText)
+
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
+
+    void assign(const TriggerEmptyText&);
 };
 
 const char* yamlTypeName(YAML::NodeType::value type);

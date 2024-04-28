@@ -276,12 +276,6 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
     activationReasonMessage.clear();
     QString text = text_[TextType::Content].toString();
 
-    if (text.isEmpty() && emptyText)
-    {
-        activationReasonMessage = u8"отсутствие текста";
-        return true;
-    }
-
     if (text.isEmpty())
         return false;
 
@@ -308,7 +302,6 @@ void TriggerWord::assign(const TriggerWord& trigger)
     Trigger::assign(trigger);
 
     caseInsensitive = trigger.caseInsensitive;
-    emptyText = trigger.emptyText;
     wordList = trigger.wordList;
 }
 
@@ -506,6 +499,30 @@ void TriggerBlackUser::assign(const TriggerBlackUser& trigger)
     groups = trigger.groups;
 }
 
+bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
+                                const Text& text_) const
+{
+    activationReasonMessage.clear();
+    QString text = text_[TextType::Content].toString();
+
+    if (text.isEmpty())
+    {
+        log_verbose_m << log_format(
+            "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+            ". The empty text",
+            update.update_id, chat->name(), name);
+
+        activationReasonMessage = u8"отсутствие текста";
+        return true;
+    }
+    return false;
+}
+
+void TriggerEmptyText::assign(const TriggerEmptyText& trigger)
+{
+    Trigger::assign(trigger);
+}
+
 const char* yamlTypeName(YAML::NodeType::value type)
 {
     switch (int(type))
@@ -567,11 +584,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         && type != "word"
         && type != "regexp"
         && type != "timelimit"
-        && type != "blackuser")
+        && type != "blackuser"
+        && type != "emptytext")
     {
         throw trigger_logic_error(
             "In a 'trigger' node a field 'type' can take one of the following "
-            "values: link_enable, link_disable/link, word, regexp, timelimit, blackuser. "
+            "values: link_enable, link_disable/link, word, regexp, timelimit, "
+            "blackuser, emptytext. "
             "Current value: " + type.toStdString());
     }
 
@@ -684,13 +703,6 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
     {
         checkFiedType(ytrigger, "case_insensitive", YAML::NodeType::Scalar);
         caseInsensitiveO = ytrigger["case_insensitive"].as<bool>();
-    }
-
-    optional<bool> emptyTextO;
-    if (ytrigger["empty_text"].IsDefined())
-    {
-        checkFiedType(ytrigger, "empty_text", YAML::NodeType::Scalar);
-        emptyTextO = ytrigger["empty_text"].as<bool>();
     }
 
     optional<bool> skipAdminsO;
@@ -964,7 +976,6 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
             triggerWord->assign(*t);
 
         assignValue(triggerWord->caseInsensitive, caseInsensitiveO);
-        assignValue(triggerWord->emptyText, emptyTextO);
         assignValue(triggerWord->wordList, wordListO);
         trigger = triggerWord;
     }
@@ -1055,6 +1066,15 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
 
         assignValue(triggerBlackUser->groups, blackUserGroupsO);
         trigger = triggerBlackUser;
+    }
+    else if (type == "emptytext")
+    {
+        TriggerEmptyText::Ptr triggerEmptyText {new TriggerEmptyText};
+
+        if (TriggerEmptyText* t = dynamic_cast<TriggerEmptyText*>(baseTrigger))
+            triggerEmptyText->assign(*t);
+
+        trigger = triggerEmptyText;
     }
 
     if (trigger)
@@ -1204,8 +1224,7 @@ void printTriggers(Trigger::List& triggers)
         {
             logLine << "; type: word"
                     << "; active: " << triggerWord->active
-                    << "; case_insensitive: " << triggerWord->caseInsensitive
-                    << "; empty_text: " << triggerWord->emptyText;
+                    << "; case_insensitive: " << triggerWord->caseInsensitive;
 
             nextCommaVal = false;
             logLine << "; word_list: [";
@@ -1308,6 +1327,11 @@ void printTriggers(Trigger::List& triggers)
                 logLine << "]}";
             }
             logLine << "]";
+        }
+        else if (TriggerEmptyText* TriggerEmptyTxt = dynamic_cast<TriggerEmptyText*>(trigger))
+        {
+            logLine << "; type: emptytext"
+                    << "; active: " << TriggerEmptyTxt->active;
         }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;
