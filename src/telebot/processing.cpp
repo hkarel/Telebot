@@ -464,7 +464,9 @@ void Processing::run()
                 usernameText = usernameText.trimmed();
                 isPremium = user->is_premium;
             }
-            if (message->forward_from)
+            if (message->forward_from
+                && !adminIds.contains(message->forward_from->id)
+                && !chat->whiteUsers.contains(message->forward_from->id))
             {
                 usernameText += QString(" %1 %2 %3")
                                         .arg(message->forward_from->first_name)
