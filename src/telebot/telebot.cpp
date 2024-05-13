@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        //QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
+        QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
 
         if (!appl.init())
         {
