@@ -15,10 +15,6 @@
 #include "pproto/logger_operators.h"
 
 #include <QHostInfo>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <string>
-#include <thread>
 
 #define log_error_m   alog::logger().error   (alog_line_location, "Application")
 #define log_warn_m    alog::logger().warn    (alog_line_location, "Application")

@@ -27,10 +27,6 @@
 #include <csignal>
 #endif
 #include <unistd.h>
-#include <limits>
-#include <locale>
-#include <codecvt>
-#include <fstream>
 
 #define APPLICATION_NAME "TeleBot"
 
