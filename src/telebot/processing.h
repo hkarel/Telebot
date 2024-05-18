@@ -96,7 +96,7 @@ public:
 
     Processing();
 
-    bool init(qint64 botUserId, const QString& commandPrefix);
+    bool init(qint64 botUserId);
     static void addUpdate(const MessageData::Ptr&);
 
 signals:
@@ -123,9 +123,6 @@ private:
     DISABLE_DEFAULT_COPY(Processing)
 
     void run() override;
-
-    // Обрабатывает команды для бота
-    bool botCommand(const tbot::Update&);
 
 private:
     static QMutex _threadLock;
@@ -156,7 +153,6 @@ private:
     QString _spamMessage;
 
     qint64 _botUserId = {0};
-    QString _commandPrefix;
 };
 
 } // namespace tbot

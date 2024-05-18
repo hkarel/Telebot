@@ -133,6 +133,9 @@ private:
 
     void sendToProcessing(const tbot::MessageData::Ptr&);
 
+    // Обрабатывает команды для бота
+    bool botCommand(const tbot::MessageData::Ptr&);
+
 private:
     static QUuidEx _applId;
     static volatile bool _stop;
@@ -146,6 +149,7 @@ private:
 
     QString _botId;
     qint64  _botUserId = {0};
+    QString _commandPrefix;
 
     bool _masterMode = {true};
     bool _listenerInit = {false};
