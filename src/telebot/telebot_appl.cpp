@@ -873,9 +873,12 @@ void Application::webhook_readyRead()
 
         log_verbose_m << "Webhook TCP data: " << wd.data;
 
-        tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
-        msgData->data = wd.data;
-        sendToProcessing(msgData);
+        if (!wd.data.isEmpty())
+        {
+            tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
+            if (msgData->update.fromJson(wd.data))
+                sendToProcessing(msgData);
+        }
 
         wd.dataSize = -1;
         wd.data.clear();
@@ -1590,13 +1593,39 @@ void Application::httpResultHandler(const ReplyData& rd)
         // Обработка сообщения с BIO
         else if (rd.params->bio.userId > 0)
         {
-            if (httpResult.ok)
+            if (httpResult.ok && !httpResult.result.isEmpty())
             {
                 tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
-                msgData->data = httpResult.result;
                 msgData->bio = rd.params->bio;
                 msgData->isNewUser = rd.params->isNewUser;
-                sendToProcessing(msgData);
+                msgData->update.update_id = rd.params->bio.updateId;
+
+                // Конструирование BIO сообщения
+                tbot::UserBio userBio;
+                if (userBio.fromJson(httpResult.result))
+                {
+                    tbot::User::Ptr user {new tbot::User};
+                    user->id = rd.params->bio.userId;
+                    user->first_name = userBio.first_name;
+                    user->last_name  = userBio.last_name;
+                    user->username   = userBio.username;
+
+                    tbot::Chat::Ptr chat {new tbot::Chat};
+                    chat->id = rd.params->bio.chatId;
+
+                    tbot::Message::Ptr message {new tbot::Message};
+
+                    message->message_id = rd.params->bio.messageId;
+                    message->text = userBio.bio;
+                    message->from = user;
+                    message->chat = chat;
+
+                    msgData->update.message = message;
+
+                    //log_verbose_m << "Emulation BIO message: " << msgData->update.toJson();
+
+                    sendToProcessing(msgData);
+                }
             }
             else
                 log_error_m << "Failed call function 'getChat' to get user BIO";

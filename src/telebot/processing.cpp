@@ -91,49 +91,11 @@ void Processing::run()
                     _temporaryNewUsers.remove(key);
             }
         }
-        if (msgData.empty() || msgData->data.isEmpty())
+        if (msgData.empty())
             continue;
 
-        Update update;
-        bool isBioMessage = false;
-
-        // Обработка сообщения с BIO
-        if (msgData->bio.userId > 0)
-        {
-            isBioMessage = true;
-            update.update_id = msgData->bio.updateId;
-
-            // Конструирование BIO сообщения
-            UserBio userBio;
-            if (!userBio.fromJson(msgData->data))
-                continue;
-
-            User::Ptr user {new User};
-            user->id = msgData->bio.userId;
-            user->first_name = userBio.first_name;
-            user->last_name  = userBio.last_name;
-            user->username   = userBio.username;
-
-            Chat::Ptr chat {new Chat};
-            chat->id = msgData->bio.chatId;
-            
-            Message::Ptr message {new Message};
-            
-            message->message_id = msgData->bio.messageId;
-            message->text = userBio.bio;
-            message->from = user;
-            message->chat = chat;
-
-            update.message = message;
-
-            //log_verbose_m << "Emulation BIO message: " << update.toJson();
-        }
-        // Обработка обычного сообщения
-        else
-        {
-            if (!update.fromJson(msgData->data))
-                continue;
-        }
+        Update& update = msgData->update;
+        bool isBioMessage = (msgData->bio.userId > 0);
 
         // Событие обновления прав для бота
         if (update.my_chat_member)

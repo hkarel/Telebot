@@ -79,14 +79,14 @@ struct MessageData
 {
     typedef container_ptr<MessageData> Ptr;
 
-    // Сообщение в json-формате
-    QByteArray data;
-
     // Вспомогательное поле для обработки BIO сообщений
     Bio bio;
 
     // Пользователь только что вступил в группу
     bool isNewUser = {false};
+
+    // Десериализованное Телеграм-сообщение
+    Update update;
 };
 
 class Processing : public QThreadEx
