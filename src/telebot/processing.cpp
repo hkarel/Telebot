@@ -27,6 +27,7 @@ QWaitCondition Processing::_threadCond;
 QList<MessageData::Ptr> Processing::_updates;
 QMap<Processing::TemporaryKey, steady_timer> Processing::_temporaryNewUsers;
 QMap<QString, Processing::MediaGroup> Processing::_mediaGroups;
+Processing::VerifyAdmin::List Processing::_verifyAdmins;
 
 Processing::Processing()
 {}
@@ -46,6 +47,25 @@ void Processing::addUpdate(const MessageData::Ptr& msgData)
 
     _updates.append(msgData);
     _threadCond.wakeOne();
+}
+
+void Processing::addVerifyAdmin(qint64 chatId, qint64 userId, qint32 messageId)
+{
+    QMutexLocker locker {&_threadLock}; (void) locker;
+
+    if (lst::FindResult fr = _verifyAdmins.findRef(qMakePair(chatId, userId)))
+    {
+        VerifyAdmin* va = _verifyAdmins.item(fr.index());
+        va->messageIds.insert(messageId);
+    }
+    else
+    {
+        VerifyAdmin* va = _verifyAdmins.add();
+        va->chatId = chatId;
+        va->userId = userId;
+        va->messageId = messageId;
+        _verifyAdmins.sort();
+    }
 }
 
 void Processing::reloadConfig()
@@ -78,6 +98,18 @@ void Processing::run()
 
             if (_updates.isEmpty())
                 _threadCond.wait(&_threadLock, 50);
+
+            // Очистка списка VerifyAdmins
+            for (int i = 0; i < _verifyAdmins.count(); ++i)
+            {
+                VerifyAdmin* va = _verifyAdmins.item(i);
+                if (va->timer.elapsed() > 1*60*1000 /*1 мин*/)
+                {
+                    log_debug_m << log_format("Remove verify admin %?/%?/%?",
+                                              va->chatId, va->userId, va->messageId);
+                    _verifyAdmins.remove(i--);
+                }
+            }
 
             if (_updates.isEmpty())
                 continue;
@@ -338,6 +370,127 @@ void Processing::run()
         triggerText[tbot::Trigger::TextType::UrlLinks] = urllinksText.trimmed();
         //---
 
+        auto verifyAdmin = [&]() -> bool
+        {
+            auto deleteForwardMessage = [&]()
+            {
+                auto params = tgfunction("deleteMessage");
+                params->api["chat_id"] = chatId;
+                params->api["message_id"] = messageId;
+                params->delay = 200 /*0.2 сек*/;
+                emit sendTgCommand(params);
+            };
+
+            { //Block for QMutexLocker
+                QMutexLocker locker {&_threadLock}; (void) locker;
+
+                qint64 userId = message->from->id;
+                lst::FindResult fr = _verifyAdmins.findRef(qMakePair(chatId, userId));
+                if (fr.failed())
+                    return false;
+
+                VerifyAdmin* va = _verifyAdmins.item(fr.index());
+                if (va->messageIds.contains(messageId))
+                {
+                    deleteForwardMessage();
+                    return true;
+                }
+                if (va->messageId != messageId)
+                    return false;
+            }
+
+            if (!message->forward_origin)
+            {
+                log_error_m << log_format(
+                    R"("update_id":%?. Field message->forward_origin is empty)",
+                    update.update_id);
+                return false;
+            }
+
+            deleteForwardMessage();
+
+            QString botMsg;
+            if (message->forward_origin->type == "user")
+            {
+                if (!message->forward_origin->sender_user)
+                {
+                    log_error_m << log_format(
+                        R"("update_id":%?. Field message->forward_origin->sender_user is empty)",
+                        update.update_id);
+                    return false;
+                }
+
+                auto stringUserInfo = [&](const User::Ptr& user) -> QString
+                {
+                    // Формируем строку с описанием пользователя
+                    //   Смотри решение с Markdown разметкой тут:
+                    //   https://core.telegram.org/bots/api#markdown-style
+                    QString str = QString("[%2 %3](tg://user?id=%4)")
+                                          .arg(user->first_name)
+                                          .arg(user->last_name)
+                                          .arg(user->id);
+
+                    if (!user->username.isEmpty())
+                    {
+                        QString s = QString(" (@%1/%2)").arg(user->username).arg(user->id);
+                        str += s.replace("_", "\\_");
+                    }
+                    else
+                        str += QString(" (id: %1)").arg(user->id);
+
+                    return str;
+                };
+
+                if (adminIds.contains(message->forward_origin->sender_user->id))
+                {
+                    botMsg =
+                        u8"Верификация администратора."
+                        u8"\r\nПользователь %1"
+                        u8"\r\nявляется администратором группы";
+                }
+                else
+                {
+                    botMsg =
+                        u8"Верификация администратора."
+                        u8"\r\n❗️❗️❗️ *ВНИМАНИЕ* ❗️❗️❗️"
+                        u8"\r\nПользователь %1"
+                        u8"\r\n*НЕ* является администратором группы,"
+                        u8" возможно это мошенник";
+                }
+                botMsg = botMsg.arg(stringUserInfo(message->forward_origin->sender_user));
+            }
+            else if (message->forward_origin->type == "hidden_user")
+            {
+                botMsg =
+                    u8"Верификация администратора."
+                    u8"\r\n❗️❗️❗️ *ВНИМАНИЕ* ❗️❗️❗️"
+                    u8"\r\nПользователь _%1_ скрыл свои данные,"
+                    u8" проверить его принадлежность к администратором группы *НЕЛЬЗЯ*,"
+                    u8" возможно это мошенник";
+
+                botMsg = botMsg.arg(message->forward_origin->sender_user_name);
+            }
+            else
+            {
+                log_error_m << log_format(
+                    R"("update_id":%?. Unknown field value for message->forward_origin->type)",
+                    update.update_id);
+                return false;
+            }
+
+            if (!botMsg.isEmpty())
+            {
+                auto params = tgfunction("sendMessage");
+                params->api["chat_id"] = chatId;
+                params->api["text"] = botMsg;
+                params->api["parse_mode"] = "Markdown";
+                params->delay = 300 /*0.3 сек*/;
+                params->messageDel = 15 /*15 сек*/;
+                emit sendTgCommand(params);
+            }
+            return true;
+        };
+
         // Признак сообщения с информацией о новых пользователях
         bool isNewUsersMessage = message->new_chat_members.count();
 
@@ -349,6 +502,14 @@ void Processing::run()
 
         if (isNewUsersMessage || (isBioMessage && msgData->isNewUser))
             isNewUser = true;
+
+
+        if (!isNewUsersMessage)
+        {
+            // Обрабатываем команду бота verifyadmin
+            if (verifyAdmin())
+                continue;
+        }
 
         for (int i = 0; i < users.count(); ++i)
         {

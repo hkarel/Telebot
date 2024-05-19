@@ -98,6 +98,7 @@ public:
 
     bool init(qint64 botUserId);
     static void addUpdate(const MessageData::Ptr&);
+    static void addVerifyAdmin(qint64 chatId, qint64 userId, qint32 messageId);
 
 signals:
     void sendTgCommand(const tbot::TgParams::Ptr&);
@@ -148,6 +149,40 @@ private:
 
     };
     static QMap<QString /*media_group_id*/, MediaGroup> _mediaGroups;
+
+    struct VerifyAdmin
+    {
+        qint64 chatId = {0};
+        qint64 userId = {0};
+
+        // Идентификатор сообщения для обработки
+        qint32 messageId = {0};
+
+        // Идентификаторы сообщений для пропуска обработки
+        QSet<qint32> messageIds;
+
+        // Таймер для очистки списка VerifyAdmin
+        steady_timer timer;
+
+        struct Compare
+        {
+            int operator() (const VerifyAdmin* item1, const VerifyAdmin* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(item1->chatId,    item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(item1->userId,    item2->userId)
+                return 0;
+            }
+            int operator() (const QPair<qint64 /*chat id*/, qint64 /*user id*/>* pair,
+                            const VerifyAdmin* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(pair->first  /*chat id*/, item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(pair->second /*user id*/, item2->userId);
+                return 0;
+            }
+        };
+        typedef lst::List<VerifyAdmin, Compare> List;
+    };
+    static VerifyAdmin::List _verifyAdmins;
 
     bool _spamIsActive;
     QString _spamMessage;

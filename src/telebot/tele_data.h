@@ -290,33 +290,51 @@ struct Video : public clife_base
     J_SERIALIZE_END
 };
 
+struct MessageOrigin : public clife_base
+{
+    typedef clife_ptr<MessageOrigin> Ptr;
+
+    QString   type;              // Type of the message origin, maybe “user”, “hidden_user”
+    qint32    date = {0};        // Date the message was sent originally in Unix time
+    User::Ptr sender_user;       // User that sent the message originally
+    QString   sender_user_name;  // Name of the user that sent the message originally
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( type             )
+        J_SERIALIZE_OPT ( date             )
+        J_SERIALIZE_OPT ( sender_user      )
+        J_SERIALIZE_OPT ( sender_user_name )
+    J_SERIALIZE_END
+};
+
 struct Message : public clife_base
 {
     typedef MessagePtr Ptr;
 
-    qint32       message_id = {-1};               // Unique message identifier inside this chat
-    qint32       message_thread_id = {-1};        // Optional. Unique identifier of a message thread to which the message belongs; for supergroups only
-    User::Ptr    from;                            // Optional. Sender of the message; empty for messages sent to channels. For backward compatibility,
-                                                  // the field contains a fake sender user in non-channel chats, if the message was sent on behalf of a chat.
-    Chat::Ptr    sender_chat;                     // Optional. Sender of the message, sent on behalf of a chat. For example, the channel itself for channel posts, the supergroup itself for messages from anonymous group administrators, the linked channel for messages automatically forwarded to the discussion group. For backward compatibility, the field from contains a fake sender user in non-channel chats, if the message was sent on behalf of a chat.
-    qint32       date = {0};                      // Date the message was sent in Unix time
-    Chat::Ptr    chat;                            // Conversation the message belongs to
-    User::Ptr    forward_from;                    // Optional. For forwarded messages, sender of the original message
-    Chat::Ptr    forward_from_chat;               // Optional. For messages forwarded from channels or from anonymous administrators, information about the original sender chat
-    qint32       forward_from_message_id = {-1};  // Optional. For messages forwarded from channels, identifier of the original message in the channel
-    QString      forward_signature;               // Optional. For forwarded messages that were originally sent in channels or by an anonymous chat administrator, signature of the message sender if present
-    QString      forward_sender_name;             // Optional. Sender's name for messages forwarded from users who disallow adding a link to their account in forwarded messages
-    qint32       forward_date          = {0};     // Optional. For forwarded messages, date the original message was sent in Unix time
-    bool         is_topic_message      = {false}; // Optional. True, if the message is sent to a forum topic
-    bool         is_automatic_forward  = {false}; // Optional. True, if the message is a channel post that was automatically forwarded to the connected discussion group
-    Message::Ptr reply_to_message;                // Optional. For replies, the original message. Note that the Message object in this field will not contain further reply_to_message fields even if it itself is a reply.
-    User::Ptr    via_bot;                         // Optional. Bot through which the message was sent
-    qint32       edit_date             = {0};     // Optional. Date the message was last edited in Unix time
-    bool         has_protected_content = {false}; // Optional. True, if the message can't be forwarded
-    QString      media_group_id;                  // Optional. The unique identifier of a media message group this message belongs to
-    QString      author_signature;                // Optional. Signature of the post author for messages in channels, or the custom title of an anonymous group administrator
-    QString      text;                            // Optional. For text messages, the actual UTF-8 text of the message
-    QList<MessageEntity> entities;                // Optional. For text messages, special entities like usernames, URLs, bot commands, etc. that appear in the text
+    qint32               message_id = {-1};               // Unique message identifier inside this chat
+    qint32               message_thread_id = {-1};        // Optional. Unique identifier of a message thread to which the message belongs; for supergroups only
+    User::Ptr            from;                            // Optional. Sender of the message; empty for messages sent to channels. For backward compatibility,
+                                                          // the field contains a fake sender user in non-channel chats, if the message was sent on behalf of a chat.
+    Chat::Ptr            sender_chat;                     // Optional. Sender of the message, sent on behalf of a chat. For example, the channel itself for channel posts, the supergroup itself for messages from anonymous group administrators, the linked channel for messages automatically forwarded to the discussion group. For backward compatibility, the field from contains a fake sender user in non-channel chats, if the message was sent on behalf of a chat.
+    qint32               date = {0};                      // Date the message was sent in Unix time
+    Chat::Ptr            chat;                            // Conversation the message belongs to
+    MessageOrigin::Ptr   forward_origin;                  // Optional. Information about the original message for forwarded messages
+    User::Ptr            forward_from;                    // Optional. For forwarded messages, sender of the original message
+    Chat::Ptr            forward_from_chat;               // Optional. For messages forwarded from channels or from anonymous administrators, information about the original sender chat
+    qint32               forward_from_message_id = {-1};  // Optional. For messages forwarded from channels, identifier of the original message in the channel
+    QString              forward_signature;               // Optional. For forwarded messages that were originally sent in channels or by an anonymous chat administrator, signature of the message sender if present
+    QString              forward_sender_name;             // Optional. Sender's name for messages forwarded from users who disallow adding a link to their account in forwarded messages
+    qint32               forward_date          = {0};     // Optional. For forwarded messages, date the original message was sent in Unix time
+    bool                 is_topic_message      = {false}; // Optional. True, if the message is sent to a forum topic
+    bool                 is_automatic_forward  = {false}; // Optional. True, if the message is a channel post that was automatically forwarded to the connected discussion group
+    Message::Ptr         reply_to_message;                // Optional. For replies, the original message. Note that the Message object in this field will not contain further reply_to_message fields even if it itself is a reply.
+    User::Ptr            via_bot;                         // Optional. Bot through which the message was sent
+    qint32               edit_date             = {0};     // Optional. Date the message was last edited in Unix time
+    bool                 has_protected_content = {false}; // Optional. True, if the message can't be forwarded
+    QString              media_group_id;                  // Optional. The unique identifier of a media message group this message belongs to
+    QString              author_signature;                // Optional. Signature of the post author for messages in channels, or the custom title of an anonymous group administrator
+    QString              text;                            // Optional. For text messages, the actual UTF-8 text of the message
+    QList<MessageEntity> entities;                        // Optional. For text messages, special entities like usernames, URLs, bot commands, etc. that appear in the text
 
     Audio::Ptr    audio;    // Optional. Message is an audio file, information about the file
     Document::Ptr document; // Optional. Message is a general file, information about the file
@@ -373,6 +391,7 @@ struct Message : public clife_base
         J_SERIALIZE_OPT ( sender_chat             )
         J_SERIALIZE_OPT ( date                    )
         J_SERIALIZE_OPT ( chat                    )
+        J_SERIALIZE_OPT ( forward_origin          )
         J_SERIALIZE_OPT ( forward_from            )
         J_SERIALIZE_OPT ( forward_from_chat       )
         J_SERIALIZE_OPT ( forward_from_message_id )

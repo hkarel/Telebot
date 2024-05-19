@@ -2274,16 +2274,6 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             sendTgCommand(params);
         }
 
-        if (!chat->adminIds().contains(userId))
-        {
-            // Тайминг сообщения 1.5 сек
-            sendMessage(u8"Для управления ботом нужны права администратора");
-
-            // Штрафуем пользователя, который пытается управлять ботом (тайминг 3 сек)
-            reportSpam(chatId, message->from);
-            return true;
-        }
-
         QString actionLine = message->text.mid(entity.offset + entity.length);
 
         const QRegularExpression::PatternOptions patternOpt =
@@ -2322,6 +2312,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 //                u8"установлен бот;"
 //                u8"\r\n"
 
+                u8"\r\n%1 verifyadmin [va]&#185; - "
+                u8"Проверить принадлежность пользователя к администраторам группы;"
+                u8"\r\n"
+
                 u8"\r\n []&#185; - Сокращенное обозначение команды";
 
             sendMessage(botMsg.arg(_commandPrefix));
@@ -2338,6 +2332,24 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         QString command = lines.takeFirst();
         QStringList actions = lines;
 
+        //--- Команда может быть выполнена обычным пользователем ---
+        if ((command == "verifyadmin") || (command == "va"))
+        {
+            tbot::Processing::addVerifyAdmin(chatId, userId, messageId + 1);
+            return true;
+        }
+
+        if (!chat->adminIds().contains(userId))
+        {
+            // Тайминг сообщения 1.5 сек
+            sendMessage(u8"Для управления ботом нужны права администратора");
+
+            // Штрафуем пользователя, который пытается управлять ботом (тайминг 3 сек)
+            reportSpam(chatId, message->from);
+            return true;
+        }
+
+        //--- Команды могут быть выполнены только администратором ---
         if ((command == "help") || (command == "h"))
         {
             // Описание команды для Телеграм:
