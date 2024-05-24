@@ -1045,20 +1045,42 @@ void Application::http_finished()
             || rd.params->funcName == "banChatMember"
             || rd.params->funcName == "restrictChatMember")
         {
+            auto params = tbot::tgfunction(rd.params->funcName);
+            params->api = rd.params->api;
+            params->attempt = rd.params->attempt + 1;
+
             if (rd.params->attempt == 1)
             {
-                auto params = tbot::tgfunction(rd.params->funcName);
-                params->api = rd.params->api;
                 params->delay = 30*1000 /*30 сек*/;
-                params->attempt = 2;
                 sendTgCommand(params);
             }
             if (rd.params->attempt == 2)
             {
-                auto params = tbot::tgfunction(rd.params->funcName);
-                params->api = rd.params->api;
                 params->delay = 60*1000 /*60 сек*/;
-                params->attempt = 3;
+                sendTgCommand(params);
+            }
+        }
+
+        if (rd.params->funcName == "getChat"
+            || rd.params->funcName == "getChatAdministrators")
+        {
+            auto params = tbot::tgfunction(rd.params->funcName);
+            params->api = rd.params->api;
+            params->attempt = rd.params->attempt + 1;
+
+            if (rd.params->attempt == 1)
+            {
+                params->delay = 20*1000 /*20 сек*/;
+                sendTgCommand(params);
+            }
+            if (rd.params->attempt == 2)
+            {
+                params->delay = 30*1000 /*30 сек*/;
+                sendTgCommand(params);
+            }
+            if (rd.params->attempt == 3)
+            {
+                params->delay = 60*1000 /*60 сек*/;
                 sendTgCommand(params);
             }
         }
@@ -1242,12 +1264,12 @@ void Application::reloadGroups()
         auto params = tbot::tgfunction("getChat");
         params->api["chat_id"] = chat->id;
 
-        // Команды getChat отправляются с интервалом 70  миллисекунд,  чтобы
+        // Команды getChat отправляются с интервалом 100 миллисекунд, чтобы
         // уложиться в ограничение Телеграм на 30 запросов в секунду от бота.
-        // Интервал 70 миллисекунд обеспечивает двукратный запас  по времени,
+        // Интервал 100 миллисекунд обеспечивает существенный временной запас,
         // это обусловлено тем, что после вызова getChat идет вызов команды
         // getChatAdministrators
-        params->delay = 70 * i;
+        params->delay = 100 * i;
         sendTgCommand(params);
 
         if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chat->id))
