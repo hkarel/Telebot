@@ -59,6 +59,9 @@ struct TgParams
 
     // Команда для режима Anti-Raid
     bool isAntiRaid = {false};
+
+    // Признак бот-команды
+    bool isBotCommand = {false};
 };
 
 inline TgParams::Ptr tgfunction(const char* funcName)
@@ -109,8 +112,8 @@ signals:
     // Аннулирование штрафов за спам-сообщения
     void resetSpam(qint64 chatId, qint64 userId);
 
-    void updateBotCommands();
-    void updateChatAdminInfo(qint64 chatId);
+    // Обновление информации о группе и её администраторах
+    void reloadGroup(qint64 chatId, bool);
 
     // Учет пользователей и сообщений в системе Anti-Raid
     void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);

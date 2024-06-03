@@ -133,8 +133,8 @@ void Processing::run()
         {
             if (update.my_chat_member->chat)
             {
-                // Обновляем информацию по администраторам для группы
-                emit updateChatAdminInfo(update.my_chat_member->chat->id);
+                // Обновляем информацию о группе и её администраторах
+                emit reloadGroup(update.my_chat_member->chat->id, false);
             }
             else
                 log_error_m << log_format(
@@ -181,8 +181,8 @@ void Processing::run()
             {
                 if (update.chat_member->chat)
                 {
-                    // Обновляем информацию по администраторам для группы
-                    emit updateChatAdminInfo(update.chat_member->chat->id);
+                    // Обновляем информацию о группе и её администраторах
+                    emit reloadGroup(update.chat_member->chat->id, false);
                 }
                 else
                     log_error_m << log_format(

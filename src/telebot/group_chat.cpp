@@ -349,29 +349,40 @@ GroupChat::List groupChats(GroupChat::List* list)
         // момент придет сообщение от админа, оно может быть  удалено  ботом.
         // Чтобы не оставлять группу с пустым списком  админов,  переприсваи-
         // ваем его из "старых" групп. Новый список админов будет получен и
-        // обновлен через 1-2 секунды.
-        for (GroupChat* chat : *list)
+        // обновлен через 1-2 секунды
+        for (GroupChat* oldChat : *list)
         {
-            QSet<qint64> adminIds = chat->adminIds();
-            QSet<qint64> ownerIds = chat->ownerIds();
-            QStringList  adminNames = chat->adminNames();
-            bool antiRaidTurnOn = chat->antiRaidTurnOn;
-            ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
-            if (lst::FindResult fr = chats.findRef(chat->id))
+            QString       chatName               = oldChat->name();
+            QSet<qint64>  adminIds               = oldChat->adminIds();
+            QSet<qint64>  ownerIds               = oldChat->ownerIds();
+            QStringList   adminNames             = oldChat->adminNames();
+            bool          antiRaidTurnOn         = oldChat->antiRaidTurnOn;
+            ChatMemberAdministrator::Ptr botInfo = oldChat->botInfo();
+
+            if (GroupChat* newChat = chats.findItem(&oldChat->id))
             {
+                if (oldChat == newChat)
+                {
+                    log_debug_m << "oldChat == newChat";
+                    continue;
+                }
+
+                if (!chatName.isEmpty())
+                    newChat->setName(chatName);
+
                 if (!adminIds.isEmpty())
-                    chats[fr.index()].setAdminIds(adminIds);
+                    newChat->setAdminIds(adminIds);
 
                 if (!ownerIds.isEmpty())
-                    chats[fr.index()].setOwnerIds(ownerIds);
+                    newChat->setOwnerIds(ownerIds);
 
                 if (!adminNames.isEmpty())
-                    chats[fr.index()].setAdminNames(adminNames);
+                    newChat->setAdminNames(adminNames);
 
-                chats[fr.index()].antiRaidTurnOn = antiRaidTurnOn;
+                newChat->antiRaidTurnOn = antiRaidTurnOn;
 
                 if (botInfo)
-                    chats[fr.index()].setBotInfo(botInfo);
+                    newChat->setBotInfo(botInfo);
             }
         }
     }

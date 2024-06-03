@@ -496,8 +496,16 @@ void Application::timerEvent(QTimerEvent* event)
         {
             log_verbose_m << "Update groups config-file by timer";
 
-            // Обновляем конфигурацию групп и список актуальных админов
-            reloadGroups();
+            // Обновляем информацию о группах и списки администраторов
+            tbot::GroupChat::List chats = tbot::groupChats();
+            for (int i = 0; i < chats.count(); ++i)
+            {
+                tbot::GroupChat* chat = chats.item(i);
+                auto params = tbot::tgfunction("getChat");
+                params->api["chat_id"] = chat->id;
+                params->delay = 5*1000 /*5 сек*/ * i;
+                sendTgCommand(params);
+            }
         }
     }
 }
@@ -975,7 +983,7 @@ void Application::http_finished()
             && rd.params->funcName == "getChat")
             printToLog();
 
-        if (_printGetChatAdministrators
+        if (_printGetChatAdmins
             && rd.params->funcName == "getChatAdministrators")
             printToLog();
     }
@@ -1045,9 +1053,8 @@ void Application::http_finished()
             || rd.params->funcName == "banChatMember"
             || rd.params->funcName == "restrictChatMember")
         {
-            auto params = tbot::tgfunction(rd.params->funcName);
-            params->api = rd.params->api;
-            params->attempt = rd.params->attempt + 1;
+            auto params = tbot::TgParams::Ptr::create(*rd.params);
+            params->attempt += 1;
 
             if (rd.params->attempt == 1)
             {
@@ -1064,9 +1071,8 @@ void Application::http_finished()
         if (rd.params->funcName == "getChat"
             || rd.params->funcName == "getChatAdministrators")
         {
-            auto params = tbot::tgfunction(rd.params->funcName);
-            params->api = rd.params->api;
-            params->attempt = rd.params->attempt + 1;
+            auto params = tbot::TgParams::Ptr::create(*rd.params);
+            params->attempt += 1;
 
             if (rd.params->attempt == 1)
             {
@@ -1136,11 +1142,17 @@ void Application::reloadConfig()
         config::observer().addFile(configFileS);
     }
 
+    _printTriggers = true;
+    config::base().getValue("print_log.triggers", _printTriggers);
+
+    _printGroupChats = true;
+    config::base().getValue("print_log.group_chats", _printGroupChats);
+
     _printGetChat = true;
     config::base().getValue("print_log.get_chat_info", _printGetChat);
 
-    _printGetChatAdministrators = true;
-    config::base().getValue("print_log.get_chat_administrators", _printGetChatAdministrators);
+    _printGetChatAdmins = true;
+    config::base().getValue("print_log.get_chat_administrators", _printGetChatAdmins);
 
     reloadBotMode();
     reloadGroups();
@@ -1235,50 +1247,89 @@ void Application::reloadBotMode()
     }
 }
 
+void Application::reloadGroup(qint64 chatId, bool botCommand)
+{
+    auto params = tbot::tgfunction("getChat");
+    params->api["chat_id"] = chatId;
+    params->isBotCommand = botCommand;
+    sendTgCommand(params);
+}
+
 void Application::reloadGroups()
 {
     if (!config::work().rereadFile())
         return;
 
-    _getChatAdminCallCount = 0;
     tbot::globalConfigParceErrors = 0;
 
     { //Block for tbot::Trigger::List
         tbot::Trigger::List triggers;
         tbot::loadTriggers(triggers);
-        tbot::printTriggers(triggers);
+
+        if (_printTriggers)
+            tbot::printTriggers(triggers);
+
         tbot::triggers(&triggers);
     }
 
-    { //Block for tbot::GroupChat::List
+    tbot::GroupChat::List oldChats;
+
+    { //Block for tbot::Trigger::List
         tbot::GroupChat::List chats;
         tbot::loadGroupChats(chats);
-        tbot::printGroupChats(chats);
+
+        if (_printGroupChats)
+            tbot::printGroupChats(chats);
+
         tbot::groupChats(&chats);
+        oldChats.swap(chats);
     }
 
-    tbot::GroupChat::List chats = tbot::groupChats();
-    for (int i = 0; i < chats.count(); ++i)
+    if (tbot::globalConfigParceErrors == 0)
     {
-        tbot::GroupChat* chat = chats.item(i);
-        auto params = tbot::tgfunction("getChat");
-        params->api["chat_id"] = chat->id;
+        log_info_m << "---";
+        log_info_m << "Success parse groups config-file";
+        log_info_m << "---";
+    }
+    else
+    {
+        log_error_m << "---";
+        log_error_m << "Failed parse groups config-file"
+                    << ". Error count: " << int(tbot::globalConfigParceErrors);
+        log_error_m << "---";
+    }
 
-        // Команды getChat отправляются с интервалом 100 миллисекунд, чтобы
-        // уложиться в ограничение Телеграм на 30 запросов в секунду от бота.
-        // Интервал 100 миллисекунд обеспечивает существенный временной запас,
-        // это обусловлено тем, что после вызова getChat идет вызов команды
-        // getChatAdministrators
-        params->delay = 100 * i;
-        sendTgCommand(params);
+    tbot::GroupChat::List newChats = tbot::groupChats();
 
+    // Получение/обновление информации о группах и их администраторах
+    if (newChats.count() > oldChats.count())
+    {
+        int index = 0;
+        for (tbot::GroupChat* newChat : newChats)
+        {
+            if (oldChats.findRef(newChat->id))
+                continue;
+
+            auto params = tbot::tgfunction("getChat");
+            params->api["chat_id"] = newChat->id;
+
+            // Команды getChat отправляются с интервалом 100 миллисекунд, чтобы
+            // уложиться в ограничение Телеграм на 30 запросов в секунду от бота.
+            // Интервал 100 миллисекунд обеспечивает существенный временной запас,
+            // это обусловлено тем, что после вызова getChat идет вызов команды
+            // getChatAdministrators
+            params->delay = 100 * index++;
+            sendTgCommand(params);
+        }
+    }
+
+    for (tbot::GroupChat* chat : newChats)
         if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chat->id))
         {
             QDateTime currentTime = QDateTime::currentDateTimeUtc();
             if (antiRaid->deactiveTime > currentTime)
                 chat->antiRaidTurnOn = true;
         }
-    }
 
     if (_masterMode)
     {
@@ -1462,7 +1513,7 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
                 && rd.params->funcName == "getChat")
                 printToLog();
 
-            if (_printGetChatAdministrators
+            if (_printGetChatAdmins
                 && rd.params->funcName == "getChatAdministrators")
                 printToLog();
         }
@@ -1531,11 +1582,8 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::resetSpam,
                           this, &Application::resetSpam);
 
-            chk_connect_q(p, &tbot::Processing::updateBotCommands,
-                          this, &Application::updateBotCommands);
-
-            chk_connect_q(p, &tbot::Processing::updateChatAdminInfo,
-                          this, &Application::updateChatAdminInfo);
+            chk_connect_q(p, &tbot::Processing::reloadGroup,
+                          this, &Application::reloadGroup);
 
             chk_connect_q(p, &tbot::Processing::antiRaidUser,
                           this, &Application::antiRaidUser);
@@ -1581,11 +1629,15 @@ void Application::httpResultHandler(const ReplyData& rd)
                             if (!username.isEmpty())
                             {
                                 chats[fr.index()].setName(username);
-                                tbot::groupChats(&chats);
+
+                                // Необязательно здесь пересоздавать список групп,
+                                // так как меняется только имя группы
+                                // tbot::groupChats(&chats);
                             }
                         }
                         auto params = tbot::tgfunction("getChatAdministrators");
                         params->api["chat_id"] = chatId;
+                        params->isBotCommand = rd.params->isBotCommand;
                         sendTgCommand(params);
                     }
                     else
@@ -1685,8 +1737,6 @@ void Application::httpResultHandler(const ReplyData& rd)
     }
     else if (rd.params->funcName == "getChatAdministrators")
     {
-        ++_getChatAdminCallCount;
-
         tbot::HttpResult httpResult;
         if (!httpResult.fromJson(rd.data))
             return;
@@ -1696,7 +1746,7 @@ void Application::httpResultHandler(const ReplyData& rd)
 
         qint64 chatId = rd.params->api["chat_id"].toLongLong();
         tbot::GroupChat::List chats = tbot::groupChats();
-        if (lst::FindResult fr = chats.findRef(chatId))
+        if (tbot::GroupChat* chat = chats.findItem(&chatId))
         {
             tbot::GetChatAdministrators_Result result;
             if (result.fromJson(rd.data))
@@ -1719,30 +1769,23 @@ void Application::httpResultHandler(const ReplyData& rd)
                             botInfo = item;
                     }
 
-                tbot::GroupChat* chat = chats.item(fr.index());
                 chat->setAdminIds(adminIds);
                 chat->setOwnerIds(ownerIds);
                 chat->setAdminNames(adminNames);
                 chat->setBotInfo(botInfo);
-            }
-        }
 
-        if (chats.count() == _getChatAdminCallCount)
-        {
-            if (tbot::globalConfigParceErrors == 0)
-            {
-                log_info_m << "---";
-                log_info_m << "Success parse groups config-file";
-                log_info_m << "---";
+                log_info_m << log_format("Chat info updated: %?/%?",
+                                         chat->name(), chatId);
+
+                if (rd.params->isBotCommand)
+                {
+                    auto params = tbot::tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = u8"Информация о группе обновлена";
+                    params->api["parse_mode"] = "HTML";
+                    sendTgCommand(params);
+                }
             }
-            else
-            {
-                log_error_m << "---";
-                log_error_m << "Failed parse groups config-file"
-                            << ". Error count: " << int(tbot::globalConfigParceErrors);
-                log_error_m << "---";
-            }
-            _getChatAdminCallCount = 0;
         }
     }
     else if (rd.params->funcName == "banChatMember"
@@ -2195,13 +2238,6 @@ void Application::updateBotCommands()
     }
 }
 
-void Application::updateChatAdminInfo(qint64 chatId)
-{
-    auto params = tbot::tgfunction("getChatAdministrators");
-    params->api["chat_id"] = chatId;
-    sendTgCommand(params);
-}
-
 void Application::loadBotCommands()
 {
     QList<qint64> timelimitInactiveChats;
@@ -2336,6 +2372,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 u8"\r\n%1 verifyadmin [va]&#185; - "
                 u8"Проверить принадлежность пользователя к администраторам группы;"
+                u8"\r\n"
+
+                u8"\r\n%1 reloadgroup [rg]&#185; - "
+                u8"Обновить информацию о группе и её администраторах;"
                 u8"\r\n"
 
                 u8"\r\n []&#185; - Сокращенное обозначение команды";
@@ -2507,6 +2547,11 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             {
                 resetSpam(chatId, spamUserId);
             }
+            return true;
+        }
+        else if ((command == "reloadgroup") || (command == "rg"))
+        {
+            reloadGroup(chatId, true);
             return true;
         }
         else

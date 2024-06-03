@@ -90,9 +90,11 @@ public slots:
 
     void reloadConfig();
     void reloadBotMode();
-    void reloadGroups();
-    void startRequest();
 
+    void reloadGroup(qint64 chatId, bool botCommand);
+    void reloadGroups();
+
+    void startRequest();
     void timelimitCheck();
 
     // Функция для отправки Телеграм-команды
@@ -112,7 +114,6 @@ public slots:
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
     void updateBotCommands();
-    void updateChatAdminInfo(qint64 chatId);
 
 private:
     Q_OBJECT
@@ -282,9 +283,8 @@ private:
     typedef container_ptr<QNetworkAccessManager> QNetworkAccessManagerPtr;
     QNetworkAccessManagerPtr _networkAccManager;
 
-    // Счетчик вызова ТГ-функции "getChatAdministrators"
-    int _getChatAdminCallCount = {0};
-
+    bool _printTriggers = {true};
+    bool _printGroupChats = {true};
     bool _printGetChat = {true};
-    bool _printGetChatAdministrators = {true};
+    bool _printGetChatAdmins = {true};
 };
