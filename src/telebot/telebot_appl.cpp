@@ -93,7 +93,7 @@ Application::Application(int& argc, char** argv)
     _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
-    _updateAdminsTimerId = startTimer(60*60*1000 /*1 час*/);
+    _updateAdminsTimerId = startTimer(2*60*60*1000 /*2 часа*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
                   this, &Application::reloadConfig)
@@ -496,14 +496,14 @@ void Application::timerEvent(QTimerEvent* event)
         {
             log_verbose_m << "Update groups config-file by timer";
 
-            // Обновляем информацию о группах и списки администраторов
+            // Обновляем информацию о группах и списках администраторов
             tbot::GroupChat::List chats = tbot::groupChats();
             for (int i = 0; i < chats.count(); ++i)
             {
                 tbot::GroupChat* chat = chats.item(i);
                 auto params = tbot::tgfunction("getChat");
                 params->api["chat_id"] = chat->id;
-                params->delay = 5*1000 /*5 сек*/ * i;
+                params->delay = 10*1000 /*10 сек*/ * i;
                 sendTgCommand(params);
             }
         }
@@ -1774,7 +1774,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                 chat->setAdminNames(adminNames);
                 chat->setBotInfo(botInfo);
 
-                log_info_m << log_format("Chat info updated: %?/%?",
+                log_info_m << log_format("Group chat info updated: %?/%?",
                                          chat->name(), chatId);
 
                 if (rd.params->isBotCommand)
