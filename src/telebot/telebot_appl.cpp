@@ -93,7 +93,7 @@ Application::Application(int& argc, char** argv)
     _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
-    _updateAdminsTimerId = startTimer(3*60*60*1000 /*3 часа*/);
+    _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
                   this, &Application::reloadConfig)
@@ -503,7 +503,7 @@ void Application::timerEvent(QTimerEvent* event)
                 tbot::GroupChat* chat = chats.item(i);
                 auto params = tbot::tgfunction("getChat");
                 params->api["chat_id"] = chat->id;
-                params->delay = 60*1000 /*60 сек*/ * i;
+                params->delay = 2*60*1000 /*2 мин*/ * i;
                 sendTgCommand(params);
             }
         }
