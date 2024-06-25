@@ -328,24 +328,24 @@ void Processing::run()
         if (message->audio)
         {
             filemimeText += QString(" %1 %2 %3 %4")
-                                    .arg(message->audio->performer)
-                                    .arg(message->audio->title)
-                                    .arg(message->audio->file_name)
-                                    .arg(message->audio->mime_type);
+                                   .arg(message->audio->performer)
+                                   .arg(message->audio->title)
+                                   .arg(message->audio->file_name)
+                                   .arg(message->audio->mime_type);
             filemimeText = filemimeText.trimmed();
         }
         if (message->document)
         {
             filemimeText += QString(" %1 %2")
-                                    .arg(message->document->file_name)
-                                    .arg(message->document->mime_type);
+                                   .arg(message->document->file_name)
+                                   .arg(message->document->mime_type);
             filemimeText = filemimeText.trimmed();
         }
         if (message->video)
         {
             filemimeText += QString(" %1 %2")
-                                    .arg(message->video->file_name)
-                                    .arg(message->video->mime_type);
+                                   .arg(message->video->file_name)
+                                   .arg(message->video->mime_type);
             filemimeText = filemimeText.trimmed();
         }
         triggerText[tbot::Trigger::TextType::FileMime] = filemimeText;
@@ -426,9 +426,9 @@ void Processing::run()
                     //   Смотри решение с Markdown разметкой тут:
                     //   https://core.telegram.org/bots/api#markdown-style
                     QString str = QString("[%2 %3](tg://user?id=%4)")
-                                          .arg(user->first_name)
-                                          .arg(user->last_name)
-                                          .arg(user->id);
+                                         .arg(user->first_name)
+                                         .arg(user->last_name)
+                                         .arg(user->id);
 
                     if (!user->username.isEmpty())
                     {
@@ -577,9 +577,9 @@ void Processing::run()
             if (user /*message->from*/)
             {
                 usernameText += QString(" %1 %2 %3")
-                                        .arg(user->first_name)
-                                        .arg(user->last_name)
-                                        .arg(user->username);
+                                       .arg(user->first_name)
+                                       .arg(user->last_name)
+                                       .arg(user->username);
                 usernameText = usernameText.trimmed();
                 isPremium = user->is_premium;
             }
@@ -588,35 +588,35 @@ void Processing::run()
                 && !chat->whiteUsers.contains(message->forward_from->id))
             {
                 usernameText += QString(" %1 %2 %3")
-                                        .arg(message->forward_from->first_name)
-                                        .arg(message->forward_from->last_name)
-                                        .arg(message->forward_from->username);
+                                       .arg(message->forward_from->first_name)
+                                       .arg(message->forward_from->last_name)
+                                       .arg(message->forward_from->username);
                 usernameText = usernameText.trimmed();
             }
             if (message->sender_chat)
             {
                 usernameText += QString(" %1 %2 %3 %4")
-                                        .arg(message->sender_chat->title)
-                                        .arg(message->sender_chat->first_name)
-                                        .arg(message->sender_chat->last_name)
-                                        .arg(message->sender_chat->username);
+                                       .arg(message->sender_chat->title)
+                                       .arg(message->sender_chat->first_name)
+                                       .arg(message->sender_chat->last_name)
+                                       .arg(message->sender_chat->username);
                 usernameText = usernameText.trimmed();
             }
             if (message->forward_from_chat)
             {
                 usernameText += QString(" %1 %2 %3 %4")
-                                        .arg(message->forward_from_chat->title)
-                                        .arg(message->forward_from_chat->first_name)
-                                        .arg(message->forward_from_chat->last_name)
-                                        .arg(message->forward_from_chat->username);
+                                       .arg(message->forward_from_chat->title)
+                                       .arg(message->forward_from_chat->first_name)
+                                       .arg(message->forward_from_chat->last_name)
+                                       .arg(message->forward_from_chat->username);
                 usernameText = usernameText.trimmed();
             }
             if (message->via_bot)
             {
                 usernameText += QString(" %1 %2 %3")
-                                        .arg(message->via_bot->first_name)
-                                        .arg(message->via_bot->last_name)
-                                        .arg(message->via_bot->username);
+                                       .arg(message->via_bot->first_name)
+                                       .arg(message->via_bot->last_name)
+                                       .arg(message->via_bot->username);
                 usernameText = usernameText.trimmed();
             }
             triggerText[tbot::Trigger::TextType::UserName] = usernameText;
@@ -628,10 +628,10 @@ void Processing::run()
                 //   Смотри решение с Markdown разметкой тут:
                 //   https://core.telegram.org/bots/api#markdown-style
                 QString str = QString("%1 => [%2 %3](tg://user?id=%4)")
-                                      .arg(user->id)
-                                      .arg(user->first_name)
-                                      .arg(user->last_name)
-                                      .arg(user->id);
+                                     .arg(user->id)
+                                     .arg(user->first_name)
+                                     .arg(user->last_name)
+                                     .arg(user->id);
 
                 if (!user->username.isEmpty())
                 {
