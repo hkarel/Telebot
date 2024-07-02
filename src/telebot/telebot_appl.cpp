@@ -431,6 +431,14 @@ void Application::timerEvent(QTimerEvent* event)
                     chat->name(), messageId);
             }
         }
+
+        //--- NewUser ---
+        for (int i = 0; i < _newUsers.count(); ++i)
+        {
+            NewUser* newUser = _newUsers.item(i);
+            if (newUser->timer.elapsed() >= 60*1000 /*1мин*/)
+                _newUsers.remove(i--);
+        }
     }
     else if (event->timerId() == _antiraidTimerId)
     {
@@ -1579,8 +1587,8 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::reportSpam,
                           this, &Application::reportSpam);
 
-            chk_connect_q(p, &tbot::Processing::resetSpam,
-                          this, &Application::resetSpam);
+            //chk_connect_q(p, &tbot::Processing::resetSpam,
+            //              this, &Application::resetSpam);
 
             chk_connect_q(p, &tbot::Processing::reloadGroup,
                           this, &Application::reloadGroup);
@@ -1590,6 +1598,9 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             chk_connect_q(p, &tbot::Processing::antiRaidMessage,
                           this, &Application::antiRaidMessage);
+
+            chk_connect_q(p, &tbot::Processing::restrictNewUser,
+                          this, &Application::restrictNewUser);
 
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
@@ -2218,6 +2229,49 @@ void Application::antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId
                 if (!antiRaid->messageIds.contains(messageId))
                     antiRaid->messageIds.append(messageId);
             }
+    }
+}
+
+void Application::restrictNewUser(qint64 chatId, qint64 userId)
+{
+    NewUser* newUser = _newUsers.findItem(&userId);
+    if (newUser == nullptr)
+    {
+        newUser = _newUsers.add();
+        newUser->userId = userId;
+        _newUsers.sort();
+    }
+
+    auto restrictCmd = [this](qint64 chatId, qint64 userId, qint64 restrictTime)
+    {
+        tbot::ChatPermissions chatPermissions;
+        QByteArray permissions = chatPermissions.toJson();
+
+        auto params = tbot::tgfunction("restrictChatMember");
+        params->api["chat_id"] = chatId;
+        params->api["user_id"] = userId;
+        params->api["until_date"] = qint64(std::time(nullptr)) + restrictTime + 5;
+        params->api["permissions"] = permissions;
+        params->api["use_independent_chat_permissions"] = false;
+        //params->delay = 2*1000/*2 сек*/ * index;
+        sendTgCommand(params);
+    };
+
+    if (!newUser->chatIds.contains(chatId))
+    {
+        newUser->chatIds.insert(chatId);
+        qint64 restrictTime = 12*60*60 /*12 часов*/;
+        if (newUser->chatIds.count() == 2)
+        {
+            for (qint64 chatId_ : newUser->chatIds)
+                restrictCmd(chatId_, userId, restrictTime);
+        }
+        if (newUser->chatIds.count() > 2)
+        {
+            restrictTime += 6*60*60 /*6 часов*/ * (newUser->chatIds.count() - 2);
+            restrictCmd(chatId, userId, restrictTime);
+        }
+        newUser->timer.reset();
     }
 }
 

@@ -113,6 +113,8 @@ public slots:
     void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
+    void restrictNewUser(qint64 chatId, qint64 userId);
+
     void updateBotCommands();
 
 private:
@@ -267,6 +269,25 @@ private:
 
     AntiRaid::List _antiRaidCache;
     int _antiRaidSaveStep = {0};
+
+    struct NewUser
+    {
+        qint64 userId = {0};
+        QSet<qint64> chatIds;
+        steady_timer timer;
+
+        struct Compare
+        {
+            int operator() (const NewUser* item1, const NewUser* item2) const
+                {return LIST_COMPARE_ITEM(item1->userId, item2->userId);}
+
+            int operator() (const qint64* userId, const NewUser* item2) const
+                {return LIST_COMPARE_ITEM(*userId, item2->userId);}
+        };
+
+        typedef lst::List<NewUser, Compare> List;
+    };
+    NewUser::List _newUsers;
 
     struct WebhookData
     {

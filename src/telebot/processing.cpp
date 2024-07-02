@@ -964,12 +964,18 @@ void Processing::run()
                 sendTgCommand(params);
             }
 
+            // Ограничение пользователя на два и более часа, если он в течении
+            // одной минуты подключается к нескольким группам
+            if (isNewUser && !isBioMessage)
+                emit restrictNewUser(chatId, user->id);
+
             // Проверка на Anti-Raid режим
             if (chat->antiRaid.active && chat->antiRaidTurnOn
                 && !isBioMessage && !messageDeleted && !userRestricted)
             {
                 emit antiRaidMessage(chatId, user->id, messageId);
             }
+
         } // for (int i = 0; i < users.count(); ++i)
 
         //--- Мониторинг скрытого тегирования пользователей ---

@@ -110,7 +110,7 @@ signals:
     void reportSpam(qint64 chatId, const tbot::User::Ptr&);
 
     // Аннулирование штрафов за спам-сообщения
-    void resetSpam(qint64 chatId, qint64 userId);
+    // void resetSpam(qint64 chatId, qint64 userId);
 
     // Обновление информации о группе и её администраторах
     void reloadGroup(qint64 chatId, bool);
@@ -118,6 +118,8 @@ signals:
     // Учет пользователей и сообщений в системе Anti-Raid
     void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
+
+    void restrictNewUser(qint64 chatId, qint64 userId);
 
 public slots:
     void reloadConfig();
