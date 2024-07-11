@@ -2261,7 +2261,11 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId)
     {
         newUser->chatIds.insert(chatId);
         qint64 restrictTime = 12*60*60 /*12 часов*/;
-        if (newUser->chatIds.count() == 2)
+        if (newUser->chatIds.count() == 1)
+        {
+            restrictCmd(chatId, userId, 10*60 /*10 мин*/);
+        }
+        else if (newUser->chatIds.count() == 2)
         {
             for (qint64 chatId_ : newUser->chatIds)
                 restrictCmd(chatId_, userId, restrictTime);
