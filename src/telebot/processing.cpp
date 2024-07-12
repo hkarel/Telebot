@@ -496,13 +496,23 @@ void Processing::run()
 
         QList<User::Ptr> users;
         if (isNewUsersMessage)
+        {
             users = message->new_chat_members;
+        }
+        else if (isNewUser
+                 && update.chat_member
+                 && update.chat_member->new_chat_member
+                 && update.chat_member->new_chat_member->user)
+        {
+            users.append(update.chat_member->new_chat_member->user);
+        }
         else
+        {
             users.append(message->from);
+        }
 
         if (isNewUsersMessage || (isBioMessage && msgData->isNewUser))
             isNewUser = true;
-
 
         if (!isNewUsersMessage)
         {
