@@ -2381,6 +2381,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         if (prefix != _commandPrefix)
             continue;
 
+        // Команда для бота должна быть в начале сообщения
+        if (entity.offset > 0)
+            continue;
+
         // Удаляем сообщение с командой
         {
             auto params = tbot::tgfunction("deleteMessage");
