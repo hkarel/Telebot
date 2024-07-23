@@ -2,6 +2,9 @@
 Description=Engine for Telegram Anti-Spam bot
 After=network.target multi-user.target
 
+Wants=telegram-botserver.service
+After=telegram-botserver.service
+
 [Service]
 Type=simple
 User=%TARGET_USER%

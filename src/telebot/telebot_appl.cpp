@@ -127,12 +127,30 @@ bool Application::init()
     chk_connect_a(_webhookServer.get(), &QTcpServer::newConnection,
                   this, &Application::webhook_newConnection)
 
-    quint16 port;
-    config::base().getValue("webhook.port", port);
+    _localServer = false;
+    config::base().getValue("local_server.active", _localServer);
 
-    log_verbose_m << "Start webhook server"
-                  << ". Address: " << QHostAddress::AnyIPv4
-                  << ". Port: " << port;
+    _localServerAddr = "127.0.0.1";
+    config::base().getValue("local_server.address", _localServerAddr);
+
+    _localServerPort = 0;
+    config::base().getValue("local_server.port", _localServerPort);
+
+    quint16 port = 0;
+    if (_localServer)
+    {
+        config::base().getValue("local_server.webhook_port", port);
+        log_verbose_m << "Start webhook local-server"
+                      << ". Address: " << QHostAddress::AnyIPv4
+                      << ". Port: " << port;
+    }
+    else
+    {
+        config::base().getValue("webhook.port", port);
+        log_verbose_m << "Start webhook cloud-server"
+                      << ". Address: " << QHostAddress::AnyIPv4
+                      << ". Port: " << port;
+    }
 
     if (!_webhookServer->listen(QHostAddress::AnyIPv4, port))
     {
@@ -141,48 +159,51 @@ bool Application::init()
         return false;
     }
 
-    QString certPath;
-    config::base().getValue("webhook.certificate", certPath);
-
-    QFile file;
-    file.setFileName(certPath);
-    if (!file.open(QIODevice::ReadOnly))
+    if (!_localServer)
     {
-        log_error_m << "Failed open cert file: " << certPath;
-        return false;
-    }
-    QByteArray certData = file.readAll();
-    file.close();
+        QString certPath;
+        config::base().getValue("webhook.certificate", certPath);
 
-    _sslCert = QSslCertificate(certData);
-    if (_sslCert.isNull())
-    {
-        log_error_m << "Failed ssl cert data. File: " << certPath;
-        return false;
-    }
-    if (_sslCert.subjectInfo(QSslCertificate::CommonName).isEmpty())
-    {
-        log_error_m << "Failed ssl cert. CN field is empty. File: " << certPath;
-        return false;
-    }
+        QFile file;
+        file.setFileName(certPath);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open cert file: " << certPath;
+            return false;
+        }
+        QByteArray certData = file.readAll();
+        file.close();
 
-    QString keyPath;
-    config::base().getValue("webhook.private_key", keyPath);
+        _sslCert = QSslCertificate(certData);
+        if (_sslCert.isNull())
+        {
+            log_error_m << "Failed ssl cert data. File: " << certPath;
+            return false;
+        }
+        if (_sslCert.subjectInfo(QSslCertificate::CommonName).isEmpty())
+        {
+            log_error_m << "Failed ssl cert. CN field is empty. File: " << certPath;
+            return false;
+        }
 
-    file.setFileName(keyPath);
-    if (!file.open(QIODevice::ReadOnly))
-    {
-        log_error_m << "Failed open key file: " << keyPath;
-        return false;
-    }
-    QByteArray keyData = file.readAll();
-    file.close();
+        QString keyPath;
+        config::base().getValue("webhook.private_key", keyPath);
 
-    _sslKey = QSslKey(keyData, QSsl::KeyAlgorithm::Rsa);
-    if (_sslKey.isNull())
-    {
-        log_error_m << "Failed ssl key data. File: " << keyPath;
-        return false;
+        file.setFileName(keyPath);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open key file: " << keyPath;
+            return false;
+        }
+        QByteArray keyData = file.readAll();
+        file.close();
+
+        _sslKey = QSslKey(keyData, QSsl::KeyAlgorithm::Rsa);
+        if (_sslKey.isNull())
+        {
+            log_error_m << "Failed ssl key data. File: " << keyPath;
+            return false;
+        }
     }
 
     loadReportSpam();
@@ -798,11 +819,14 @@ void Application::webhook_newConnection()
     chk_connect_a(socket, &QSslSocket::encrypted,
                   this,   &Application::webhook_readyConnection);
 
-    socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-    socket->setLocalCertificateChain(QList<QSslCertificate>{_sslCert});
-    socket->setPrivateKey(_sslKey);
-    socket->setProtocol(QSsl::TlsV1_3OrLater);
-    socket->startServerEncryption();
+    if (!_localServer)
+    {
+        socket->setPeerVerifyMode(QSslSocket::VerifyNone);
+        socket->setLocalCertificateChain(QList<QSslCertificate>{_sslCert});
+        socket->setPrivateKey(_sslKey);
+        socket->setProtocol(QSsl::TlsV1_3OrLater);
+        socket->startServerEncryption();
+    }
 
     quint64 socketId = reinterpret_cast<quint64>(socket);
     WebhookData& wd = _webhookMap[socketId];
@@ -1479,7 +1503,13 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
         if (_stop)
             return;
 
-        QString urlStr = "https://api.telegram.org/bot%1/%2";
+        QString urlStr = "https://api.telegram.org";
+        if (_localServer)
+        {
+            urlStr = "http://%1:%2";
+            urlStr = urlStr.arg(_localServerAddr).arg(_localServerPort);
+        }
+        urlStr += "/bot%1/%2";
         urlStr = urlStr.arg(_botId).arg(params->funcName);
 
         QUrlQuery query;

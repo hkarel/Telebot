@@ -1,0 +1,17 @@
+[Unit]
+Description=Local Telegram-Bot server
+After=network.target multi-user.target
+
+[Service]
+Type=simple
+Environment="TELEGRAM_API_ID=api_id"
+Environment="TELEGRAM_API_HASH=api_hash"
+ExecStart=/opt/telegram-botserver/7.7/bin/telegram-bot-api --local --dir=/var/opt/telegram-botserver --max-webhook-connections=200 --log=/var/log/telegram-botserver.log --verbosity=5 --log-max-file-size=500000000
+TimeoutSec=15
+KillMode=process
+Restart=on-failure
+RestartSec=5
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

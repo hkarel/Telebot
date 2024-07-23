@@ -161,6 +161,10 @@ private:
     QSslCertificate _sslCert;
     SslServer::Ptr _webhookServer;
 
+    bool _localServer = {false};
+    QString _localServerAddr;
+    int _localServerPort = {0};
+
     tbot::Processing::List _procList;
 
     typedef QVector<QPair<SocketDescriptor, steady_timer>> SocketPair;
