@@ -1121,6 +1121,21 @@ void Application::http_finished()
                 params->delay = 60*1000 /*60 сек*/;
                 sendTgCommand(params);
             }
+            if (rd.params->attempt == 4)
+            {
+                params->delay = 2*60*1000 /*2 мин*/;
+                sendTgCommand(params);
+            }
+            if (rd.params->attempt == 5)
+            {
+                params->delay = 2*60*1000 /*2 мин*/;
+                sendTgCommand(params);
+            }
+            if (rd.params->attempt == 6)
+            {
+                params->delay = 3*60*1000 /*3 мин*/;
+                sendTgCommand(params);
+            }
         }
     }
 
