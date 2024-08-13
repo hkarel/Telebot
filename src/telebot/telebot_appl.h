@@ -153,6 +153,7 @@ private:
     QString _botId;
     qint64  _botUserId = {0};
     QString _commandPrefix;
+    QString _commandPrefixShort;
 
     bool _masterMode = {true};
     bool _listenerInit = {false};

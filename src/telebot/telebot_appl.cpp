@@ -1616,6 +1616,9 @@ void Application::httpResultHandler(const ReplyData& rd)
         _commandPrefix.clear();
         config::base().getValue("bot.command_prefix", _commandPrefix);
 
+        _commandPrefixShort.clear();
+        config::base().getValue("bot.command_prefix_short", _commandPrefixShort);
+
         for (int i = 0; i < procCount; ++i)
         {
             tbot::Processing* p = new tbot::Processing;
@@ -2423,7 +2426,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         QString prefix = message->text.mid(entity.offset, entity.length);
         prefix.remove(QRegularExpression("@.*$"));
 
-        if (prefix != _commandPrefix)
+        if (!((prefix == _commandPrefix) || (prefix == _commandPrefixShort)))
             continue;
 
         // Команда для бота должна быть в начале сообщения
@@ -2455,6 +2458,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             botMsg =
                 u8"Список доступных команд:"
+
                 u8"\r\n%1 help [h]&#185; - "
                 u8"Справка по списку команд;"
                 u8"\r\n"
