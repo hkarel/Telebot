@@ -2639,20 +2639,22 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         }
         else if ((command == "spamreset") || (command == "sr"))
         {
-            QString action = u8"пусто";
-            if (actions.count())
-                action = actions[0];
-
-            bool ok;
-            qint64 spamUserId = action.toLongLong(&ok);
+            bool ok = false;
+            qint64 spamUserId = 0;
+            for (const QString& action : actions)
+            {
+                spamUserId = action.toLongLong(&ok);
+                if (ok) break;
+            }
             if (!ok)
             {
                 log_error_m << log_format(
-                    "Bot command 'spamreset'. Failed convert '%?' to user id", action);
+                    "Bot command 'spamreset'. Failed extract user id from '%?'",
+                    actionLine);
 
-                botMsg = u8"Команда spamreset. Ошибка преобразования "
-                         u8"значения '%1' в идентификатор пользователя";
-                sendMessage(botMsg.arg(action));
+                botMsg = u8"Команда spamreset. Ошибка получения "
+                         u8"идентификатора пользователя";
+                sendMessage(botMsg);
             }
             else
             {
