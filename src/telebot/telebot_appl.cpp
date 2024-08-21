@@ -213,6 +213,8 @@ bool Application::init()
     loadAntiRaidCache();
 
     startRequest();
+
+    _botStartTime = QDateTime::currentDateTimeUtc();
     return true;
 }
 
@@ -601,16 +603,24 @@ void Application::socketDisconnected(SocketDescriptor socketDescr)
     for (int i = 0; i < _waitCloseSockets.count(); ++i)
         if (_waitCloseSockets[i].first == socketDescr)
             _waitCloseSockets.remove(i--);
+
+    if (!_masterMode)
+        _masterStartTime = QDateTime();
 }
 
 void Application::command_SlaveAuth(const Message::Ptr& message)
 {
     if (!_masterMode && (message->type() == Message::Type::Answer))
     {
+        _masterStartTime = QDateTime();
         if (message->execStatus() == Message::ExecStatus::Success)
         {
             log_info_m << "Success authorization on master-bot"
                        << ". Remote host: " << message->sourcePoint();
+
+            quint64 tag0 = message->tag(0);
+            if (tag0 != 0)
+                _masterStartTime = QDateTime::fromSecsSinceEpoch(qint64(tag0), Qt::UTC);
 
             QTimer::singleShot(5*1000 /*5 сек*/, [this]()
             {
@@ -643,7 +653,9 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
             if (_waitAuthSockets[i].first == message->socketDescriptor())
                 _waitAuthSockets.remove(i--);
 
-        // Отправляем подтверждение об успешной операции: пустое сообщение
+        // Отправляем подтверждение об успешной операции: пустое сообщение.
+        // В tag(0) отправляется время старта master-бота
+        answer->setTag(quint64(_botStartTime.toSecsSinceEpoch()), 0);
         tcp::listener().send(answer);
 
         log_info_m << "Success authorization slave-bot"
@@ -2364,13 +2376,24 @@ void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
 {
     if (!_masterMode)
     {
-        if (_slaveSocket && !_slaveSocket->isConnected())
+        bool slaveActive = true;
+        if (_slaveSocket && _slaveSocket->isConnected())
+        {
+            if (_masterStartTime.isValid())
+            {
+                if (_masterStartTime.secsTo(QDateTime::currentDateTimeUtc()) > 5*60 /*5 мин*/)
+                    slaveActive = false;
+            }
+            else
+                log_error_m << "Master-bot start time value is invalid";
+        }
+        if (slaveActive)
         {
             // Slave mode
             tbot::Processing::addUpdate(msgData);
         }
         else
-            log_verbose_m << "Bot in slave mode, message processing skipped";
+            log_verbose_m << "Bot in slave passive mode, message processing skipped";
     }
     else
     {
@@ -2383,7 +2406,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 {
     if (!_masterMode && _slaveSocket && _slaveSocket->isConnected())
     {
-        log_verbose_m << "Bot in slave mode, bot-command processing skipped";
+        log_verbose_m << "Bot in slave passive mode, bot-command processing skipped";
         return false;
     }
 

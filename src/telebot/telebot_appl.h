@@ -169,11 +169,14 @@ private:
     tbot::Processing::List _procList;
 
     typedef QVector<QPair<SocketDescriptor, steady_timer>> SocketPair;
-    SocketPair _waitAuthSockets;  // Список сокетов ожидающих авторизацию
-    SocketPair _waitCloseSockets; // Список сокетов ожидающих закрытие
+    SocketPair _waitAuthSockets;   // Список сокетов ожидающих авторизацию
+    SocketPair _waitCloseSockets;  // Список сокетов ожидающих закрытие
 
     tcp::Socket::Ptr _slaveSocket; // Сокет для соединения с master-ботом
 
+    QDateTime _botStartTime;       // Время старта бота
+    QDateTime _masterStartTime;    // Время старта master-бота, используется
+                                   // в slave-режиме
     FunctionInvoker _funcInvoker;
 
     struct Spammer
