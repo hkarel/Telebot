@@ -1097,14 +1097,14 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
     return trigger;
 }
 
-bool loadTriggers(Trigger::List& triggers)
+bool loadTriggers(Trigger::List& triggers, const YamlConfig& config)
 {
-    auto locker {config::work().locker()}; (void) locker;
+    auto locker {config.locker()}; (void) locker;
 
     bool result = false;
     try
     {
-        YAML::Node ytriggers = config::work().nodeGet("triggers");
+        YAML::Node ytriggers = config.nodeGet("triggers");
         if (!ytriggers.IsDefined() || ytriggers.IsNull())
             return false;
 
@@ -1120,7 +1120,7 @@ bool loadTriggers(Trigger::List& triggers)
             catch (trigger_logic_error& e)
             {
                 log_error_m << "Trigger configure error. Detail: " << e.what()
-                            << ". Config file: " << config::work().filePath();
+                            << ". Config file: " << config.filePath();
                 ++globalConfigParceErrors;
             }
 
@@ -1130,21 +1130,21 @@ bool loadTriggers(Trigger::List& triggers)
     {
         triggers.clear();
         log_error_m << "YAML error. Detail: " << e.what()
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     catch (std::exception& e)
     {
         triggers.clear();
         log_error_m << "Configuration error. Detail: " << e.what()
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     catch (...)
     {
         triggers.clear();
         log_error_m << "Unknown error"
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     return result;

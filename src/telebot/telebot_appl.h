@@ -92,7 +92,7 @@ public slots:
     void reloadBotMode();
 
     void reloadGroup(qint64 chatId, bool botCommand);
-    void reloadGroups();
+    void reloadGroups(const QString& configFile);
 
     void startRequest();
     void timelimitCheck();

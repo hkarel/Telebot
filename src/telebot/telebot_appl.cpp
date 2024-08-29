@@ -98,7 +98,7 @@ Application::Application(int& argc, char** argv)
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
                   this, &Application::reloadConfig)
 
-    chk_connect_a(&config::observer(), &config::Observer::changed,
+    chk_connect_a(&config::observer(), &config::Observer::changedItem,
                   this, &Application::reloadGroups)
 
     #define FUNC_REGISTRATION(COMMAND) \
@@ -770,9 +770,7 @@ void Application::command_ConfSync(const Message::Ptr& message)
 
     log_verbose_m << "Groups config file updated from master-bot: " << configFileS;
 
-    config::work().readFile(configFileS.toStdString());
-    reloadGroups();
-
+    reloadGroups(configFileS);
     config::observer().start();
 }
 
@@ -1188,17 +1186,18 @@ void Application::reloadConfig()
     // Путь к конфиг-файлу (master/slave) с телеграм-группами
     QString configFileM = QString(CONFIG_DIR) + "/telebot.groups";
     QString configFileS = QString(VAROPT_DIR) + "/state/telebot.groups";
+    QString configFile;
     if (_masterMode)
     {
-        config::work().readFile(configFileM.toStdString());
         config::observer().removeFile(configFileS);
         config::observer().addFile(configFileM);
+        configFile = configFileM;
     }
     else
     {
-        config::work().readFile(configFileS.toStdString());
         config::observer().removeFile(configFileM);
         config::observer().addFile(configFileS);
+        configFile = configFileS;
     }
 
     _printTriggers = true;
@@ -1214,7 +1213,7 @@ void Application::reloadConfig()
     config::base().getValue("print_log.get_chat_administrators", _printGetChatAdmins);
 
     reloadBotMode();
-    reloadGroups();
+    reloadGroups(configFile);
 }
 
 void Application::reloadBotMode()
@@ -1314,16 +1313,21 @@ void Application::reloadGroup(qint64 chatId, bool botCommand)
     sendTgCommand(params);
 }
 
-void Application::reloadGroups()
+void Application::reloadGroups(const QString& configFile)
 {
-    if (!config::work().rereadFile())
+    QFileInfo configInfo {configFile};
+    if (configInfo.fileName() != "telebot.groups")
+        return;
+
+    YamlConfig config;
+    if (!config.readFile(configFile.toStdString()))
         return;
 
     tbot::globalConfigParceErrors = 0;
 
     { //Block for tbot::Trigger::List
         tbot::Trigger::List triggers;
-        tbot::loadTriggers(triggers);
+        tbot::loadTriggers(triggers, config);
 
         if (_printTriggers)
             tbot::printTriggers(triggers);
@@ -1335,7 +1339,7 @@ void Application::reloadGroups()
 
     { //Block for tbot::Trigger::List
         tbot::GroupChat::List chats;
-        tbot::loadGroupChats(chats);
+        tbot::loadGroupChats(chats, config);
 
         if (_printGroupChats)
             tbot::printGroupChats(chats);

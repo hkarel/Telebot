@@ -104,7 +104,7 @@ private:
     mutable QMutex _lock {QMutex::Recursive};
 };
 
-bool loadGroupChats(GroupChat::List&);
+bool loadGroupChats(GroupChat::List&, const YamlConfig&);
 void printGroupChats(GroupChat::List&);
 
 GroupChat::List groupChats(GroupChat::List* = nullptr);

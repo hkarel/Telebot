@@ -228,14 +228,14 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     return chat;
 }
 
-bool loadGroupChats(GroupChat::List& chats)
+bool loadGroupChats(GroupChat::List& chats, const YamlConfig& config)
 {
-    auto locker {config::work().locker()}; (void) locker;
+    auto locker {config.locker()}; (void) locker;
 
     bool result = false;
     try
     {
-        YAML::Node ychats = config::work().nodeGet("group_chats");
+        YAML::Node ychats = config.nodeGet("group_chats");
         if (!ychats.IsDefined() || ychats.IsNull())
             return false;
 
@@ -251,7 +251,7 @@ bool loadGroupChats(GroupChat::List& chats)
             catch (group_logic_error& e)
             {
                 log_error_m << "Group configure error. Detail: " << e.what()
-                            << ". Config file: " << config::work().filePath();
+                            << ". Config file: " << config.filePath();
                 ++globalConfigParceErrors;
             }
 
@@ -261,19 +261,19 @@ bool loadGroupChats(GroupChat::List& chats)
     catch (YAML::ParserException& e)
     {
         log_error_m << "YAML error. Detail: " << e.what()
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     catch (std::exception& e)
     {
         log_error_m << "Configuration error. Detail: " << e.what()
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     catch (...)
     {
         log_error_m << "Unknown error"
-                    << ". Config file: " << config::work().filePath();
+                    << ". Config file: " << config.filePath();
         ++globalConfigParceErrors;
     }
     return result;

@@ -274,7 +274,7 @@ struct TriggerEmptyText : public Trigger
 
 const char* yamlTypeName(YAML::NodeType::value type);
 
-bool loadTriggers(Trigger::List&);
+bool loadTriggers(Trigger::List&, const YamlConfig&);
 void printTriggers(Trigger::List&);
 
 Trigger::List triggers(Trigger::List* = nullptr);

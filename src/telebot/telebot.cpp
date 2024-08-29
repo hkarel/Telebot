@@ -141,9 +141,6 @@ int main(int argc, char *argv[])
         config::dirExpansion(configFileS);
         config::state().readFile(configFileS.toStdString());
 
-        config::work().setReadOnly(true);
-        config::work().setSaveDisabled(true);
-
         // Создаем дефолтный сэйвер для логгера
         if (!alog::configDefaultSaver())
         {
