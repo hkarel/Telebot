@@ -107,6 +107,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(SlaveAuth)
     FUNC_REGISTRATION(ConfSync)
     FUNC_REGISTRATION(TimelimitSync)
+    FUNC_REGISTRATION(UserTriggerSync)
 
     #undef FUNC_REGISTRATION
 
@@ -661,15 +662,27 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
         log_info_m << "Success authorization slave-bot"
                    << ". Remote host: " << message->sourcePoint();
 
+        // Отправлем команду синхронизации timelimit
         qint64 timemark = 0;
         config::state().getValue("timelimit_inactive.timemark", timemark);
 
-        // Отправлем команду синхронизации timelimit
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
         timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
         Message::Ptr m = createJsonMessage(timelimitSync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
+        // Отправлем команду синхронизации user_trigger
+        timemark = 0;
+        config::state().getValue("user_trigger.timemark", timemark);
+
+        data::UserTriggerSync userTriggerSync;
+        userTriggerSync.timemark = timemark;
+        userTriggerSync.triggers.assign(_userTriggers);
+
+        m = createJsonMessage(userTriggerSync);
         m->appendDestinationSocket(answer->socketDescriptor());
         tcp::listener().send(m);
 
@@ -786,7 +799,7 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
     if (timelimitSync.timemark > timemark)
     {
         tbot::setTimelimitInactiveChats(timelimitSync.chats);
-        saveBotCommands(timelimitSync.timemark);
+        saveBotCommands("timelimit_inactive", timelimitSync.timemark);
 
         log_verbose_m << "Updated 'timelimit' settings for groups";
     }
@@ -805,6 +818,46 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
             timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
             writeToJsonMessage(timelimitSync, answer);
+            _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_UserTriggerSync(const Message::Ptr& message)
+{
+    data::UserTriggerSync userTriggerSync;
+    readFromMessage(message, userTriggerSync);
+
+    qint64 timemark = 0;
+    config::state().getValue("user_trigger.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (userTriggerSync.timemark > timemark)
+    {
+        _userTriggers = std::move(userTriggerSync.triggers);
+        for (data::UserTrigger* userTrgList : _userTriggers)
+            userTrgList->items.sort();
+        _userTriggers.sort();
+
+        saveBotCommands("user_trigger", userTriggerSync.timemark);
+
+        log_verbose_m << "Updated 'user_trigger' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            log_verbose_m << "Send 'user_trigger' settings to master-bot";
+
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::UserTriggerSync userTriggerSync;
+            userTriggerSync.timemark = timemark;
+            userTriggerSync.triggers.assign(_userTriggers);
+
+            writeToJsonMessage(userTriggerSync, answer);
             _slaveSocket->send(answer);
         }
     }
@@ -2343,37 +2396,114 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId)
     }
 }
 
-void Application::updateBotCommands()
+void Application::updateBotCommands(const QString& section)
 {
     qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
-    saveBotCommands(timemark);
 
-    if (_masterMode)
+    // Сохраняем состояние секции/команды
+    saveBotCommands(section, timemark);
+
+    if ((section == "timelimit_inactive") && _masterMode)
     {
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
         timelimitSync.chats = tbot::timelimitInactiveChats().toList();
 
-        // Отправляем событие с изменениями timelimit
+        // Отправляем событие с измененными timelimit
         Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
         tcp::listener().send(m);
+    }
+    else if (section == "user_trigger")
+    {
+       data::UserTriggerSync userTriggerSync;
+       userTriggerSync.timemark = timemark;
+       userTriggerSync.triggers.assign(_userTriggers);
+
+       // Отправляем событие с измененными user_trigger
+       Message::Ptr m = createJsonMessage(userTriggerSync, {Message::Type::Event});
+       tcp::listener().send(m);
     }
 }
 
 void Application::loadBotCommands()
 {
+    // timelimit_inactive
     QList<qint64> timelimitInactiveChats;
     config::state().getValue("timelimit_inactive.chats", timelimitInactiveChats);
     tbot::setTimelimitInactiveChats(timelimitInactiveChats);
+
+    // user_trigger
+    YamlConfig::Func loadFunc = [this](YamlConfig* conf, YAML::Node& nodes, bool)
+    {
+        for (const YAML::Node& node : nodes)
+        {
+            qint64 chatId = 0;
+            conf->getValue(node, "id", chatId);
+
+            data::UserTrigger* userTrgList = _userTriggers.add();
+            userTrgList->chatId = chatId;
+
+            YamlConfig::Func loadFunc2 = [userTrgList](YamlConfig* conf, YAML::Node& nodes, bool)
+            {
+                for (const YAML::Node& node : nodes)
+                {
+                    data::UserTrigger::Item* itemTrg = userTrgList->items.add();
+                    conf->getValue(node, "name", itemTrg->name);
+                    conf->getValue(node, "text", itemTrg->text);
+                }
+                userTrgList->items.sort();
+                return true;
+            };
+            conf->getValue(node, "triggers", loadFunc2, false);
+        }
+        _userTriggers.sort();
+        return true;
+    };
+    _userTriggers.clear();
+    config::state().getValue("user_trigger.chats", loadFunc, false);
 }
 
-void Application::saveBotCommands(qint64 timemark)
+void Application::saveBotCommands(const QString& section, qint64 timemark)
 {
-    config::state().remove("timelimit_inactive");
-    config::state().setValue("timelimit_inactive.timemark", timemark);
-    config::state().setValue("timelimit_inactive.chats",
-                             tbot::timelimitInactiveChats().toList());
-    config::state().saveFile();
+    if (section == "timelimit_inactive")
+    {
+        config::state().setValue("timelimit_inactive.timemark", timemark);
+        config::state().setValue("timelimit_inactive.chats",
+                                 tbot::timelimitInactiveChats().toList());
+    }
+    else if (section == "user_trigger")
+    {
+        config::state().setValue("user_trigger.timemark", timemark);
+
+        YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
+        {
+            for (data::UserTrigger* userTrgList : _userTriggers)
+            {
+                YAML::Node chatTrg;
+                conf->setValue(chatTrg, "id", userTrgList->chatId);
+
+                YamlConfig::Func saveFunc2 = [userTrgList](YamlConfig* conf, YAML::Node& node, bool)
+                {
+                    for (data::UserTrigger::Item* itemTrg : userTrgList->items)
+                    {
+                        YAML::Node trg;
+                        conf->setValue(trg, "name", itemTrg->name);
+                        conf->setValue(trg, "text", itemTrg->text);
+                        node.push_back(trg);
+                    }
+                    return true;
+                };
+                conf->setValue(chatTrg, "triggers", saveFunc2);
+                node.push_back(chatTrg);
+            }
+            return true;
+        };
+        config::state().remove("user_trigger.chats");
+        config::state().setValue("user_trigger.chats", saveFunc);
+    }
+
+    if (config::state().changed())
+        config::state().saveFile();
 }
 
 void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
@@ -2424,9 +2554,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     if (message->from.empty())
         return false;
 
-    qint64 chatId = message->chat->id;
-    qint64 userId = message->from->id;
-    qint32 messageId = message->message_id;
+    const qint64 chatId = message->chat->id;
+    const qint64 userId = message->from->id;
+    const qint32 messageId = message->message_id;
 
     tbot::GroupChat::List chats = tbot::groupChats();
     tbot::GroupChat* chat = chats.findItem(&chatId);
@@ -2434,15 +2564,44 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     if (chat == nullptr)
         return false;
 
-    auto sendMessage = [this, chatId](const QString& msg)
+    auto deleteMessage = [this, chatId, messageId]()
     {
+        auto params = tbot::tgfunction("deleteMessage");
+        params->api["chat_id"] = chatId;
+        params->api["message_id"] = messageId;
+        params->delay = 200 /*0.2 сек*/;
+        sendTgCommand(params);
+    };
+
+    auto sendMessage = [this, chatId](QString msg, bool messageDel = true)
+    {
+        msg.replace("+", "&#43;");
+        msg.replace("<", "&#60;");
+        msg.replace(">", "&#62;");
+
         auto params = tbot::tgfunction("sendMessage");
         params->api["chat_id"] = chatId;
         params->api["text"] = msg;
         params->api["parse_mode"] = "HTML";
         params->delay = 1.5*1000 /*1.5 сек*/;
+        params->messageDel = (messageDel) ? 0 : -1;
         sendTgCommand(params);
     };
+
+    //--- Короткая запись для вызова пользовательского триггера ---
+    if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
+    {
+        QString triggerName = message->text.trimmed();
+        if (lst::FindResult fr = userTrgList->items.findRef(triggerName))
+        {
+            // Удаляем сообщение с именем триггера
+            deleteMessage();
+
+            QString text = userTrgList->items[fr.index()].text;
+            sendMessage(text, false);
+            return true;
+        }
+    }
 
     QString botMsg;
     for (const tbot::MessageEntity& entity : message->entities)
@@ -2461,13 +2620,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             continue;
 
         // Удаляем сообщение с командой
-        {
-            auto params = tbot::tgfunction("deleteMessage");
-            params->api["chat_id"] = chatId;
-            params->api["message_id"] = messageId;
-            params->delay = 200 /*0.2 сек*/;
-            sendTgCommand(params);
-        }
+        deleteMessage();
 
         QString actionLine = message->text.mid(entity.offset + entity.length);
 
@@ -2514,6 +2667,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 u8"\r\n%1 reloadgroup [rg]&#185; - "
                 u8"Обновить информацию о группе и её администраторах;"
+                u8"\r\n"
+
+                u8"\r\n%1 trigger [tr]&#185; (add name|del name|list) - "
+                u8"Создание/удаление пользовательских триггеров;"
                 u8"\r\n"
 
                 u8"\r\n []&#185; - Сокращенное обозначение команды";
@@ -2567,7 +2724,6 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         }
         else if ((command == "timelimit") || (command == "tl"))
         {
-
             QString action;
             if (actions.count())
                 action = actions[0];
@@ -2591,14 +2747,14 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             if (action == "start")
             {
                 tbot::timelimitInactiveChatsRemove(chatId);
-                updateBotCommands();
+                updateBotCommands("timelimit_inactive");
 
                 sendMessage(u8"Триггер timelimit активирован");
             }
             else if (action == "stop")
             {
                 tbot::timelimitInactiveChatsAdd(chatId);
-                updateBotCommands();
+                updateBotCommands("timelimit_inactive");
 
                 sendMessage(u8"Триггер timelimit деактивирован");
             }
@@ -2692,6 +2848,133 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         else if ((command == "reloadgroup") || (command == "rg"))
         {
             reloadGroup(chatId, true);
+            return true;
+        }
+        else if ((command == "trigger") || (command == "tr"))
+        {
+            QString action;
+            if (actions.count())
+                action = actions[0];
+
+            data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId);
+            if (userTrgList == nullptr)
+            {
+                userTrgList = _userTriggers.add();
+                userTrgList->chatId = chatId;
+                _userTriggers.sort();
+            }
+
+            if (lst::FindResult fr = userTrgList->items.findRef(action))
+            {
+                QString text = userTrgList->items[fr.index()].text;
+                sendMessage(text, false);
+                return true;
+            }
+
+            if (action != "add"
+                && action != "del"
+                && action != "list")
+            {
+                botMsg = (action.isEmpty())
+                    ? u8"Для команды trigger требуется указать действие."
+                    : u8"Команда trigger не используется с указанным действием: %1.";
+
+                botMsg += u8"\r\nДопустимые действия: add name/del name/list"
+                          u8"\r\nПример: %2 trigger add карта";
+                botMsg = botMsg.arg(action).arg(_commandPrefix);
+
+                sendMessage(botMsg);
+                return true;
+            }
+
+            if (action == "add")
+            {
+                if (actions.count() < 2)
+                {
+                    botMsg = u8"Не указано имя триггера";
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                tbot::Message::Ptr reply = message->reply_to_message;
+                if (reply.empty())
+                {
+                    botMsg = u8"Не указано сообщение для пользовательского триггера";
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                if (chatId != reply->chat->id)
+                {
+                    log_error_m << "Bot command 'trigger' fail: chatId != reply->chat->id";
+                    return false;
+                }
+
+                QString triggerName = actions[1];
+                if (userTrgList->items.findRef(triggerName))
+                {
+                    botMsg = u8"Пользовательский триггер '%1' уже существует";
+                    botMsg = botMsg.arg(triggerName);
+
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                data::UserTrigger::Item* userTrgItem = userTrgList->items.add();
+                userTrgItem->name = triggerName;
+                userTrgItem->text = reply->text;
+                userTrgList->items.sort();
+
+                updateBotCommands("user_trigger");
+
+                botMsg = u8"Добавлен пользовательский триггер '%1'";
+                botMsg = botMsg.arg(triggerName);
+
+                sendMessage(botMsg);
+            }
+            else if (action == "del")
+            {
+                if (actions.count() < 2)
+                {
+                    botMsg = u8"Не указано имя триггера";
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                QString triggerName = actions[1];
+                lst::FindResult fr = userTrgList->items.findRef(triggerName);
+                if (fr.failed())
+                {
+                    botMsg = u8"Не удалось удалить пользовательский триггер."
+                             u8"\r\nТриггер '%1' не существует";
+                    botMsg = botMsg.arg(triggerName);
+
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                userTrgList->items.remove(fr.index());
+                updateBotCommands("user_trigger");
+
+                botMsg = u8"Пользовательский триггер '%1' удален";
+                botMsg = botMsg.arg(triggerName);
+
+                sendMessage(botMsg);
+            }
+            else if (action == "list")
+            {
+                botMsg = u8"Список пользовательских триггеров";
+                for (data::UserTrigger::Item* item : userTrgList->items)
+                {
+                    QString str = u8"\r\n---"
+                                  u8"\r\nТриггер: %1"
+                                  u8"\r\nТекст: %2";
+
+                    str = str.arg(item->name, item->text);
+                    botMsg += str;
+                }
+                sendMessage(botMsg);
+            }
             return true;
         }
         else

@@ -115,7 +115,6 @@ public slots:
 
     void restrictNewUser(qint64 chatId, qint64 userId);
 
-    void updateBotCommands();
 
 private:
     Q_OBJECT
@@ -124,12 +123,15 @@ private:
     void command_SlaveAuth(const Message::Ptr&);
     void command_ConfSync(const Message::Ptr&);
     void command_TimelimitSync(const Message::Ptr&);
+    void command_UserTriggerSync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
 
     void loadBotCommands();
-    void saveBotCommands(qint64 timemark);
+    void saveBotCommands(const QString& section, qint64 timemark);
+    void updateBotCommands(const QString& section);
+
 
     void loadAntiRaidCache();
     void saveAntiRaidCache();
@@ -206,7 +208,6 @@ private:
         };
         typedef lst::List<Spammer, Compare> List;
     };
-
     Spammer::List _spammers;
 
     struct TimeLimit
@@ -272,9 +273,8 @@ private:
         // Счетчик пропуска команд удаления сообщений
         int sleepMsgCount = {0};
 
-        typedef lst::List<AntiRaid, tbot::CompareChat<AntiRaid>> List;
+        typedef lst::List<AntiRaid, CompareChat<AntiRaid>> List;
     };
-
     AntiRaid::List _antiRaidCache;
     int _antiRaidSaveStep = {0};
 
@@ -284,18 +284,11 @@ private:
         QSet<qint64> chatIds;
         steady_timer timer;
 
-        struct Compare
-        {
-            int operator() (const NewUser* item1, const NewUser* item2) const
-                {return LIST_COMPARE_ITEM(item1->userId, item2->userId);}
-
-            int operator() (const qint64* userId, const NewUser* item2) const
-                {return LIST_COMPARE_ITEM(*userId, item2->userId);}
-        };
-
-        typedef lst::List<NewUser, Compare> List;
+        typedef lst::List<NewUser, CompareUser<NewUser>> List;
     };
     NewUser::List _newUsers;
+
+    data::UserTrigger::List _userTriggers;
 
     struct WebhookData
     {

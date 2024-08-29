@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compare.h"
+#include "commands/compare.h"
 #include "trigger.h"
 #include <atomic>
 

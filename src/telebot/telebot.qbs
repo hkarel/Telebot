@@ -50,7 +50,6 @@ Product {
     }
 
     files: [
-        "compare.h",
         "group_chat.cpp",
         "group_chat.h",
         "processing.cpp",

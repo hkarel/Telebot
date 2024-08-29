@@ -7,7 +7,7 @@
 #include "shared/steady_timer.h"
 #include "pproto/serialize/json.h"
 
-#include "compare.h"
+#include "commands/compare.h"
 
 namespace tbot {
 
@@ -400,7 +400,7 @@ struct Message : public clife_base
         J_SERIALIZE_OPT ( forward_date            )
         J_SERIALIZE_OPT ( is_topic_message        )
         J_SERIALIZE_OPT ( is_automatic_forward    )
-        J_SERIALIZE_OPT ( reply_to_message;       )
+        J_SERIALIZE_OPT ( reply_to_message        )
         J_SERIALIZE_OPT ( via_bot                 )
         J_SERIALIZE_OPT ( edit_date               )
         J_SERIALIZE_OPT ( has_protected_content   )

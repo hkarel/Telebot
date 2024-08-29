@@ -30,6 +30,7 @@ Product {
     files: [
         "commands.cpp",
         "commands.h",
+        "compare.h",
         "error.h",
     ]
     Export {
