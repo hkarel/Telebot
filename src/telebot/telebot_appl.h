@@ -132,7 +132,6 @@ private:
     void saveBotCommands(const QString& section, qint64 timemark);
     void updateBotCommands(const QString& section);
 
-
     void loadAntiRaidCache();
     void saveAntiRaidCache();
 
@@ -150,6 +149,7 @@ private:
     int _slaveTimerId = {-1};
     int _antiraidTimerId = {-1};
     int _timelimitTimerId = {-1};
+    int _configStateTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 
     QString _botId;

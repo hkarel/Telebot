@@ -93,6 +93,7 @@ Application::Application(int& argc, char** argv)
     _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
+    _configStateTimerId  = startTimer( 5*1000 /* 5 сек*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -269,6 +270,7 @@ void Application::timerEvent(QTimerEvent* event)
             KILL_TIMER(_slaveTimerId)
             KILL_TIMER(_antiraidTimerId)
             KILL_TIMER(_timelimitTimerId)
+            KILL_TIMER(_configStateTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
             exit(_exitCode);
@@ -521,6 +523,11 @@ void Application::timerEvent(QTimerEvent* event)
             // Проверяем необходимость публикации сообщений для timelimit триггеров
             timelimitCheck();
         }
+    }
+    else if (event->timerId() == _configStateTimerId)
+    {
+        if (config::state().changed())
+            config::state().saveFile();
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
@@ -2501,9 +2508,6 @@ void Application::saveBotCommands(const QString& section, qint64 timemark)
         config::state().remove("user_trigger.chats");
         config::state().setValue("user_trigger.chats", saveFunc);
     }
-
-    if (config::state().changed())
-        config::state().saveFile();
 }
 
 void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
@@ -3031,7 +3035,6 @@ void Application::saveReportSpam()
     };
     config::state().remove("spammers");
     config::state().setValue("spammers", saveFunc);
-    config::state().saveFile();
 }
 
 void Application::loadAntiRaidCache()
