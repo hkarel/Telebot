@@ -124,13 +124,21 @@ private:
     void command_ConfSync(const Message::Ptr&);
     void command_TimelimitSync(const Message::Ptr&);
     void command_UserTriggerSync(const Message::Ptr&);
+    void command_DeleteDelaySync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
 
+    enum UpdateBotSection
+    {
+        timelimit_inactive,
+        user_trigger,
+        delete_delay,
+    };
+
     void loadBotCommands();
-    void saveBotCommands(const QString& section, qint64 timemark);
-    void updateBotCommands(const QString& section);
+    void saveBotCommands(UpdateBotSection section, qint64 timemark);
+    void updateBotCommands(UpdateBotSection section);
 
     void loadAntiRaidCache();
     void saveAntiRaidCache();
@@ -289,6 +297,7 @@ private:
     NewUser::List _newUsers;
 
     data::UserTrigger::List _userTriggers;
+    QList<data::DeleteDelay> _deleteDelays;
 
     struct WebhookData
     {

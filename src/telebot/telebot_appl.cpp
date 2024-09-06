@@ -109,6 +109,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(ConfSync)
     FUNC_REGISTRATION(TimelimitSync)
     FUNC_REGISTRATION(UserTriggerSync)
+    FUNC_REGISTRATION(DeleteDelaySync)
 
     #undef FUNC_REGISTRATION
 
@@ -465,6 +466,26 @@ void Application::timerEvent(QTimerEvent* event)
             if (newUser->timer.elapsed() >= 60*1000 /*1мин*/)
                 _newUsers.remove(i--);
         }
+
+        //--- DeleteDelay ---
+        bool deleteDelayActive = false;
+        qint64 currentTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
+        for (int i = 0; i < _deleteDelays.count(); ++i)
+        {
+            const data::DeleteDelay& dd = _deleteDelays[i];
+            if (currentTime > dd.deleteTime)
+            {
+                auto params = tbot::tgfunction("deleteMessage");
+                params->api["chat_id"] = dd.chatId;
+                params->api["message_id"] = dd.messageId;
+                sendTgCommand(params);
+
+                _deleteDelays.removeAt(i--);
+                deleteDelayActive = true;
+            }
+        }
+        if (deleteDelayActive)
+            updateBotCommands(delete_delay);
     }
     else if (event->timerId() == _antiraidTimerId)
     {
@@ -693,6 +714,18 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
         m->appendDestinationSocket(answer->socketDescriptor());
         tcp::listener().send(m);
 
+        // Отправлем команду синхронизации delete_delay
+        timemark = 0;
+        config::state().getValue("delete_delay.timemark", timemark);
+
+        data::DeleteDelaySync deleteDelaySync;
+        deleteDelaySync.timemark = timemark;
+        deleteDelaySync.items = _deleteDelays;
+
+        m = createJsonMessage(deleteDelaySync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
         return;
     }
 
@@ -806,7 +839,7 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
     if (timelimitSync.timemark > timemark)
     {
         tbot::setTimelimitInactiveChats(timelimitSync.chats);
-        saveBotCommands("timelimit_inactive", timelimitSync.timemark);
+        saveBotCommands(timelimit_inactive, timelimitSync.timemark);
 
         log_verbose_m << "Updated 'timelimit' settings for groups";
     }
@@ -846,7 +879,7 @@ void Application::command_UserTriggerSync(const Message::Ptr& message)
             userTrgList->items.sort();
         _userTriggers.sort();
 
-        saveBotCommands("user_trigger", userTriggerSync.timemark);
+        saveBotCommands(user_trigger, userTriggerSync.timemark);
 
         log_verbose_m << "Updated 'user_trigger' settings for groups";
     }
@@ -865,6 +898,42 @@ void Application::command_UserTriggerSync(const Message::Ptr& message)
             userTriggerSync.triggers.assign(_userTriggers);
 
             writeToJsonMessage(userTriggerSync, answer);
+            _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_DeleteDelaySync(const Message::Ptr& message)
+{
+    data::DeleteDelaySync deleteDelaySync;
+    readFromMessage(message, deleteDelaySync);
+
+    qint64 timemark = 0;
+    config::state().getValue("delete_delay.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (deleteDelaySync.timemark > timemark)
+    {
+        _deleteDelays = deleteDelaySync.items;
+        saveBotCommands(delete_delay, deleteDelaySync.timemark);
+
+        log_verbose_m << "Updated 'delete_delay' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            log_verbose_m << "Send 'delete_delay' settings to master-bot";
+
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::DeleteDelaySync deleteDelaySync;
+            deleteDelaySync.timemark = timemark;
+            deleteDelaySync.items = _deleteDelays;
+
+            writeToJsonMessage(deleteDelaySync, answer);
             _slaveSocket->send(answer);
         }
     }
@@ -1862,11 +1931,27 @@ void Application::httpResultHandler(const ReplyData& rd)
 
             if (_botUserId == userId)
             {
-                auto params = tbot::tgfunction("deleteMessage");
-                params->api["chat_id"] = chatId;
-                params->api["message_id"] = messageId;
-                params->delay = qMax(rd.params->messageDel*1000, 200 /*0.2 сек*/);
-                sendTgCommand(params);
+                if (rd.params->messageDel <= 10 /*сек*/)
+                {
+                    auto params = tbot::tgfunction("deleteMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["message_id"] = messageId;
+                    params->delay = qMax(rd.params->messageDel*1000, 200 /*0.2 сек*/);
+                    sendTgCommand(params);
+                }
+                else
+                {
+                    data::DeleteDelay dd;
+                    dd.chatId = chatId;
+                    dd.messageId = messageId;
+
+                    QDateTime deleteTime = QDateTime::currentDateTime();
+                    deleteTime = deleteTime.addSecs(rd.params->messageDel);
+                    dd.deleteTime = deleteTime.toMSecsSinceEpoch();
+
+                    _deleteDelays.append(dd);
+                    updateBotCommands(delete_delay);
+                }
             }
         }
     }
@@ -2403,35 +2488,6 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId)
     }
 }
 
-void Application::updateBotCommands(const QString& section)
-{
-    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
-
-    // Сохраняем состояние секции/команды
-    saveBotCommands(section, timemark);
-
-    if ((section == "timelimit_inactive") && _masterMode)
-    {
-        data::TimelimitSync timelimitSync;
-        timelimitSync.timemark = timemark;
-        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
-
-        // Отправляем событие с измененными timelimit
-        Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
-        tcp::listener().send(m);
-    }
-    else if (section == "user_trigger")
-    {
-       data::UserTriggerSync userTriggerSync;
-       userTriggerSync.timemark = timemark;
-       userTriggerSync.triggers.assign(_userTriggers);
-
-       // Отправляем событие с измененными user_trigger
-       Message::Ptr m = createJsonMessage(userTriggerSync, {Message::Type::Event});
-       tcp::listener().send(m);
-    }
-}
-
 void Application::loadBotCommands()
 {
     // timelimit_inactive
@@ -2468,17 +2524,33 @@ void Application::loadBotCommands()
     };
     _userTriggers.clear();
     config::state().getValue("user_trigger.chats", loadFunc, false);
+
+    // delete_delay
+    YamlConfig::Func loadFunc2 = [this](YamlConfig* conf, YAML::Node& nodes, bool)
+    {
+        for (const YAML::Node& node : nodes)
+        {
+            data::DeleteDelay dd;
+            conf->getValue(node, "chat_id",     dd.chatId);
+            conf->getValue(node, "message_id",  dd.messageId);
+            conf->getValue(node, "delete_time", dd.deleteTime);
+            _deleteDelays.append(dd);
+        }
+        return true;
+    };
+    _deleteDelays.clear();
+    config::state().getValue("delete_delay.items", loadFunc2, false);
 }
 
-void Application::saveBotCommands(const QString& section, qint64 timemark)
+void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
 {
-    if (section == "timelimit_inactive")
+    if (section == timelimit_inactive)
     {
         config::state().setValue("timelimit_inactive.timemark", timemark);
         config::state().setValue("timelimit_inactive.chats",
                                  tbot::timelimitInactiveChats().toList());
     }
-    else if (section == "user_trigger")
+    else if (section == user_trigger)
     {
         config::state().setValue("user_trigger.timemark", timemark);
 
@@ -2507,6 +2579,67 @@ void Application::saveBotCommands(const QString& section, qint64 timemark)
         };
         config::state().remove("user_trigger.chats");
         config::state().setValue("user_trigger.chats", saveFunc);
+    }
+    else if (section == delete_delay)
+    {
+        config::state().setValue("delete_delay.timemark", timemark);
+
+        YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
+        {
+            for (const data::DeleteDelay& dd : _deleteDelays)
+            {
+                YAML::Node n;
+                conf->setValue(n, "chat_id",     dd.chatId);
+                conf->setValue(n, "message_id",  dd.messageId);
+                conf->setValue(n, "delete_time", dd.deleteTime);
+                node.push_back(n);
+            }
+            return true;
+        };
+        config::state().remove("delete_delay.items");
+        config::state().setValue("delete_delay.items", saveFunc);
+    }
+
+    // Сохранение состояния происходит по таймеру _configStateTimerId
+    // config::state().saveFile()
+}
+
+void Application::updateBotCommands(UpdateBotSection section)
+{
+    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+
+    // Сохраняем состояние секции/команды
+    saveBotCommands(section, timemark);
+
+    if ((section == timelimit_inactive) && _masterMode)
+    {
+        data::TimelimitSync timelimitSync;
+        timelimitSync.timemark = timemark;
+        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
+
+        // Отправляем событие с измененными timelimit
+        Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});
+        tcp::listener().send(m);
+    }
+    else if (section == user_trigger)
+    {
+       data::UserTriggerSync userTriggerSync;
+       userTriggerSync.timemark = timemark;
+       userTriggerSync.triggers.assign(_userTriggers);
+
+       // Отправляем событие с измененными user_trigger
+       Message::Ptr m = createJsonMessage(userTriggerSync, {Message::Type::Event});
+       tcp::listener().send(m);
+    }
+    else if (section == delete_delay)
+    {
+        data::DeleteDelaySync deleteDelaySync;
+        deleteDelaySync.timemark = timemark;
+        deleteDelaySync.items = _deleteDelays;
+
+        // Отправляем событие с измененными delete_delay
+        Message::Ptr m = createJsonMessage(deleteDelaySync, {Message::Type::Event});
+        tcp::listener().send(m);
     }
 }
 
@@ -2751,14 +2884,14 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             if (action == "start")
             {
                 tbot::timelimitInactiveChatsRemove(chatId);
-                updateBotCommands("timelimit_inactive");
+                updateBotCommands(timelimit_inactive);
 
                 sendMessage(u8"Триггер timelimit активирован");
             }
             else if (action == "stop")
             {
                 tbot::timelimitInactiveChatsAdd(chatId);
-                updateBotCommands("timelimit_inactive");
+                updateBotCommands(timelimit_inactive);
 
                 sendMessage(u8"Триггер timelimit деактивирован");
             }
@@ -2929,7 +3062,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 userTrgItem->text = reply->text;
                 userTrgList->items.sort();
 
-                updateBotCommands("user_trigger");
+                updateBotCommands(user_trigger);
 
                 botMsg = u8"Добавлен пользовательский триггер '%1'";
                 botMsg = botMsg.arg(triggerName);
@@ -2958,7 +3091,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 }
 
                 userTrgList->items.remove(fr.index());
-                updateBotCommands("user_trigger");
+                updateBotCommands(user_trigger);
 
                 botMsg = u8"Пользовательский триггер '%1' удален";
                 botMsg = botMsg.arg(triggerName);

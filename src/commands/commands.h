@@ -37,6 +37,12 @@ extern const QUuidEx TimelimitSync;
 */
 extern const QUuidEx UserTriggerSync;
 
+/**
+  Синхронизация списка отложенного удаления сообщений
+*/
+extern const QUuidEx DeleteDelaySync;
+
+
 } // namespace command
 
 //---------------- Структуры данных используемые в сообщениях ----------------
@@ -113,6 +119,33 @@ struct UserTriggerSync : Data<&command::UserTriggerSync,
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( timemark )
         J_SERIALIZE_ITEM( triggers )
+    J_SERIALIZE_END
+};
+
+struct DeleteDelay
+{
+    qint64 chatId = {0};
+    qint32 messageId = {0};
+    qint64 deleteTime = {0}; // Время UTC в миллисекундах
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( chatId     )
+        J_SERIALIZE_ITEM( messageId  )
+        J_SERIALIZE_ITEM( deleteTime )
+    J_SERIALIZE_END
+};
+
+struct DeleteDelaySync : Data<&command::DeleteDelaySync,
+                               Message::Type::Command,
+                               Message::Type::Answer,
+                               Message::Type::Event>
+{
+    qint64 timemark = {0};
+    QList<DeleteDelay> items;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( timemark )
+        J_SERIALIZE_ITEM( items    )
     J_SERIALIZE_END
 };
 

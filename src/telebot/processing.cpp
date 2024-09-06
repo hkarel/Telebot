@@ -767,7 +767,7 @@ void Processing::run()
 
                         QString message = trg->messageInfo;
                         message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                .replace("{end}",   timeEnd.toString("HH:mm"));
+                               .replace("{end}",   timeEnd.toString("HH:mm"));
 
                         auto params = tgfunction("sendMessage");
                         params->api["chat_id"] = chatId;
