@@ -2511,7 +2511,7 @@ void Application::loadBotCommands()
                 for (const YAML::Node& node : nodes)
                 {
                     data::UserTrigger::Item* itemTrg = userTrgList->items.add();
-                    conf->getValue(node, "name", itemTrg->name);
+                    conf->getValue(node, "keys", itemTrg->keys);
                     conf->getValue(node, "text", itemTrg->text);
                 }
                 userTrgList->items.sort();
@@ -2566,7 +2566,7 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
                     for (data::UserTrigger::Item* itemTrg : userTrgList->items)
                     {
                         YAML::Node trg;
-                        conf->setValue(trg, "name", itemTrg->name);
+                        conf->setValue(trg, "keys", itemTrg->keys);
                         conf->setValue(trg, "text", itemTrg->text);
                         node.push_back(trg);
                     }
@@ -2725,18 +2725,29 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         sendTgCommand(params);
     };
 
-    //--- Короткая запись для вызова пользовательского триггера ---
-    if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
-    {
-        QString triggerName = message->text.trimmed();
-        if (lst::FindResult fr = userTrgList->items.findRef(triggerName))
+    bool isBotCommand = false;
+    for (const tbot::MessageEntity& entity : message->entities)
+        if (entity.type == "bot_command")
         {
-            // Удаляем сообщение с именем триггера
-            deleteMessage();
+            isBotCommand = true;
+            break;
+        }
 
-            QString text = userTrgList->items[fr.index()].text;
-            sendMessage(text, false);
-            return true;
+    //--- Короткая запись для вызова пользовательского триггера ---
+    if (!isBotCommand)
+    {
+        if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
+        {
+            QString triggerName = message->text.trimmed();
+            if (lst::FindResult fr = userTrgList->items.findRef(triggerName, {lst::BruteForce::Yes}))
+            {
+                // Удаляем сообщение с именем триггера
+                deleteMessage();
+
+                QString text = userTrgList->items[fr.index()].text;
+                sendMessage(text, false);
+                return true;
+            }
         }
     }
 
@@ -3047,25 +3058,27 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return false;
                 }
 
-                QString triggerName = actions[1];
-                if (userTrgList->items.findRef(triggerName))
-                {
-                    botMsg = u8"Пользовательский триггер '%1' уже существует";
-                    botMsg = botMsg.arg(triggerName);
+                QStringList triggerKeys = actions[1].split(QChar(','), QString::SkipEmptyParts);
+                triggerKeys.sort(Qt::CaseInsensitive);
+                for (const QString& key : triggerKeys)
+                    if (userTrgList->items.findRef(key, {lst::BruteForce::Yes}))
+                    {
+                        botMsg = u8"Пользовательский триггер '%1' уже существует";
+                        botMsg = botMsg.arg(key);
 
-                    sendMessage(botMsg);
-                    return true;
-                }
+                        sendMessage(botMsg);
+                        return true;
+                    }
 
                 data::UserTrigger::Item* userTrgItem = userTrgList->items.add();
-                userTrgItem->name = triggerName;
+                userTrgItem->keys = triggerKeys;
                 userTrgItem->text = reply->text;
                 userTrgList->items.sort();
 
                 updateBotCommands(user_trigger);
 
                 botMsg = u8"Добавлен пользовательский триггер '%1'";
-                botMsg = botMsg.arg(triggerName);
+                botMsg = botMsg.arg(triggerKeys.join(QChar(',')));
 
                 sendMessage(botMsg);
             }
@@ -3090,11 +3103,13 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return true;
                 }
 
+                QString delTrgKeys = userTrgList->items[fr.index()].keys.join(QChar(','));
+
                 userTrgList->items.remove(fr.index());
                 updateBotCommands(user_trigger);
 
                 botMsg = u8"Пользовательский триггер '%1' удален";
-                botMsg = botMsg.arg(triggerName);
+                botMsg = botMsg.arg(delTrgKeys);
 
                 sendMessage(botMsg);
             }
@@ -3107,7 +3122,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                                   u8"\r\nТриггер: %1"
                                   u8"\r\nТекст: %2";
 
-                    str = str.arg(item->name, item->text);
+                    str = str.arg(item->keys.join(QChar(',')) , item->text);
                     botMsg += str;
                 }
                 sendMessage(botMsg);

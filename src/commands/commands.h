@@ -79,13 +79,25 @@ struct UserTrigger
 
     struct Item
     {
-        QString name; // Наименование пользовательского триггера
+        QList<QString> keys; // Наименования/ключи пользовательского триггера
         QString text; // Текст триггера
 
-        typedef lst::List<Item, CompareName<Item>> List;
+        struct Compare
+        {
+            int operator() (const Item* item1, const Item* item2) const {
+                if (item1->keys.isEmpty() || item2->keys.isEmpty())
+                    return -1;
+                return item1->keys[0].compare(item2->keys[0], Qt::CaseInsensitive);
+            }
+            int operator() (const QString* key, const Item* item2) const {
+                QStringList sl {item2->keys};
+                return (sl.contains(*key, Qt::CaseInsensitive)) ? 0 : -1;
+            }
+        };
+        typedef lst::List<Item, Compare> List;
 
         J_SERIALIZE_BEGIN
-            J_SERIALIZE_ITEM( name )
+            J_SERIALIZE_ITEM( keys )
             J_SERIALIZE_ITEM( text )
         J_SERIALIZE_END
     };
