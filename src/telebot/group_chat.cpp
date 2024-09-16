@@ -169,6 +169,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
             userRestricts.append(yrestrict.as<int32_t>());
     }
 
+    qint32 newUserMute = -1;
+    if (ychat["new_user_mute"].IsDefined())
+    {
+        checkFiedType(ychat, "new_user_mute", YAML::NodeType::Scalar);
+        newUserMute = ychat["new_user_mute"].as<int>();
+    }
+
     GroupChat::AntiRaid antiRaid;
     if (ychat["anti_raid"].IsDefined())
     {
@@ -206,6 +213,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->whiteUsers = whiteUsers;
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
+    chat->newUserMute = newUserMute;
     chat->antiRaid = antiRaid;
 
     Trigger::List triggers = tbot::triggers();
@@ -322,6 +330,8 @@ void printGroupChats(GroupChat::List& chats)
         for (qint32 item : chat->userRestricts)
             logLine << nextComma() << item;
         logLine << "]";
+
+        logLine << "; new_user_mute: " << chat->newUserMute;
 
         logLine << log_format("; anti_raid: {active: %?, time_frame: %?"
                               ", users_limit: %?, duration: %?}",

@@ -119,7 +119,7 @@ signals:
     void antiRaidUser(qint64 chatId, const tbot::User::Ptr&);
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
-    void restrictNewUser(qint64 chatId, qint64 userId);
+    void restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMute);
 
 public slots:
     void reloadConfig();

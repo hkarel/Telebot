@@ -977,7 +977,7 @@ void Processing::run()
             // Ограничение пользователя на два и более часа, если он в течении
             // одной минуты подключается к нескольким группам
             if (isNewUser && !isBioMessage)
-                emit restrictNewUser(chatId, user->id);
+                emit restrictNewUser(chat->id, user->id, chat->newUserMute);
 
             // Проверка на Anti-Raid режим
             if (chat->antiRaid.active && chat->antiRaidTurnOn

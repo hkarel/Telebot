@@ -2441,7 +2441,7 @@ void Application::antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId
     }
 }
 
-void Application::restrictNewUser(qint64 chatId, qint64 userId)
+void Application::restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMute)
 {
     NewUser* newUser = _newUsers.findItem(&userId);
     if (newUser == nullptr)
@@ -2470,9 +2470,9 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId)
     {
         newUser->chatIds.insert(chatId);
         qint64 restrictTime = 12*60*60 /*12 часов*/;
-        if (newUser->chatIds.count() == 1)
+        if ((newUser->chatIds.count() == 1) && (newUserMute > 0))
         {
-            restrictCmd(chatId, userId, 10*60 /*10 мин*/);
+            restrictCmd(chatId, userId, newUserMute*60 /*newUserMute мин*/);
         }
         else if (newUser->chatIds.count() == 2)
         {
