@@ -1224,18 +1224,26 @@ void Application::http_finished()
             || rd.params->funcName == "banChatMember"
             || rd.params->funcName == "restrictChatMember")
         {
-            auto params = tbot::TgParams::Ptr::create(*rd.params);
-            params->attempt += 1;
+            tbot::HttpResult httpResult;
+            httpResult.fromJson(rd.data);
 
-            if (rd.params->attempt == 1)
+            // Ошибка 400: сообщение не найдено или недостаточно прав
+            // для ограничения пользователя
+            if (httpResult.error_code != 400)
             {
-                params->delay = 30*1000 /*30 сек*/;
-                sendTgCommand(params);
-            }
-            if (rd.params->attempt == 2)
-            {
-                params->delay = 60*1000 /*60 сек*/;
-                sendTgCommand(params);
+                auto params = tbot::TgParams::Ptr::create(*rd.params);
+                params->attempt += 1;
+
+                if (rd.params->attempt == 1)
+                {
+                    params->delay = 30*1000 /*30 сек*/;
+                    sendTgCommand(params);
+                }
+                if (rd.params->attempt == 2)
+                {
+                    params->delay = 60*1000 /*60 сек*/;
+                    sendTgCommand(params);
+                }
             }
         }
 
