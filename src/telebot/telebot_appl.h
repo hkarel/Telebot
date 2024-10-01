@@ -318,4 +318,7 @@ private:
     bool _printGroupChats = {true};
     bool _printGetChat = {true};
     bool _printGetChatAdmins = {true};
+
+    bool _spamIsActive;
+    QString _spamMessage;
 };

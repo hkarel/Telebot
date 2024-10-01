@@ -84,13 +84,8 @@ void Processing::run()
 
         if (_configChanged)
         {
-            _spamIsActive = false;
-            config::base().getValue("bot.spam_message.active", _spamIsActive);
-
-            _spamMessage.clear();
-            config::base().getValue("bot.spam_message.text", _spamMessage);
-
             _configChanged = false;
+            (void) _configChanged;
         }
 
         { //Block for QMutexLocker
@@ -235,15 +230,6 @@ void Processing::run()
         {
             log_warn_m << log_format("Group chat %? not belong to list chats"
                                      " in config. It skipped", chatId);
-
-            if (_spamIsActive && !_spamMessage.isEmpty())
-            {
-                auto params = tgfunction("sendMessage");
-                params->api["chat_id"] = chatId;
-                params->api["text"] = _spamMessage;
-                params->messageDel = -1;
-                emit sendTgCommand(params);
-            }
             continue;
         }
 

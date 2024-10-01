@@ -189,9 +189,6 @@ private:
     };
     static VerifyAdmin::List _verifyAdmins;
 
-    bool _spamIsActive;
-    QString _spamMessage;
-
     qint64 _botUserId = {0};
 };
 

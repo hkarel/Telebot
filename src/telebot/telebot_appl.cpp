@@ -1057,8 +1057,39 @@ void Application::webhook_readyRead()
             tbot::MessageData::Ptr msgData {tbot::MessageData::Ptr::create()};
             if (msgData->update.fromJson(wd.data))
             {
-                if (!botCommand(msgData))
-                    sendToProcessing(msgData);
+                bool chatInList = true;
+                const tbot::Update& update = msgData->update;
+                tbot::Message::Ptr message = (update.message)
+                                             ? update.message
+                                             : update.edited_message;
+                if (message)
+                {
+                    const qint64 chatId = message->chat->id;
+                    tbot::GroupChat::List chats = tbot::groupChats();
+
+                    lst::FindResult fr = chats.findRef(chatId);
+                    if (fr.failed())
+                    {
+                        chatInList = false;
+                        log_warn_m << log_format("Group chat %? not belong to list chats"
+                                                 " in config. It skipped", chatId);
+
+                        if (_spamIsActive && !_spamMessage.isEmpty())
+                        {
+                            auto params = tbot::tgfunction("sendMessage");
+                            params->api["chat_id"] = chatId;
+                            params->api["text"] = _spamMessage;
+                            params->messageDel = -1;
+                            emit sendTgCommand(params);
+                        }
+                    }
+                }
+
+                if (chatInList)
+                {
+                    if (!botCommand(msgData))
+                        sendToProcessing(msgData);
+                }
             }
         }
 
@@ -1348,6 +1379,12 @@ void Application::reloadConfig()
 
     _printGetChatAdmins = true;
     config::base().getValue("print_log.get_chat_administrators", _printGetChatAdmins);
+
+    _spamIsActive = false;
+    config::base().getValue("bot.spam_message.active", _spamIsActive);
+
+    _spamMessage.clear();
+    config::base().getValue("bot.spam_message.text", _spamMessage);
 
     reloadBotMode();
     reloadGroups(configFile);
