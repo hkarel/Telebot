@@ -309,6 +309,10 @@ void Processing::run()
         if (message->forward_from)
             triggerText[tbot::Trigger::TextType::FrwdUserId] = message->forward_from->id;
 
+        //--- Trigger::TextType::FrwdChatId ---
+        if (message->forward_from_chat)
+            triggerText[tbot::Trigger::TextType::FrwdChatId] = message->forward_from_chat->id;
+
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
         if (message->audio)

@@ -22,12 +22,13 @@ struct Trigger : public clife_base
 
     enum class TextType
     {
-        Content    = 0,
-        UserId     = 1,
-        FrwdUserId = 2, // Forward UserId
-        UserName   = 3,
-        FileMime   = 4,
-        UrlLinks   = 5,
+        Content = 0,
+        UserId,
+        FrwdUserId, // Forward UserId
+        FrwdChatId, // Forward ChatId
+        UserName,
+        FileMime,
+        UrlLinks,
     };
     typedef QMap<TextType, QVariant> Text;
 
@@ -248,11 +249,12 @@ struct TriggerBlackUser : public Trigger
     {
         QString description;  // Причина почему пользователь оказался в черном списке
         QSet<qint64> userIds; // Список идентификаторов пользователей
+        QSet<qint64> chatIds; // Список идентификаторов каналов/чатов
 
         typedef QList<Group> List;
     };
 
-    // Список групп запрещенных пользователей
+    // Список групп запрещенных пользователей/каналов/чатов
     Group::List groups;
 
     bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;

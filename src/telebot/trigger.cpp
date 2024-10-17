@@ -462,6 +462,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
     activationReasonMessage.clear();
     qint64 userId = text_[TextType::UserId].toLongLong();
     qint64 forwardUserId = text_[TextType::FrwdUserId].toLongLong();
+    qint64 forwardChatId = text_[TextType::FrwdChatId].toLongLong();
 
     for (const Group& group : groups)
     {
@@ -487,6 +488,18 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
             activationReasonMessage =
                 QString(u8"forward-пользователь %1 в черном списке => (%2)")
                        .arg(forwardUserId).arg(group.description);
+            return true;
+        }
+        if (group.chatIds.contains(forwardChatId))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The forward-chat id '%?' was found",
+                update.update_id, chat->name(), name, forwardChatId);
+
+            activationReasonMessage =
+                QString(u8"forward-чат/канал %1 в черном списке => (%2)")
+                       .arg(forwardChatId).arg(group.description);
             return true;
         }
     }
@@ -936,6 +949,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
                 for (const YAML::Node& yuser : yuser_list)
                     group.userIds.insert(yuser.as<int64_t>());
             }
+            if (ygroup["chat_list"].IsDefined())
+            {
+                checkFiedType(ygroup, "chat_list", YAML::NodeType::Sequence);
+                const YAML::Node& ychat_list = ygroup["chat_list"];
+                for (const YAML::Node& ychat : ychat_list)
+                    group.chatIds.insert(ychat.as<int64_t>());
+            }
             blackUserGroupsO->append(group);
         }
     }
@@ -1320,6 +1340,15 @@ void printTriggers(Trigger::List& triggers)
                 nextCommaVal2 = false;
                 logLine << ", user_list: [";
                 for (qint64 id : group.userIds)
+                {
+                    logLine << nextComma2();
+                    logLine << id;
+                }
+                logLine << "]";
+
+                nextCommaVal2 = false;
+                logLine << ", chat_list: [";
+                for (qint64 id : group.chatIds)
                 {
                     logLine << nextComma2();
                     logLine << id;
