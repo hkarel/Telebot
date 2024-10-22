@@ -279,6 +279,8 @@ void Processing::run()
             MediaGroup& mg = _mediaGroups[message->media_group_id];
             if (mg.isBad)
             {
+                emit adjacentMessageDel(chatId, messageId);
+
                 auto params = tgfunction("deleteMessage");
                 params->api["chat_id"] = chatId;
                 params->api["message_id"] = messageId;
@@ -641,7 +643,7 @@ void Processing::run()
                 return str;
             };
 
-            auto deleteMessage = [&](tbot::Trigger* trigger)
+            auto deleteMessage = [&](tbot::Trigger* trigger) -> bool
             {
                 if (!message->media_group_id.isEmpty())
                 {
@@ -654,12 +656,14 @@ void Processing::run()
                         // не все сообщения в медиагруппе пустые - выходим из функции
                         for (qint64 msgId : mg.messageIds.keys())
                             if (!mg.messageIds[msgId])
-                                return;
+                                return false;
                     }
 
                     mg.isBad = true;
                     for (qint64 msgId : mg.messageIds.keys())
                     {
+                        emit adjacentMessageDel(mg.chatId, msgId);
+
                         auto params = tgfunction("deleteMessage");
                         params->api["chat_id"] = mg.chatId;
                         params->api["message_id"] = msgId;
@@ -670,6 +674,8 @@ void Processing::run()
                 }
                 else
                 {
+                    emit adjacentMessageDel(chatId, messageId);
+
                     auto params = tgfunction("deleteMessage");
                     params->api["chat_id"] = chatId;
                     params->api["message_id"] = messageId;
@@ -767,6 +773,8 @@ void Processing::run()
                         params->messageDel = 3*60 /*3 мин*/;
                         emit sendTgCommand(params);
                     }
+
+                return true;
             };
 
             auto restrictUser = [&](tbot::Trigger* trigger)
@@ -918,8 +926,7 @@ void Processing::run()
                             update.update_id, chat->name(), messageId,
                             user->first_name, user->last_name, user->username, user->id);
 
-                        deleteMessage(trigger);
-                        messageDeleted = true;
+                        messageDeleted = deleteMessage(trigger);
                     }
                 }
                 else

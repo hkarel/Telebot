@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <tuple>
 
 using namespace std;
 using namespace pproto;
@@ -114,7 +115,7 @@ public slots:
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
     void restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMute);
-
+    void adjacentMessageDel(qint64 chatId, qint32 messageId);
 
 private:
     Q_OBJECT
@@ -295,6 +296,50 @@ private:
         typedef lst::List<NewUser, CompareUser<NewUser>> List;
     };
     NewUser::List _newUsers;
+
+    // Сопутствующее/соседнее сообщение
+    struct AdjacentMessage
+    {
+        qint64 chatId = {0};
+        qint64 userId = {0};
+
+        // Идентификатор сообщения для обработки
+        qint32 messageId = {0};
+
+        // Текст сообщения
+        QString text;
+
+        // Таймер для очистки списка
+        steady_timer timer;
+
+        // Признак удаленного сообщения
+        bool deleted = {false};
+
+        // Идентификатор медиагруппы текущего сообщения
+        QString mediaGroupId;
+
+        // Идентификатор медиагруппы сопутствующего сообщения
+        QString mediaGroupForDelete;
+
+        struct Compare
+        {
+            int operator() (const AdjacentMessage* item1, const AdjacentMessage* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(item1->chatId,    item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(item1->messageId, item2->messageId)
+                return 0;
+            }
+            int operator() (const tuple<qint64 /*chat id*/, qint32 /*message id*/>* item1,
+                            const AdjacentMessage* item2) const
+            {
+                LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
+                LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->messageId)
+                return 0;
+            }
+        };
+        typedef lst::List<AdjacentMessage, Compare> List;
+    };
+    AdjacentMessage::List _adjacentMessages;
 
     data::UserTrigger::List _userTriggers;
     QList<data::DeleteDelay> _deleteDelays;

@@ -120,6 +120,7 @@ signals:
     void antiRaidMessage(qint64 chatId, qint64 userId, qint32 messageId);
 
     void restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMute);
+    void adjacentMessageDel(qint64 chatId, qint32 messageId);
 
 public slots:
     void reloadConfig();

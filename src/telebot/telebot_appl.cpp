@@ -463,8 +463,97 @@ void Application::timerEvent(QTimerEvent* event)
         for (int i = 0; i < _newUsers.count(); ++i)
         {
             NewUser* newUser = _newUsers.item(i);
-            if (newUser->timer.elapsed() >= 60*1000 /*1мин*/)
+            if (newUser->timer.elapsed() >= 60*1000 /*1 мин*/)
                 _newUsers.remove(i--);
+        }
+
+        //--- AdjacentMessage ---
+        auto adjacentDeleteMessage = [this](AdjacentMessage* adjacentMsg)
+        {
+            auto params = tbot::tgfunction("deleteMessage");
+            params->api["chat_id"] = adjacentMsg->chatId;
+            params->api["message_id"] = adjacentMsg->messageId;
+            params->delay = 200 /*0.2 сек*/;
+            sendTgCommand(params);
+
+            if (!adjacentMsg->text.trimmed().isEmpty())
+            {
+                QString botMsg =
+                        u8"Бот удалил сообщение"
+                        u8"\r\n---"
+                        u8"\r\n%1"
+                        u8"\r\n---"
+                        u8"\r\nПричина удаления: сопутствующее спаму сообщение";
+
+                auto params2 = tbot::tgfunction("sendMessage");
+                params2->api["chat_id"] = adjacentMsg->chatId;
+                params2->api["text"] = botMsg.arg(adjacentMsg->text);
+                params2->api["parse_mode"] = "HTML";
+                params2->delay = 1*1000 /*1 сек*/;
+                sendTgCommand(params2);
+            }
+        };
+
+        // Удаляем сопутствующие спаму сообщения с истекшим сроком
+        for (int i = 0; i < _adjacentMessages.count(); ++i)
+            if (_adjacentMessages[i].timer.elapsed() >= 6*1000 /*6 сек*/)
+                _adjacentMessages.remove(i--);
+
+        // Удаляем предыдущие сопутствующие спаму сообщения
+        for (int i = 1; i < _adjacentMessages.count(); ++i)
+        {
+            AdjacentMessage* adjacentMsg = _adjacentMessages.item(i);
+            if (adjacentMsg->deleted)
+            {
+                AdjacentMessage* am = _adjacentMessages.item(i - 1);
+                if (!am->deleted
+                    && am->chatId == adjacentMsg->chatId
+                    && am->userId == adjacentMsg->userId
+                    && am->messageId == (adjacentMsg->messageId - 1))
+                {
+                    adjacentDeleteMessage(am);
+                    _adjacentMessages.remove(i - 1);
+                    --i;
+                }
+            }
+        }
+
+        // Удаляем последующие сопутствующие спаму сообщения
+        for (int i = 0; i < _adjacentMessages.count() - 1; ++i)
+        {
+            AdjacentMessage* adjacentMsg = _adjacentMessages.item(i);
+            if (adjacentMsg->deleted)
+            {
+                AdjacentMessage* am = _adjacentMessages.item(i + 1);
+                if (!am->deleted
+                    && am->chatId == adjacentMsg->chatId
+                    && am->userId == adjacentMsg->userId
+                    && am->messageId == (adjacentMsg->messageId + 1))
+                {
+                    if (!am->mediaGroupId.isEmpty())
+                        adjacentMsg->mediaGroupForDelete = am->mediaGroupId;
+
+                    adjacentDeleteMessage(am);
+                    _adjacentMessages.remove(i + 1);
+                }
+            }
+        }
+
+        // Удаляем сопутствующие спаму медиагруппы сообщений
+        for (int i = 0; i < _adjacentMessages.count(); ++i)
+        {
+            AdjacentMessage* adjacentMsg = _adjacentMessages.item(i);
+            if (!adjacentMsg->mediaGroupForDelete.isEmpty())
+                for (int j = i + 1; j < _adjacentMessages.count(); ++j)
+                {
+                    AdjacentMessage* am = _adjacentMessages.item(j);
+                    if (!am->deleted
+                        && adjacentMsg->mediaGroupForDelete == am->mediaGroupId)
+                    {
+                        adjacentDeleteMessage(am);
+                        _adjacentMessages.remove(j--);
+                    }
+                }
         }
 
         //--- DeleteDelay ---
@@ -1058,11 +1147,10 @@ void Application::webhook_readyRead()
             if (msgData->update.fromJson(wd.data))
             {
                 bool chatInList = true;
-                const tbot::Update& update = msgData->update;
-                tbot::Message::Ptr message = (update.message)
-                                             ? update.message
-                                             : update.edited_message;
-                if (message)
+                tbot::Message::Ptr message = (msgData->update.message)
+                                             ? msgData->update.message
+                                             : msgData->update.edited_message;
+                if (message && message->chat)
                 {
                     const qint64 chatId = message->chat->id;
                     tbot::GroupChat::List chats = tbot::groupChats();
@@ -1840,6 +1928,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::restrictNewUser,
                           this, &Application::restrictNewUser);
 
+            chk_connect_q(p, &tbot::Processing::adjacentMessageDel,
+                          this, &Application::adjacentMessageDel);
+
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
 
@@ -2533,6 +2624,12 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMu
     }
 }
 
+void Application::adjacentMessageDel(qint64 chatId, qint32 messageId)
+{
+    if (lst::FindResult fr = _adjacentMessages.findRef(tuple{chatId, messageId}))
+        _adjacentMessages[fr.index()].deleted = true;
+}
+
 void Application::loadBotCommands()
 {
     // timelimit_inactive
@@ -2690,6 +2787,41 @@ void Application::updateBotCommands(UpdateBotSection section)
 
 void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
 {
+    tbot::Message::Ptr message = (msgData->update.message)
+                                 ? msgData->update.message
+                                 : msgData->update.edited_message;
+
+    if (message && message->chat && message->from)
+    {
+        //const qint64 chatId = message->chat->id;
+        //const qint64 userId = message->from->id;
+        //const qint32 messageId = message->message_id;
+        //tuple find {chatId, userId, messageId};
+
+        simple_ptr<AdjacentMessage> item {new AdjacentMessage};
+        item->chatId = message->chat->id;
+        item->userId = message->from->id;
+        item->messageId = message->message_id;
+        item->mediaGroupId = message->media_group_id;
+
+        lst::FindResult fr = _adjacentMessages.find(item.get());
+        if (fr.failed())
+        {
+            item->text = message->text.trimmed();
+            QString caption = message->caption.trimmed();
+            if (!caption.isEmpty())
+            {
+                if (item->text.isEmpty())
+                    item->text = caption;
+                else
+                    item->text = caption + '\n' + item->text;
+            }
+            _adjacentMessages.addInSort(item.release(), fr);
+        }
+        if (_adjacentMessages.sortState() != lst::SortState::Up)
+            _adjacentMessages.sort();
+    }
+
     if (!_masterMode)
     {
         bool slaveActive = true;
@@ -2726,15 +2858,15 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         return false;
     }
 
-    const tbot::Update& update = msgData->update;
-    tbot::Message::Ptr message = (update.message)
-                                 ? update.message
-                                 : update.edited_message;
-    if (message.empty())
+    tbot::Message::Ptr message = (msgData->update.message)
+                                 ? msgData->update.message
+                                 : msgData->update.edited_message;
+    if (message.empty()
+        || message->chat.empty()
+        || message->from.empty())
+    {
         return false;
-
-    if (message->from.empty())
-        return false;
+    }
 
     const qint64 chatId = message->chat->id;
     const qint64 userId = message->from->id;
