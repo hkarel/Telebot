@@ -463,9 +463,39 @@ void Application::timerEvent(QTimerEvent* event)
         for (int i = 0; i < _newUsers.count(); ++i)
         {
             NewUser* newUser = _newUsers.item(i);
-            if (newUser->timer.elapsed() >= 60*1000 /*1мин*/)
+            if (newUser->timer.elapsed() >= 60*1000 /*1 мин*/)
                 _newUsers.remove(i--);
         }
+
+        //--- AdjacentMessage ---
+        for (int i = 0; i < _adjacentMessages.count() - 1; ++i)
+        {
+            AdjacentMessage* adjacentMsg = _adjacentMessages.item(i);
+            if (adjacentMsg == nullptr)
+                continue;
+
+            if (adjacentMsg->timer.elapsed() >= 8*1000 /*8 сек*/)
+            {
+                _adjacentMessages.remove(i, lst::CompressList::No);
+                continue;
+            }
+            if (adjacentMsg->deleted)
+            {
+                AdjacentMessage* am = _adjacentMessages.item(i + 1);
+                if (am != nullptr
+                    && am->chatId == adjacentMsg->chatId
+                    && am->userId == adjacentMsg->userId
+                    && am->messageId == (adjacentMsg->messageId + 1))
+                {
+                    if (!am->deleted)
+                        adjacentMessageDelete(am);
+
+                    _adjacentMessages.removeItem(am, lst::CompressList::No);
+                }
+                _adjacentMessages.remove(i, lst::CompressList::No);
+            }
+        }
+        _adjacentMessages.compressList();
 
         //--- DeleteDelay ---
         bool deleteDelayActive = false;
@@ -1062,7 +1092,7 @@ void Application::webhook_readyRead()
                 tbot::Message::Ptr message = (update.message)
                                              ? update.message
                                              : update.edited_message;
-                if (message)
+                if (message && message->chat)
                 {
                     const qint64 chatId = message->chat->id;
                     tbot::GroupChat::List chats = tbot::groupChats();
@@ -1840,6 +1870,9 @@ void Application::httpResultHandler(const ReplyData& rd)
             chk_connect_q(p, &tbot::Processing::restrictNewUser,
                           this, &Application::restrictNewUser);
 
+            chk_connect_q(p, &tbot::Processing::adjacentMessageDel,
+                          this, &Application::adjacentMessageDel);
+
             chk_connect_d(&config::observerBase(), &config::ObserverBase::changed,
                           p, &tbot::Processing::reloadConfig)
 
@@ -2533,6 +2566,52 @@ void Application::restrictNewUser(qint64 chatId, qint64 userId, qint32 newUserMu
     }
 }
 
+void Application::adjacentMessageDel(qint64 chatId, qint64 userId, qint32 messageId)
+{
+    tuple fnd {chatId, userId, messageId};
+    if (lst::FindResult fr = _adjacentMessages.findRef(fnd))
+    {
+        _adjacentMessages.item(fr.index())->deleted = true;
+
+        if (fr.index() > 0)
+        {
+            AdjacentMessage* am = _adjacentMessages.item(fr.index() - 1);
+            if (am->chatId == chatId
+                && am->userId == userId
+                && am->messageId == (messageId - 1))
+            {
+                if (!am->deleted)
+                    adjacentMessageDelete(am);
+
+                _adjacentMessages.removeItem(am);
+            }
+        }
+    }
+}
+
+void Application::adjacentMessageDelete(AdjacentMessage* adjacentMsg)
+{
+    auto params = tbot::tgfunction("deleteMessage");
+    params->api["chat_id"] = adjacentMsg->chatId;
+    params->api["message_id"] = adjacentMsg->messageId;
+    params->delay = 200 /*0.2 сек*/;
+    emit sendTgCommand(params);
+
+    QString botMsg =
+        u8"Бот удалил сообщение"
+        u8"\r\n---"
+        u8"\r\n%1"
+        u8"\r\n---"
+        u8"\r\nПричина удаления: сопутствующее спаму сообщение";
+
+    auto params2 = tbot::tgfunction("sendMessage");
+    params2->api["chat_id"] = adjacentMsg->chatId;
+    params2->api["text"] = botMsg.arg(adjacentMsg->text);
+    params2->api["parse_mode"] = "HTML";
+    params2->delay = 1*1000 /*1 сек*/;
+    emit sendTgCommand(params2);
+}
+
 void Application::loadBotCommands()
 {
     // timelimit_inactive
@@ -2690,6 +2769,40 @@ void Application::updateBotCommands(UpdateBotSection section)
 
 void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
 {
+    tbot::Message::Ptr message = (msgData->update.message)
+                                 ? msgData->update.message
+                                 : msgData->update.edited_message;
+
+    if (message && message->chat && message->from)
+    {
+        //const qint64 chatId = message->chat->id;
+        //const qint64 userId = message->from->id;
+        //const qint32 messageId = message->message_id;
+        //tuple find {chatId, userId, messageId};
+
+        simple_ptr<AdjacentMessage> item {new AdjacentMessage};
+        item->chatId = message->chat->id;
+        item->userId = message->from->id;
+        item->messageId = message->message_id;
+
+        lst::FindResult fr = _adjacentMessages.find(item.get());
+        if (fr.failed())
+        {
+            item->text = message->text.trimmed();
+            QString caption = message->caption.trimmed();
+            if (!caption.isEmpty())
+            {
+                if (item->text.isEmpty())
+                    item->text = caption;
+                else
+                    item->text = caption + '\n' + item->text;
+            }
+            _adjacentMessages.addInSort(item.release(), fr);
+        }
+        if (_adjacentMessages.sortState() != lst::SortState::Up)
+            _adjacentMessages.sort();
+    }
+
     if (!_masterMode)
     {
         bool slaveActive = true;
@@ -2730,11 +2843,12 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     tbot::Message::Ptr message = (update.message)
                                  ? update.message
                                  : update.edited_message;
-    if (message.empty())
+    if (message.empty()
+        || message->chat.empty()
+        || message->from.empty())
+    {
         return false;
-
-    if (message->from.empty())
-        return false;
+    }
 
     const qint64 chatId = message->chat->id;
     const qint64 userId = message->from->id;

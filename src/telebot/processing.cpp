@@ -976,6 +976,9 @@ void Processing::run()
                 emit antiRaidMessage(chatId, user->id, messageId);
             }
 
+            if (messageDeleted && !isNewUser && !isBioMessage)
+                emit adjacentMessageDel(chatId, user->id, messageId);
+
         } // for (int i = 0; i < users.count(); ++i)
 
         //--- Мониторинг скрытого тегирования пользователей ---
