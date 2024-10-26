@@ -2033,6 +2033,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                     tbot::Message::Ptr message {new tbot::Message};
 
                     message->message_id = rd.params->bio.messageId;
+                    message->media_group_id = rd.params->bio.mediaGroupId;
                     message->text = userBio.bio;
                     message->from = user;
                     message->chat = chat;

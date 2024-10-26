@@ -23,6 +23,7 @@ struct Bio
     qint64  chatId = {0};
     qint32  updateId = {0};
     qint32  messageId = {0}; // Идентификатор оригинального сообщения
+    QString mediaGroupId;    // Идентификатор медиагруппы оригинального сообщения
     QString messageOrigin;   // Текст оригинального сообщения
 };
 

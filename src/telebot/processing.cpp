@@ -966,6 +966,7 @@ void Processing::run()
                 params->bio.chatId = chatId;
                 params->bio.updateId = update.update_id;
                 params->bio.messageId = messageId;
+                params->bio.mediaGroupId = message->media_group_id;
                 params->bio.messageOrigin = messageText.trimmed();
                 params->isNewUser = isNewUser;
                 sendTgCommand(params);
