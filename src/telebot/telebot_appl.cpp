@@ -785,7 +785,7 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
 
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
-        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
+        timelimitSync.chats = tbot::timelimitInactiveChats();
 
         Message::Ptr m = createJsonMessage(timelimitSync);
         m->appendDestinationSocket(answer->socketDescriptor());
@@ -944,7 +944,7 @@ void Application::command_TimelimitSync(const Message::Ptr& message)
 
             data::TimelimitSync timelimitSync;
             timelimitSync.timemark = timemark;
-            timelimitSync.chats = tbot::timelimitInactiveChats().toList();
+            timelimitSync.chats = tbot::timelimitInactiveChats();
 
             writeToJsonMessage(timelimitSync, answer);
             _slaveSocket->send(answer);
@@ -2634,7 +2634,7 @@ void Application::adjacentMessageDel(qint64 chatId, qint32 messageId)
 void Application::loadBotCommands()
 {
     // timelimit_inactive
-    QList<qint64> timelimitInactiveChats;
+    QSet<qint64> timelimitInactiveChats;
     config::state().getValue("timelimit_inactive.chats", timelimitInactiveChats);
     tbot::setTimelimitInactiveChats(timelimitInactiveChats);
 
@@ -2690,8 +2690,7 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
     if (section == timelimit_inactive)
     {
         config::state().setValue("timelimit_inactive.timemark", timemark);
-        config::state().setValue("timelimit_inactive.chats",
-                                 tbot::timelimitInactiveChats().toList());
+        config::state().setValue("timelimit_inactive.chats", tbot::timelimitInactiveChats());
     }
     else if (section == user_trigger)
     {
@@ -2758,7 +2757,7 @@ void Application::updateBotCommands(UpdateBotSection section)
     {
         data::TimelimitSync timelimitSync;
         timelimitSync.timemark = timemark;
-        timelimitSync.chats = tbot::timelimitInactiveChats().toList();
+        timelimitSync.chats = tbot::timelimitInactiveChats();
 
         // Отправляем событие с измененными timelimit
         Message::Ptr m = createJsonMessage(timelimitSync, {Message::Type::Event});

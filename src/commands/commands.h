@@ -65,7 +65,7 @@ struct TimelimitSync : Data<&command::TimelimitSync,
                              Message::Type::Event>
 {
     qint64 timemark = {0};
-    QList<qint64> chats;
+    QSet<qint64> chats;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( timemark )

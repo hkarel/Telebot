@@ -416,10 +416,10 @@ QSet<qint64> timelimitInactiveChats()
     return timelimitInactiveChatsSet;
 }
 
-void setTimelimitInactiveChats(const QList<qint64>& chats)
+void setTimelimitInactiveChats(const QSet<qint64>& chats)
 {
     QMutexLocker locker {&timelimitInactiveChatsMutex}; (void) locker;
-    timelimitInactiveChatsSet = QSet<qint64>::fromList(chats);
+    timelimitInactiveChatsSet = chats;
 }
 
 void timelimitInactiveChatsAdd(qint64 chatId)

@@ -115,7 +115,7 @@ void printGroupChats(GroupChat::List&);
 GroupChat::List groupChats(GroupChat::List* = nullptr);
 
 QSet<qint64> timelimitInactiveChats();
-void setTimelimitInactiveChats(const QList<qint64>& chats);
+void setTimelimitInactiveChats(const QSet<qint64>& chats);
 
 void timelimitInactiveChatsAdd(qint64 chatId);
 void timelimitInactiveChatsRemove(qint64 chatId);
