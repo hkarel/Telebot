@@ -2889,9 +2889,13 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
     auto sendMessage = [this, chatId](QString msg, bool messageDel = true)
     {
+        // Исключаем из замены html-теги <b> </b> <i> </i> <s> </s> <u> </u>
+        static QRegularExpression re1 {R"(<(?!([bisu]>|\/[bisu]>)))"};
+        static QRegularExpression re2 {R"((?<!(\/[bisu]|<[bisu]))>)"};
+
+        msg.replace(re1, "&#60;");
+        msg.replace(re2, "&#62;");
         msg.replace("+", "&#43;");
-        msg.replace("<", "&#60;");
-        msg.replace(">", "&#62;");
 
         auto params = tbot::tgfunction("sendMessage");
         params->api["chat_id"] = chatId;
@@ -3301,6 +3305,12 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                     str = str.arg(item->keys.join(QChar(',')) , item->text);
                     botMsg += str;
+
+                    // При выводе списка триггеров исключаем html-форматирование.
+                    // Если  в тегах  html-форматирования  будут  ошибки  список
+                    // триггеров может не отобразиться
+                    botMsg.replace("<", "&#60;");
+                    botMsg.replace(">", "&#62;");
                 }
                 sendMessage(botMsg);
             }
