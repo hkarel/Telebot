@@ -20,7 +20,7 @@ typedef clife_ptr<Message> MessagePtr;
   https://core.telegram.org/bots/api#update
 */
 
-struct User : public clife_base
+struct User : clife_base
 {
     typedef clife_ptr<User> Ptr;
 
@@ -56,24 +56,7 @@ struct User : public clife_base
     J_SERIALIZE_END
 };
 
-struct UserBio
-{
-    qint64  id = {0};
-    QString first_name;  // User's or bot's first name
-    QString last_name;   // Optional. User's or bot's last name
-    QString username;    // Optional. User's or bot's username
-    QString bio;         // Optional
-
-    J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( id         )
-        J_SERIALIZE_ITEM( first_name )
-        J_SERIALIZE_OPT ( last_name  )
-        J_SERIALIZE_OPT ( username   )
-        J_SERIALIZE_OPT ( bio        )
-    J_SERIALIZE_END
-};
-
-struct Location : public clife_base
+struct Location : clife_base
 {
     typedef clife_ptr<Location> Ptr;
 
@@ -94,7 +77,39 @@ struct Location : public clife_base
     J_SERIALIZE_END
 };
 
-struct ChatPhoto : public clife_base
+struct BusinessLocation : clife_base
+{
+    typedef clife_ptr<BusinessLocation> Ptr;
+
+    QString       address;  // Address of the business
+    Location::Ptr location; // Optional. Location of the business
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( address  )
+        J_SERIALIZE_ITEM( location )
+    J_SERIALIZE_END
+};
+
+struct UserBio
+{
+    qint64  id = {0};
+    QString first_name; // User's or bot's first name
+    QString last_name;  // Optional. User's or bot's last name
+    QString username;   // Optional. User's or bot's username
+    QString bio;        // Optional
+    BusinessLocation::Ptr business_location; // Optional
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( id                )
+        J_SERIALIZE_ITEM( first_name        )
+        J_SERIALIZE_OPT ( last_name         )
+        J_SERIALIZE_OPT ( username          )
+        J_SERIALIZE_OPT ( bio               )
+        J_SERIALIZE_OPT ( business_location )
+    J_SERIALIZE_END
+};
+
+struct ChatPhoto : clife_base
 {
     typedef clife_ptr<ChatPhoto> Ptr;
 
@@ -111,7 +126,7 @@ struct ChatPhoto : public clife_base
     J_SERIALIZE_END
 };
 
-struct ChatPermissions : public clife_base
+struct ChatPermissions : clife_base
 {
     typedef clife_ptr<ChatPermissions> Ptr;
 
@@ -139,7 +154,7 @@ struct ChatPermissions : public clife_base
 };
 typedef typename ChatPermissions::Ptr ChatPermissPtr;
 
-struct ChatLocation : public clife_base
+struct ChatLocation : clife_base
 {
     typedef clife_ptr<ChatLocation> Ptr;
 
@@ -153,7 +168,7 @@ struct ChatLocation : public clife_base
 };
 typedef typename ChatLocation::Ptr ChatLocatPtr;
 
-struct MessageEntity /*: public clife_base*/
+struct MessageEntity /*: clife_base*/
 {
     //typedef clife_ptr<MessageEntity> Ptr;
 
@@ -184,7 +199,7 @@ struct MessageEntity /*: public clife_base*/
     J_SERIALIZE_END
 };
 
-struct Chat : public clife_base
+struct Chat : clife_base
 {
     typedef clife_ptr<Chat> Ptr;
 
@@ -218,7 +233,7 @@ struct Chat : public clife_base
     DECLARE_J_SERIALIZE_FUNC
 };
 
-struct Audio : public clife_base
+struct Audio : clife_base
 {
     typedef clife_ptr<Audio> Ptr;
 
@@ -244,7 +259,7 @@ struct Audio : public clife_base
     J_SERIALIZE_END
 };
 
-struct Document : public clife_base
+struct Document : clife_base
 {
     typedef clife_ptr<Document> Ptr;
 
@@ -264,7 +279,7 @@ struct Document : public clife_base
     J_SERIALIZE_END
 };
 
-struct Video : public clife_base
+struct Video : clife_base
 {
     typedef clife_ptr<Video> Ptr;
 
@@ -290,7 +305,7 @@ struct Video : public clife_base
     J_SERIALIZE_END
 };
 
-struct MessageOrigin : public clife_base
+struct MessageOrigin : clife_base
 {
     typedef clife_ptr<MessageOrigin> Ptr;
 
@@ -307,7 +322,7 @@ struct MessageOrigin : public clife_base
     J_SERIALIZE_END
 };
 
-struct Message : public clife_base
+struct Message : clife_base
 {
     typedef MessagePtr Ptr;
 
@@ -418,7 +433,7 @@ struct Message : public clife_base
     J_SERIALIZE_END
 };
 
-struct ChatMemberAdministrator : public clife_base
+struct ChatMemberAdministrator : clife_base
 {
     typedef clife_ptr<ChatMemberAdministrator> Ptr;
 
@@ -459,7 +474,7 @@ struct ChatMemberAdministrator : public clife_base
     J_SERIALIZE_END
 };
 
-struct ChatMemberUpdated  : public clife_base
+struct ChatMemberUpdated  : clife_base
 {
     typedef clife_ptr<ChatMemberUpdated> Ptr;
 

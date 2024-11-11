@@ -2038,6 +2038,9 @@ void Application::httpResultHandler(const ReplyData& rd)
                     message->from = user;
                     message->chat = chat;
 
+                    if (userBio.business_location)
+                        message->text += " " + userBio.business_location->address;
+
                     msgData->update.message = message;
 
                     //log_verbose_m << "Emulation BIO message: " << msgData->update.toJson();
