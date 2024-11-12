@@ -90,8 +90,8 @@ struct UserTrigger
                 return item1->keys[0].compare(item2->keys[0], Qt::CaseInsensitive);
             }
             int operator() (const QString* key, const Item* item2) const {
-                QStringList sl {item2->keys};
-                return (sl.contains(*key, Qt::CaseInsensitive)) ? 0 : -1;
+                QStringList keys {item2->keys};
+                return (keys.contains(*key, Qt::CaseInsensitive)) ? 0 : -1;
             }
         };
         typedef lst::List<Item, Compare> List;

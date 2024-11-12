@@ -2923,7 +2923,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
         {
             QString triggerName = message->text.trimmed();
-            if (lst::FindResult fr = userTrgList->items.findRef(triggerName, {lst::BruteForce::Yes}))
+            lst::FindResult fr =
+                userTrgList->items.findRef(triggerName, {lst::BruteForce::Yes});
+            if (fr.success())
             {
                 // Удаляем сообщение с именем триггера
                 deleteMessage();
@@ -3196,7 +3198,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 _userTriggers.sort();
             }
 
-            if (lst::FindResult fr = userTrgList->items.findRef(action))
+            lst::FindResult fr =
+                userTrgList->items.findRef(action, {lst::BruteForce::Yes});
+            if (fr.success())
             {
                 QString text = userTrgList->items[fr.index()].text;
                 sendMessage(text, false);
@@ -3276,7 +3280,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 }
 
                 QString triggerName = actions[1];
-                lst::FindResult fr = userTrgList->items.findRef(triggerName);
+                lst::FindResult fr =
+                    userTrgList->items.findRef(triggerName, {lst::BruteForce::Yes});
                 if (fr.failed())
                 {
                     botMsg = u8"Не удалось удалить пользовательский триггер."
