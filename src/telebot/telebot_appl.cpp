@@ -2896,9 +2896,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         static QRegularExpression re1 {R"(<(?!([bisu]>|\/[bisu]>)))"};
         static QRegularExpression re2 {R"((?<!(\/[bisu]|<[bisu]))>)"};
 
-        msg.replace(re1, "&#60;");
-        msg.replace(re2, "&#62;");
-        msg.replace("+", "&#43;");
+        msg.replace(re1, "&#60;"); // <
+        msg.replace(re2, "&#62;"); // >
+        msg.replace("+", "&#43;"); // +
 
         auto params = tbot::tgfunction("sendMessage");
         params->api["chat_id"] = chatId;
@@ -2908,6 +2908,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         params->messageDel = (messageDel) ? 0 : -1;
         sendTgCommand(params);
     };
+
+    static QSet<QString> vaCmdShorts {u8"проверь", u8"проверка", u8"проверить"};
 
     bool isBotCommand = false;
     for (const tbot::MessageEntity& entity : message->entities)
@@ -2920,6 +2922,16 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     //--- Короткая запись для вызова пользовательского триггера ---
     if (!isBotCommand)
     {
+        if (message->text.length() < 12)
+            if (vaCmdShorts.contains(message->text.toLower().trimmed()))
+            {
+                // Удаляем сообщение с командой
+                deleteMessage();
+
+                tbot::Processing::addVerifyAdmin(chatId, userId, messageId + 1);
+                return true;
+            }
+
         if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
         {
             QString triggerName = message->text.trimmed();
@@ -3249,6 +3261,17 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 QStringList triggerKeys = actions[1].split(QChar(','), QString::SkipEmptyParts);
                 triggerKeys.sort(Qt::CaseInsensitive);
                 for (const QString& key : triggerKeys)
+                {
+                    if (vaCmdShorts.contains(key.toLower().trimmed()))
+                    {
+                        botMsg = u8"Слова <i>%1</i> зарезервированы, "
+                                 u8"их нельзя использоваться в качестве имени триггера";
+                        QStringList sl {vaCmdShorts.toList()}; sl.sort();
+                        botMsg = botMsg.arg(sl.join(QChar(' ')));
+
+                        sendMessage(botMsg);
+                        return true;
+                    }
                     if (userTrgList->items.findRef(key, {lst::BruteForce::Yes}))
                     {
                         botMsg = u8"Пользовательский триггер '%1' уже существует";
@@ -3257,6 +3280,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                         sendMessage(botMsg);
                         return true;
                     }
+                }
 
                 data::UserTrigger::Item* userTrgItem = userTrgList->items.add();
                 userTrgItem->keys = triggerKeys;
