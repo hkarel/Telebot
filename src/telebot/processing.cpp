@@ -307,13 +307,34 @@ void Processing::run()
         //--- Trigger::TextType::Content ---
         triggerText[tbot::Trigger::TextType::Content] = clearText.trimmed();
 
+        MessageOrigin::Ptr messageForwardOrigin;
+        if (message->external_reply)
+            messageForwardOrigin = message->external_reply->origin;
+
+        if (message->forward_origin)
+            messageForwardOrigin = message->forward_origin;
+
         //--- Trigger::TextType::FrwdUserId ---
-        if (message->forward_from)
-            triggerText[tbot::Trigger::TextType::FrwdUserId] = message->forward_from->id;
+        if (messageForwardOrigin
+            && messageForwardOrigin->type == "user"
+            && messageForwardOrigin->sender_user)
+        {
+            triggerText[tbot::Trigger::TextType::FrwdUserId] = messageForwardOrigin->sender_user->id;
+        }
 
         //--- Trigger::TextType::FrwdChatId ---
-        if (message->forward_from_chat)
-            triggerText[tbot::Trigger::TextType::FrwdChatId] = message->forward_from_chat->id;
+        if (messageForwardOrigin
+            && messageForwardOrigin->type == "chat"
+            && messageForwardOrigin->sender_chat)
+        {
+            triggerText[tbot::Trigger::TextType::FrwdChatId] = messageForwardOrigin->sender_chat->id;
+        }
+        if (messageForwardOrigin
+            && messageForwardOrigin->type == "channel"
+            && messageForwardOrigin->chat)
+        {
+            triggerText[tbot::Trigger::TextType::FrwdChatId] = messageForwardOrigin->chat->id;
+        }
 
         //--- Trigger::TextType::FileMime ---
         QString filemimeText;
@@ -585,14 +606,39 @@ void Processing::run()
                 usernameText = usernameText.trimmed();
                 isPremium = user->is_premium;
             }
-            if (message->forward_from
-                && !adminIds.contains(message->forward_from->id)
-                && !chat->whiteUsers.contains(message->forward_from->id))
+
+            if (messageForwardOrigin
+                && messageForwardOrigin->type == "user"
+                && messageForwardOrigin->sender_user
+                && !adminIds.contains(messageForwardOrigin->sender_user->id)
+                && !chat->whiteUsers.contains(messageForwardOrigin->sender_user->id))
             {
                 usernameText += QString(" %1 %2 %3")
-                                       .arg(message->forward_from->first_name)
-                                       .arg(message->forward_from->last_name)
-                                       .arg(message->forward_from->username);
+                                       .arg(messageForwardOrigin->sender_user->first_name)
+                                       .arg(messageForwardOrigin->sender_user->last_name)
+                                       .arg(messageForwardOrigin->sender_user->username);
+                usernameText = usernameText.trimmed();
+            }
+            if (messageForwardOrigin
+                && messageForwardOrigin->type == "chat"
+                && messageForwardOrigin->sender_chat)
+            {
+                usernameText += QString(" %1 %2 %3 %4")
+                                       .arg(messageForwardOrigin->sender_chat->title)
+                                       .arg(messageForwardOrigin->sender_chat->first_name)
+                                       .arg(messageForwardOrigin->sender_chat->last_name)
+                                       .arg(messageForwardOrigin->sender_chat->username);
+                usernameText = usernameText.trimmed();
+            }
+            if (messageForwardOrigin
+                && messageForwardOrigin->type == "channel"
+                && messageForwardOrigin->chat)
+            {
+                usernameText += QString(" %1 %2 %3 %4")
+                                       .arg(messageForwardOrigin->chat->title)
+                                       .arg(messageForwardOrigin->chat->first_name)
+                                       .arg(messageForwardOrigin->chat->last_name)
+                                       .arg(messageForwardOrigin->chat->username);
                 usernameText = usernameText.trimmed();
             }
             if (message->sender_chat)
@@ -602,15 +648,6 @@ void Processing::run()
                                        .arg(message->sender_chat->first_name)
                                        .arg(message->sender_chat->last_name)
                                        .arg(message->sender_chat->username);
-                usernameText = usernameText.trimmed();
-            }
-            if (message->forward_from_chat)
-            {
-                usernameText += QString(" %1 %2 %3 %4")
-                                       .arg(message->forward_from_chat->title)
-                                       .arg(message->forward_from_chat->first_name)
-                                       .arg(message->forward_from_chat->last_name)
-                                       .arg(message->forward_from_chat->username);
                 usernameText = usernameText.trimmed();
             }
             if (message->via_bot)
