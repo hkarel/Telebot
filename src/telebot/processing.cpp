@@ -1,6 +1,7 @@
 ﻿#include "processing.h"
 
 #include "trigger.h"
+#include "functions.h"
 #include "group_chat.h"
 
 #include "shared/break_point.h"
@@ -1012,7 +1013,10 @@ void Processing::run()
             // Ограничение пользователя на два и более часа, если он в течении
             // одной минуты подключается к нескольким группам
             if (isNewUser && !isBioMessage)
+            {
                 emit restrictNewUser(chat->id, user->id, chat->newUserMute);
+                userJoinTimesAdd(chat->id, user->id);
+            }
 
             // Проверка на Anti-Raid режим
             if (chat->antiRaid.active && chat->antiRaidTurnOn

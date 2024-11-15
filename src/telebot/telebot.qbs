@@ -50,6 +50,8 @@ Product {
     }
 
     files: [
+        "functions.cpp",
+        "functions.h",
         "group_chat.cpp",
         "group_chat.h",
         "processing.cpp",

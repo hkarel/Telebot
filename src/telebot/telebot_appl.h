@@ -21,7 +21,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <tuple>
 
 using namespace std;
 using namespace pproto;
@@ -126,6 +125,7 @@ private:
     void command_TimelimitSync(const Message::Ptr&);
     void command_UserTriggerSync(const Message::Ptr&);
     void command_DeleteDelaySync(const Message::Ptr&);
+    void command_UserJoinTimeSync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
@@ -135,6 +135,7 @@ private:
         timelimit_inactive,
         user_trigger,
         delete_delay,
+        user_join_time,
     };
 
     void loadBotCommands();

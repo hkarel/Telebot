@@ -3,6 +3,7 @@
 #include "shared/list.h"
 #include <QtGlobal>
 #include <QString>
+#include <tuple>
 
 template<typename T> struct CompareId
 {

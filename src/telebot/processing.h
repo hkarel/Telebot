@@ -9,7 +9,6 @@
 #include "shared/qt/qthreadex.h"
 
 #include <QtCore>
-#include <QNetworkReply>
 #include <atomic>
 
 namespace tbot {

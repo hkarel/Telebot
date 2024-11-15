@@ -1,6 +1,7 @@
 #include "telebot_appl.h"
 
 #include "trigger.h"
+#include "functions.h"
 #include "group_chat.h"
 
 #include "shared/spin_locker.h"
@@ -110,6 +111,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(TimelimitSync)
     FUNC_REGISTRATION(UserTriggerSync)
     FUNC_REGISTRATION(DeleteDelaySync)
+    FUNC_REGISTRATION(UserJoinTimeSync)
 
     #undef FUNC_REGISTRATION
 
@@ -636,8 +638,14 @@ void Application::timerEvent(QTimerEvent* event)
     }
     else if (event->timerId() == _configStateTimerId)
     {
+        if (tbot::userJoinTimesChanged())
+            updateBotCommands(user_join_time);
+
         if (config::state().changed())
+        {
             config::state().saveFile();
+            tbot::userJoinTimesResetChangeFlag();
+        }
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
@@ -812,6 +820,18 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
         deleteDelaySync.items = _deleteDelays;
 
         m = createJsonMessage(deleteDelaySync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
+        // Отправлем команду синхронизации user_join_time
+        timemark = 0;
+        config::state().getValue("user_join_time.timemark", timemark);
+
+        data::UserJoinTimeSync userJoinTimeSync;
+        userJoinTimeSync.timemark = timemark;
+        userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+
+        m = createJsonMessage(userJoinTimeSync);
         m->appendDestinationSocket(answer->socketDescriptor());
         tcp::listener().send(m);
 
@@ -1023,6 +1043,42 @@ void Application::command_DeleteDelaySync(const Message::Ptr& message)
             deleteDelaySync.items = _deleteDelays;
 
             writeToJsonMessage(deleteDelaySync, answer);
+            _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_UserJoinTimeSync(const Message::Ptr& message)
+{
+    data::UserJoinTimeSync userJoinTimeSync;
+    readFromMessage(message, userJoinTimeSync);
+
+    qint64 timemark = 0;
+    config::state().getValue("user_join_time.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (userJoinTimeSync.timemark > timemark)
+    {
+        tbot::setUserJoinTimes(userJoinTimeSync.items);
+        saveBotCommands(user_join_time, userJoinTimeSync.timemark);
+
+        log_verbose_m << "Updated 'user_join_time' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            log_verbose_m << "Send 'user_join_time' settings to master-bot";
+
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::UserJoinTimeSync userJoinTimeSync;
+            userJoinTimeSync.timemark = timemark;
+            userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+
+            writeToJsonMessage(userJoinTimeSync, answer);
             _slaveSocket->send(answer);
         }
     }
@@ -2686,6 +2742,14 @@ void Application::loadBotCommands()
     };
     _deleteDelays.clear();
     config::state().getValue("delete_delay.items", loadFunc2, false);
+
+    // user_join_time
+    QString serializeStr;
+    config::state().getValue("user_join_time.items", serializeStr, false);
+
+    data::UserJoinTimeSerialize serialize;
+    serialize.fromJson(serializeStr.toUtf8());
+    tbot::setUserJoinTimes(serialize.items);
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -2744,6 +2808,16 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         config::state().remove("delete_delay.items");
         config::state().setValue("delete_delay.items", saveFunc);
     }
+    else if (section == user_join_time)
+    {
+        config::state().setValue("user_join_time.timemark", timemark);
+
+        data::UserJoinTimeSerialize serialize;
+        serialize.items = std::move(tbot::userJoinTimes());
+
+        QString serializeStr {serialize.toJson()};
+        config::state().setValue("user_join_time.items", serializeStr);
+    }
 
     // Сохранение состояния происходит по таймеру _configStateTimerId
     // config::state().saveFile()
@@ -2784,6 +2858,16 @@ void Application::updateBotCommands(UpdateBotSection section)
 
         // Отправляем событие с измененными delete_delay
         Message::Ptr m = createJsonMessage(deleteDelaySync, {Message::Type::Event});
+        tcp::listener().send(m);
+    }
+    else if (section == user_join_time)
+    {
+        data::UserJoinTimeSync userJoinTimeSync;
+        userJoinTimeSync.timemark = timemark;
+        userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+
+        // Отправляем событие с измененными user_join_time
+        Message::Ptr m = createJsonMessage(userJoinTimeSync, {Message::Type::Event});
         tcp::listener().send(m);
     }
 }

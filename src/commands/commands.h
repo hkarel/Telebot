@@ -12,6 +12,10 @@
 #include "pproto/commands/base.h"
 #include "compare.h"
 
+#include "shared/clife_base.h"
+#include "shared/clife_alloc.h"
+#include "shared/clife_ptr.h"
+
 namespace pproto {
 namespace command {
 
@@ -42,6 +46,10 @@ extern const QUuidEx UserTriggerSync;
 */
 extern const QUuidEx DeleteDelaySync;
 
+/**
+  Синхронизация списка с датой вступления пользователей в группу
+*/
+extern const QUuidEx UserJoinTimeSync;
 
 } // namespace command
 
@@ -154,6 +162,61 @@ struct DeleteDelaySync : Data<&command::DeleteDelaySync,
 {
     qint64 timemark = {0};
     QList<DeleteDelay> items;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( timemark )
+        J_SERIALIZE_ITEM( items    )
+    J_SERIALIZE_END
+};
+
+struct UserJoinTime : clife_base
+{
+    typedef clife_ptr<UserJoinTime> Ptr;
+
+    qint64 chatId = {0};
+    qint64 userId = {0};
+    qint64 time   = {0}; // Время вступления пользователя в группу
+
+    struct Compare
+    {
+        int operator() (const UserJoinTime* item1, const UserJoinTime* item2) const
+        {
+            LIST_COMPARE_MULTI_ITEM(item1->chatId, item2->chatId)
+            LIST_COMPARE_MULTI_ITEM(item1->userId, item2->userId);
+            return 0;
+        }
+        int operator() (const std::tuple<qint64 /*chat id*/, qint64 /*user id*/>* item1,
+                        const UserJoinTime* item2) const
+        {
+            LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
+            LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->userId)
+            return 0;
+        }
+    };
+
+    typedef lst::List<UserJoinTime, Compare, clife_alloc<UserJoinTime>> List;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "chat_id", chatId )
+        J_SERIALIZE_MAP_ITEM( "user_id", userId )
+        J_SERIALIZE_MAP_ITEM( "time"   , time   )
+    J_SERIALIZE_END
+};
+
+// Вспомогательная структура для сериализации списка UserJoinTime
+struct UserJoinTimeSerialize
+{
+    UserJoinTime::List items;
+    J_SERIALIZE_MAP_ONE( "list", items )
+};
+
+struct UserJoinTimeSync : Data<&command::UserJoinTimeSync,
+                                Message::Type::Command,
+                                Message::Type::Answer,
+                                Message::Type::Event>
+{
+    qint64 timemark = {0};
+    UserJoinTime::List items;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( timemark )
