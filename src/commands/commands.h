@@ -64,7 +64,7 @@ struct ConfSync : Data<&command::ConfSync,
     // Конфигурация групп master-бота (config-файл)
     QString config;
 
-    J_SERIALIZE_ONE( config )
+    J_SERIALIZE_MAP_ONE( "config", config )
 };
 
 struct TimelimitSync : Data<&command::TimelimitSync,
@@ -76,8 +76,8 @@ struct TimelimitSync : Data<&command::TimelimitSync,
     QSet<qint64> chats;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( timemark )
-        J_SERIALIZE_ITEM( chats    )
+        J_SERIALIZE_MAP_ITEM( "timemark", timemark )
+        J_SERIALIZE_MAP_ITEM( "chats"   , chats    )
     J_SERIALIZE_END
 };
 
@@ -105,8 +105,8 @@ struct UserTrigger
         typedef lst::List<Item, Compare> List;
 
         J_SERIALIZE_BEGIN
-            J_SERIALIZE_ITEM( keys )
-            J_SERIALIZE_ITEM( text )
+            J_SERIALIZE_MAP_ITEM( "keys", keys )
+            J_SERIALIZE_MAP_ITEM( "text", text )
         J_SERIALIZE_END
     };
     Item::List items;
@@ -123,8 +123,8 @@ struct UserTrigger
     typedef lst::List<UserTrigger, CompareChat<UserTrigger>> List;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( chatId )
-        J_SERIALIZE_ITEM( items  )
+        J_SERIALIZE_MAP_ITEM( "chat_id", chatId )
+        J_SERIALIZE_MAP_ITEM( "items"  , items  )
     J_SERIALIZE_END
 };
 
@@ -137,8 +137,8 @@ struct UserTriggerSync : Data<&command::UserTriggerSync,
     UserTrigger::List triggers;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( timemark )
-        J_SERIALIZE_ITEM( triggers )
+        J_SERIALIZE_MAP_ITEM( "timemark", timemark )
+        J_SERIALIZE_MAP_ITEM( "triggers", triggers )
     J_SERIALIZE_END
 };
 
@@ -149,9 +149,9 @@ struct DeleteDelay
     qint64 deleteTime = {0}; // Время UTC в миллисекундах
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( chatId     )
-        J_SERIALIZE_ITEM( messageId  )
-        J_SERIALIZE_ITEM( deleteTime )
+        J_SERIALIZE_MAP_ITEM( "chat_id"    , chatId     )
+        J_SERIALIZE_MAP_ITEM( "message_id" , messageId  )
+        J_SERIALIZE_MAP_ITEM( "delete_time", deleteTime )
     J_SERIALIZE_END
 };
 
@@ -164,8 +164,8 @@ struct DeleteDelaySync : Data<&command::DeleteDelaySync,
     QList<DeleteDelay> items;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( timemark )
-        J_SERIALIZE_ITEM( items    )
+        J_SERIALIZE_MAP_ITEM( "timemark", timemark )
+        J_SERIALIZE_MAP_ITEM( "items"   , items    )
     J_SERIALIZE_END
 };
 
@@ -219,8 +219,8 @@ struct UserJoinTimeSync : Data<&command::UserJoinTimeSync,
     UserJoinTime::List items;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_ITEM( timemark )
-        J_SERIALIZE_ITEM( items    )
+        J_SERIALIZE_MAP_ITEM( "timemark", timemark )
+        J_SERIALIZE_MAP_ITEM( "items"   , items    )
     J_SERIALIZE_END
 };
 
