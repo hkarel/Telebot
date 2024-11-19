@@ -83,7 +83,7 @@ void userJoinTimesRemoveByTime()
 {
     QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
 
-    const qint64 diffTime = 30*24*60*60; // 30 суток
+    const qint64 diffTime = 15*24*60*60; // 15 суток
     const qint64 time = std::time(nullptr) - diffTime;
     userJoinTimesList.removeCond([time, diffTime](data::UserJoinTime* ujt) -> bool
     {

@@ -94,7 +94,7 @@ Application::Application(int& argc, char** argv)
     _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
-    _configStateTimerId  = startTimer( 5*1000 /* 5 сек*/);
+    _configStateTimerId  = startTimer(10*1000 /*10 сек*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -261,6 +261,12 @@ void Application::deinit()
 
     saveReportSpam();
     saveAntiRaidCache();
+
+    if (tbot::userJoinTimesChanged())
+    {
+        qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+        saveBotCommands(user_join_time, timemark);
+    }
 }
 
 void Application::timerEvent(QTimerEvent* event)
@@ -2744,12 +2750,20 @@ void Application::loadBotCommands()
     config::state().getValue("delete_delay.items", loadFunc2, false);
 
     // user_join_time
-    QString serializeStr;
-    config::state().getValue("user_join_time.items", serializeStr, false);
-
-    data::UserJoinTimeSerialize serialize;
-    serialize.fromJson(serializeStr.toUtf8());
-    tbot::setUserJoinTimes(serialize.items);
+    data::UserJoinTime::List userJoinTimes;
+    YamlConfig::Func loadFunc3 = [&userJoinTimes](YamlConfig* conf, YAML::Node& nodes, bool)
+    {
+        for (const YAML::Node& node : nodes)
+        {
+            data::UserJoinTime* ujt = userJoinTimes.add();
+            conf->getValue(node, "c", ujt->chatId);
+            conf->getValue(node, "u", ujt->userId);
+            conf->getValue(node, "t", ujt->time);
+        }
+        return true;
+    };
+    config::state().getValue("user_join_time.items", loadFunc3, false);
+    tbot::setUserJoinTimes(userJoinTimes);
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -2812,11 +2826,21 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
     {
         config::state().setValue("user_join_time.timemark", timemark);
 
-        data::UserJoinTimeSerialize serialize;
-        serialize.items = std::move(tbot::userJoinTimes());
-
-        QString serializeStr {serialize.toJson()};
-        config::state().setValue("user_join_time.items", serializeStr);
+        YamlConfig::Func saveFunc = [](YamlConfig* conf, YAML::Node& node, bool)
+        {
+            for (data::UserJoinTime* ujt : tbot::userJoinTimes())
+            {
+                YAML::Node n;
+                conf->setValue(n, "c", ujt->chatId);
+                conf->setValue(n, "u", ujt->userId);
+                conf->setValue(n, "t", ujt->time);
+                node.push_back(n);
+            }
+            return true;
+        };
+        config::state().remove("user_join_time.items");
+        config::state().setValue("user_join_time.items", saveFunc);
+        config::state().setNodeStyle("user_join_time.items", YAML::EmitterStyle::Flow);
     }
 
     // Сохранение состояния происходит по таймеру _configStateTimerId

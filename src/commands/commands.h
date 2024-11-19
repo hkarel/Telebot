@@ -203,13 +203,6 @@ struct UserJoinTime : clife_base
     J_SERIALIZE_END
 };
 
-// Вспомогательная структура для сериализации списка UserJoinTime
-struct UserJoinTimeSerialize
-{
-    UserJoinTime::List items;
-    J_SERIALIZE_MAP_ONE( "list", items )
-};
-
 struct UserJoinTimeSync : Data<&command::UserJoinTimeSync,
                                 Message::Type::Command,
                                 Message::Type::Answer,
