@@ -170,10 +170,10 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     }
 
     qint32 newUserMute = -1;
-    if (ychat["new_user_mute"].IsDefined())
+    if (ychat["newuser_mute"].IsDefined())
     {
-        checkFiedType(ychat, "new_user_mute", YAML::NodeType::Scalar);
-        newUserMute = ychat["new_user_mute"].as<int>();
+        checkFiedType(ychat, "newuser_mute", YAML::NodeType::Scalar);
+        newUserMute = ychat["newuser_mute"].as<int>();
     }
 
     GroupChat::AntiRaid antiRaid;
@@ -331,7 +331,7 @@ void printGroupChats(GroupChat::List& chats)
             logLine << nextComma() << item;
         logLine << "]";
 
-        logLine << "; new_user_mute: " << chat->newUserMute;
+        logLine << "; newuser_mute: " << chat->newUserMute;
 
         logLine << log_format("; anti_raid: {active: %?, time_frame: %?"
                               ", users_limit: %?, duration: %?}",
