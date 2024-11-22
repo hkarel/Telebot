@@ -94,6 +94,7 @@ Application::Application(int& argc, char** argv)
     _slaveTimerId        = startTimer(10*1000 /*10 сек*/);
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
+    _userJoinTimerId     = startTimer(30*1000 /*30 сек*/);
     _configStateTimerId  = startTimer(10*1000 /*10 сек*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
@@ -279,6 +280,7 @@ void Application::timerEvent(QTimerEvent* event)
             KILL_TIMER(_slaveTimerId)
             KILL_TIMER(_antiraidTimerId)
             KILL_TIMER(_timelimitTimerId)
+            KILL_TIMER(_userJoinTimerId)
             KILL_TIMER(_configStateTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
@@ -642,16 +644,19 @@ void Application::timerEvent(QTimerEvent* event)
             timelimitCheck();
         }
     }
-    else if (event->timerId() == _configStateTimerId)
+    else if (event->timerId() == _userJoinTimerId)
     {
         if (tbot::userJoinTimesChanged())
-            updateBotCommands(user_join_time);
-
-        if (config::state().changed())
         {
-            config::state().saveFile();
+            updateBotCommands(user_join_time);
             tbot::userJoinTimesResetChangeFlag();
+            config::state().saveFile();
         }
+    }
+    else if (event->timerId() == _configStateTimerId)
+    {
+        if (config::state().changed())
+            config::state().saveFile();
     }
     else if (event->timerId() == _updateAdminsTimerId)
     {
@@ -2750,20 +2755,37 @@ void Application::loadBotCommands()
     config::state().getValue("delete_delay.items", loadFunc2, false);
 
     // user_join_time
-    data::UserJoinTime::List userJoinTimes;
-    YamlConfig::Func loadFunc3 = [&userJoinTimes](YamlConfig* conf, YAML::Node& nodes, bool)
+    QString stateFile;
+    config::base().getValue("user_join_time.file", stateFile);
+
+    auto loadFunc3 = [stateFile]()
     {
-        for (const YAML::Node& node : nodes)
+        QFile userJoinFile {stateFile};
+        if (!userJoinFile.exists())
         {
-            data::UserJoinTime* ujt = userJoinTimes.add();
-            conf->getValue(node, "c", ujt->chatId);
-            conf->getValue(node, "u", ujt->userId);
-            conf->getValue(node, "t", ujt->time);
+            log_warn_m << "User-Join state file not exists " << stateFile;
+            return;
         }
-        return true;
+
+        if (!userJoinFile.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open User-Join state file in read-only mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        QByteArray ba = userJoinFile.readAll();
+        userJoinFile.close();
+
+        data::UserJoinTimeSerialize serialize;
+        if (!serialize.fromJson(ba))
+        {
+            log_error_m << "Failed deserialize User-Join data from file " << stateFile;
+            return;
+        }
+        tbot::setUserJoinTimes(serialize.items);
     };
-    config::state().getValue("user_join_time.items", loadFunc3, false);
-    tbot::setUserJoinTimes(userJoinTimes);
+    loadFunc3();
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -2826,21 +2848,22 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
     {
         config::state().setValue("user_join_time.timemark", timemark);
 
-        YamlConfig::Func saveFunc = [](YamlConfig* conf, YAML::Node& node, bool)
+        QString stateFile;
+        config::base().getValue("user_join_time.file", stateFile);
+
+        QFile file {stateFile};
+        if (!file.open(QIODevice::WriteOnly))
         {
-            for (data::UserJoinTime* ujt : tbot::userJoinTimes())
-            {
-                YAML::Node n;
-                conf->setValue(n, "c", ujt->chatId);
-                conf->setValue(n, "u", ujt->userId);
-                conf->setValue(n, "t", ujt->time);
-                node.push_back(n);
-            }
-            return true;
-        };
-        config::state().remove("user_join_time.items");
-        config::state().setValue("user_join_time.items", saveFunc);
-        config::state().setNodeStyle("user_join_time.items", YAML::EmitterStyle::Flow);
+            log_error_m << "Failed open User-Join state file in write mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        data::UserJoinTimeSerialize serialize;
+        serialize.items = std::move(tbot::userJoinTimes());
+        QByteArray ba = serialize.toJson();
+        file.write(ba);
+        file.close();
     }
 
     // Сохранение состояния происходит по таймеру _configStateTimerId
@@ -3514,19 +3537,19 @@ void Application::saveReportSpam()
 
 void Application::loadAntiRaidCache()
 {
-    QString configFile;
-    config::base().getValue("anti_raid.file", configFile);
+    QString stateFile;
+    config::base().getValue("anti_raid.file", stateFile);
 
-    if (!QFile::exists(configFile))
+    if (!QFile::exists(stateFile))
     {
-        log_warn_m << "Anti-Raid config file not exists " << configFile;
+        log_warn_m << "Anti-Raid state file not exists " << stateFile;
         return;
     }
 
     YamlConfig yconfig;
-    if (!yconfig.readFile(configFile.toStdString()))
+    if (!yconfig.readFile(stateFile.toStdString()))
     {
-        log_error_m << "Anti-Raid config file structure is corrupted";
+        log_error_m << "Anti-Raid state file structure is corrupted";
         return;
     }
 

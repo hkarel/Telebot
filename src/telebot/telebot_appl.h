@@ -159,6 +159,7 @@ private:
     int _slaveTimerId = {-1};
     int _antiraidTimerId = {-1};
     int _timelimitTimerId = {-1};
+    int _userJoinTimerId = {-1};
     int _configStateTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 

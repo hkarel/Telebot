@@ -197,10 +197,17 @@ struct UserJoinTime : clife_base
     typedef lst::List<UserJoinTime, Compare, clife_alloc<UserJoinTime>> List;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_MAP_ITEM( "chat_id", chatId )
-        J_SERIALIZE_MAP_ITEM( "user_id", userId )
-        J_SERIALIZE_MAP_ITEM( "time"   , time   )
+        J_SERIALIZE_MAP_ITEM( "c", chatId )
+        J_SERIALIZE_MAP_ITEM( "u", userId )
+        J_SERIALIZE_MAP_ITEM( "t", time   )
     J_SERIALIZE_END
+};
+
+// Вспомогательная структура для сериализации списка UserJoinTime
+struct UserJoinTimeSerialize
+{
+    UserJoinTime::List items;
+    J_SERIALIZE_MAP_ONE( "items", items )
 };
 
 struct UserJoinTimeSync : Data<&command::UserJoinTimeSync,
