@@ -175,7 +175,7 @@ struct UserJoinTime : clife_base
 
     qint64 chatId = {0};
     qint64 userId = {0};
-    qint64 time   = {0}; // Время вступления пользователя в группу
+    qint64 time   = {0}; // Время вступления пользователя в группу (в секундах)
 
     struct Compare
     {

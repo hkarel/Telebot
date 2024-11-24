@@ -1,4 +1,5 @@
 #include "trigger.h"
+#include "functions.h"
 #include "group_chat.h"
 
 #include "shared/break_point.h"
@@ -78,7 +79,7 @@ bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
         else
             return true;
 
-        activationReasonMessage = u8"ссылка: " + urlStr;
+        activationReasonMessage = u8"\r\nссылка: " + urlStr;
 
         log_debug_m << log_format(
             "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
@@ -172,7 +173,7 @@ bool TriggerLinkEnable::isActive(const Update& update, GroupChat* chat,
         else
             return true;
 
-        activationReasonMessage = u8"ссылка: " + urlStr;
+        activationReasonMessage = u8"\r\nссылка: " + urlStr;
 
         log_debug_m << log_format(
             "\"update_id\":%?. Chat: %?. Trigger '%?'. Input url: %?",
@@ -290,7 +291,7 @@ bool TriggerWord::isActive(const Update& update, GroupChat* chat,
                 ". The word '%?' was found",
                 update.update_id, chat->name(), name, word);
 
-            activationReasonMessage = u8"слово: " + word;
+            activationReasonMessage = u8"\r\nслово: " + word;
             return true;
         }
 
@@ -345,7 +346,7 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
             for (const QString& cap : match.capturedTexts())
                 logLine << cap << "; ";
 
-            activationReasonMessage = u8"фраза: " + match.capturedTexts()[0];
+            activationReasonMessage = u8"\r\nфраза: " + match.capturedTexts()[0];
             return true;
         }
         else
@@ -416,7 +417,7 @@ bool TriggerTimeLimit::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name,
                 timeBegin.toString("HH:mm"), timeEnd.toString("HH:mm"));
 
-            activationReasonMessage = QString(u8"ограничение на публикацию с %1 до %2")
+            activationReasonMessage = QString(u8": ограничение на публикацию с %1 до %2")
                                              .arg(timeBegin.toString("HH:mm"))
                                              .arg(timeEnd.toString("HH:mm"));
             activationTime = time;
@@ -460,6 +461,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                                 const Text& text_) const
 {
     activationReasonMessage.clear();
+
     qint64 userId = text_[TextType::UserId].toLongLong();
     qint64 forwardUserId = text_[TextType::FrwdUserId].toLongLong();
     qint64 forwardChatId = text_[TextType::FrwdChatId].toLongLong();
@@ -474,7 +476,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, userId);
 
             activationReasonMessage =
-                QString(u8"пользователь %1 в черном списке => (%2)")
+                QString(u8": пользователь %1 в черном списке => (%2)")
                        .arg(userId).arg(group.description);
             return true;
         }
@@ -486,7 +488,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, forwardUserId);
 
             activationReasonMessage =
-                QString(u8"forward-пользователь %1 в черном списке => (%2)")
+                QString(u8": forward-пользователь %1 в черном списке => (%2)")
                        .arg(forwardUserId).arg(group.description);
             return true;
         }
@@ -498,7 +500,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, forwardChatId);
 
             activationReasonMessage =
-                QString(u8"forward-чат/канал %1 в черном списке => (%2)")
+                QString(u8": forward-чат/канал %1 в черном списке => (%2)")
                        .arg(forwardChatId).arg(group.description);
             return true;
         }
@@ -516,24 +518,191 @@ bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
                                 const Text& text_) const
 {
     activationReasonMessage.clear();
-    QString text = text_[TextType::Content].toString();
 
-    if (text.isEmpty())
+    qint64 userId  = text_[TextType::UserId].toLongLong();
+    QString text   = text_[TextType::Content].toString();
+    bool isPremium = text_[TextType::IsPremium].toBool();
+
+    if (!text.isEmpty())
+        return false;
+
+    QString messageStr;
+    data::UserJoinTime::Ptr ujt = userJoinTimesFind(chat->id, userId);
+
+    if ((userLimit.time > 0) && ujt)
     {
-        log_verbose_m << log_format(
-            "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
-            ". The empty message",
-            update.update_id, chat->name(), name);
+        qint64 curTime = std::time(nullptr);
+        qint64 limitTime = ujt->time + userLimit.time * 60*60;
+        qint64 diffTime = limitTime - curTime;
 
-        activationReasonMessage = u8"отсутствие текста";
-        return true;
+        if (diffTime > 0)
+        {
+            int remainHours = 0;
+            int remainMinutes = 0;
+            if (diffTime > 60*60)
+            {
+                remainHours   = diffTime / 60*60;
+                remainMinutes = diffTime % 60*60;
+            }
+            else
+                remainMinutes = diffTime / 60;
+
+            if (userLimit.threshId > 0)
+            {
+                if (userId >= userLimit.threshId)
+                {
+                    if (userLimit.premium)
+                    {
+                        if (isPremium)
+                        {
+                            messageStr =
+                                u8": отсутствие текста."
+                                u8"\r\nДополнительные ограничения на публикацию: "
+                                u8"\r\n1. Время %1 часа(ов), истекает через %2 час. %3 мин;"
+                                u8"\r\n2. Идентификатор пользователя превышает пороговое значение %4;"
+                                u8"\r\n3. У пользователя премиум-аккаунт";
+                            activationReasonMessage = messageStr.arg(userLimit.time)
+                                                                .arg(remainHours)
+                                                                .arg(remainMinutes)
+                                                                .arg(userLimit.threshId);
+                            log_verbose_m << log_format(
+                                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                                ". The empty message. User limits: time %?, thresh_id %?, premium true",
+                                update.update_id, chat->name(), name, userLimit.time, userLimit.threshId);
+
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    messageStr =
+                        u8": отсутствие текста."
+                        u8"\r\nДополнительные ограничения на публикацию: "
+                        u8"\r\n1. Время %1 часа(ов), истекает через %2 час. %3 мин;"
+                        u8"\r\n2. Идентификатор пользователя превышает пороговое значение %4";
+                    activationReasonMessage = messageStr.arg(userLimit.time)
+                                                        .arg(remainHours)
+                                                        .arg(remainMinutes)
+                                                        .arg(userLimit.threshId);
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                        ". The empty message. User limits: time %?, thresh_id %?",
+                        update.update_id, chat->name(), name, userLimit.time, userLimit.threshId);
+
+                    return true;
+                }
+                return false;
+            }
+            if (userLimit.premium)
+            {
+                if (isPremium)
+                {
+                    messageStr =
+                        u8": отсутствие текста."
+                        u8"\r\nДополнительные ограничения на публикацию: "
+                        u8"\r\n1. Время %1 часа(ов), истекает через %2 час. %3 мин;"
+                        u8"\r\n2. У пользователя премиум-аккаунт";
+                    activationReasonMessage = messageStr.arg(userLimit.time)
+                                                        .arg(remainHours)
+                                                        .arg(remainMinutes);
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                        ". The empty message. User limits: time %?, premium true",
+                        update.update_id, chat->name(), name, userLimit.time);
+
+                    return true;
+                }
+                return false;
+            }
+
+            messageStr =
+                u8": отсутствие текста."
+                u8"\r\nДополнительное ограничение на публикацию: "
+                u8"время %1 часа(ов), истекает через %2 час. %3 мин";
+            activationReasonMessage = messageStr.arg(userLimit.time)
+                                                .arg(remainHours)
+                                                .arg(remainMinutes);
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The empty message. User limits: time %?",
+                update.update_id, chat->name(), name, userLimit.time);
+
+            return true;
+        }
+        return false;
     }
-    return false;
+    else if (userLimit.threshId > 0)
+    {
+        if (userId >= userLimit.threshId)
+        {
+            if (userLimit.premium)
+            {
+                if (isPremium)
+                {
+                    messageStr =
+                        u8": отсутствие текста."
+                        u8"\r\nДополнительные ограничения на публикацию: "
+                        u8"\r\n1. Идентификатор пользователя превышает пороговое значение %1;"
+                        u8"\r\n2. У пользователя премиум-аккаунт";
+                    activationReasonMessage = messageStr.arg(userLimit.threshId);
+
+                    log_verbose_m << log_format(
+                        "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                        ". The empty message. User limits: thresh_id %?, premium true",
+                        update.update_id, chat->name(), name, userLimit.threshId);
+
+                    return true;
+                }
+                return false;
+            }
+
+            messageStr =
+                u8": отсутствие текста."
+                u8"\r\nДополнительное ограничение на публикацию: "
+                u8"идентификатор пользователя превышает пороговое значение %1";
+
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The empty message. User limits: thresh_id %?",
+                update.update_id, chat->name(), name, userLimit.threshId);
+
+            activationReasonMessage = messageStr.arg(userLimit.threshId);
+            return true;
+        }
+        return false;
+    }
+    else if (userLimit.premium)
+    {
+        if (isPremium)
+        {
+            activationReasonMessage =
+                u8": отсутствие текста."
+                u8"\r\nДополнительное ограничение на публикацию: "
+                u8"у пользователя премиум-аккаунт";
+
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The empty message. User limits: premium true",
+                update.update_id, chat->name(), name);
+
+            return true;
+        }
+        return false;
+    }
+
+    log_verbose_m << log_format(
+        "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+        ". The empty message",
+        update.update_id, chat->name(), name);
+
+    activationReasonMessage = u8": отсутствие текста";
+    return true;
 }
 
 void TriggerEmptyText::assign(const TriggerEmptyText& trigger)
 {
     Trigger::assign(trigger);
+    userLimit = trigger.userLimit;
 }
 
 const char* yamlTypeName(YAML::NodeType::value type)
@@ -960,6 +1129,30 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         }
     }
 
+    optional<TriggerEmptyText::UserLimit> userLimitO;
+    if (ytrigger["user_limit"].IsDefined())
+    {
+        userLimitO = TriggerEmptyText::UserLimit();
+        checkFiedType(ytrigger, "user_limit", YAML::NodeType::Map);
+        const YAML::Node& yuserlimit = ytrigger["user_limit"];
+
+        if (yuserlimit["time"].IsDefined())
+        {
+            checkFiedType(yuserlimit, "time", YAML::NodeType::Scalar);
+            userLimitO->time = yuserlimit["time"].as<int>();
+        }
+        if (yuserlimit["thresh_id"].IsDefined())
+        {
+            checkFiedType(yuserlimit, "thresh_id", YAML::NodeType::Scalar);
+            userLimitO->threshId = yuserlimit["thresh_id"].as<int64_t>();
+        }
+        if (yuserlimit["premium"].IsDefined())
+        {
+            checkFiedType(yuserlimit, "premium", YAML::NodeType::Scalar);
+            userLimitO->premium = yuserlimit["premium"].as<bool>();
+        }
+    }
+
     auto assignValue = [](auto& dest, const auto& source)
     {
         if (source) dest = source.value();
@@ -1094,6 +1287,7 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         if (TriggerEmptyText* t = dynamic_cast<TriggerEmptyText*>(baseTrigger))
             triggerEmptyText->assign(*t);
 
+        assignValue(triggerEmptyText->userLimit, userLimitO);
         trigger = triggerEmptyText;
     }
 
@@ -1357,10 +1551,15 @@ void printTriggers(Trigger::List& triggers)
             }
             logLine << "]";
         }
-        else if (TriggerEmptyText* TriggerEmptyTxt = dynamic_cast<TriggerEmptyText*>(trigger))
+        else if (TriggerEmptyText* triggerEmptyTxt = dynamic_cast<TriggerEmptyText*>(trigger))
         {
             logLine << "; type: emptytext"
-                    << "; active: " << TriggerEmptyTxt->active;
+                    << "; active: " << triggerEmptyTxt->active;
+
+            logLine << log_format("; user_limit: {time: %?, thresh_id: %?, premium: %?}",
+                                  triggerEmptyTxt->userLimit.time,
+                                  triggerEmptyTxt->userLimit.threshId,
+                                  triggerEmptyTxt->userLimit.premium);
         }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;

@@ -16,6 +16,8 @@ void setUserJoinTimes(data::UserJoinTime::List&);
 void userJoinTimesAdd(qint64 chatId, qint64 userId);
 void userJoinTimesRemoveByTime();
 
+data::UserJoinTime::Ptr userJoinTimesFind(qint64 chatId, qint64 userId);
+
 bool userJoinTimesChanged();
 void userJoinTimesResetChangeFlag();
 

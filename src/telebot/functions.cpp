@@ -97,6 +97,15 @@ void userJoinTimesRemoveByTime()
     userJoinTimesChangeFlag = true;
 }
 
+data::UserJoinTime::Ptr userJoinTimesFind(qint64 chatId, qint64 userId)
+{
+    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
+
+    if (lst::FindResult fr = userJoinTimesList.findRef(tuple{chatId, userId}))
+        return data::UserJoinTime::Ptr(userJoinTimesList.item(fr.index()));
+    return {};
+}
+
 bool userJoinTimesChanged()
 {
     QMutexLocker locker {&userJoinTimesMutex}; (void) locker;

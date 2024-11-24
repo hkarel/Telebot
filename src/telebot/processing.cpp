@@ -591,22 +591,19 @@ void Processing::run()
             }
 
             // Признак премиум аккаунта у пользователя
-            bool isPremium = false;
+            bool isPremium = user->is_premium;
 
             //--- Trigger::TextType::UserId ---
             triggerText[tbot::Trigger::TextType::UserId] = user->id;
 
+            //--- Trigger::TextType::IsPremium ---
+            triggerText[tbot::Trigger::TextType::IsPremium] = user->is_premium;
+
             //--- Trigger::TextType::UserName ---
-            QString usernameText;
-            if (user /*message->from*/)
-            {
-                usernameText += QString(" %1 %2 %3")
-                                       .arg(user->first_name)
-                                       .arg(user->last_name)
-                                       .arg(user->username);
-                usernameText = usernameText.trimmed();
-                isPremium = user->is_premium;
-            }
+            QString usernameText = QString(" %1 %2 %3")
+                                          .arg(user->first_name)
+                                          .arg(user->last_name)
+                                          .arg(user->username).trimmed();
 
             if (messageForwardOrigin
                 && messageForwardOrigin->type == "user"
@@ -729,7 +726,7 @@ void Processing::run()
                     u8"\r\n---"
                     u8"%2"
                     u8"\r\nПричина удаления сообщения"
-                    u8"\r\n%3%4;"
+                    u8"%3%4;"
                     u8"\r\nтриггер: %5";
 
                 QString messageText;
@@ -841,7 +838,7 @@ void Processing::run()
                             u8"\r\n%1"
                             u8"\r\n---"
                             u8"\r\nПричина блокировки"
-                            u8"\r\n%2%3;"
+                            u8"%2%3;"
                             u8"\r\nтриггер: %4";
 
                         QString reasonMessage = trigger->activationReasonMessage;

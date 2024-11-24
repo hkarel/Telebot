@@ -24,6 +24,7 @@ struct Trigger : public clife_base
     {
         Content = 0,
         UserId,
+        IsPremium,
         FrwdUserId, // Forward UserId
         FrwdChatId, // Forward ChatId
         UserName,
@@ -268,6 +269,24 @@ struct TriggerEmptyText : public Trigger
 
     TriggerEmptyText() = default;
     DISABLE_DEFAULT_COPY(TriggerEmptyText)
+
+    struct UserLimit
+    {
+        // Запретить новому пользователю публиковать сообщения без текста на за-
+        // данное количество часов. Ограничение не накладывается  если  значение
+        // параметра меньше или равно 0
+        int time = {-1};
+
+        // Запретить пользователю публиковать сообщения  без  текста  если  его
+        // идентификатор  больше  или  равен  значению  thresh_id.  Ограничение
+        // не накладывается если значение параметра меньше или равно 0
+        qint64 threshId = {-1};
+
+        // Запретить пользователю с преимум-аккаунтом публиковать сообщения без
+        // текста. Значение параметра по умолчанию равно FALSE
+        bool premium = {false};
+    };
+    UserLimit userLimit;
 
     bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
 
