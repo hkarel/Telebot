@@ -3494,6 +3494,22 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
 void Application::loadReportSpam()
 {
+    QString stateFile;
+    config::base().getValue("report_spam.file", stateFile);
+
+    if (!QFile::exists(stateFile))
+    {
+        log_warn_m << "Report-spam state file not exists " << stateFile;
+        return;
+    }
+
+    YamlConfig yconfig;
+    if (!yconfig.readFile(stateFile.toStdString()))
+    {
+        log_error_m << "Report-spam state file structure is corrupted";
+        return;
+    }
+
     YamlConfig::Func loadFunc = [this](YamlConfig* conf, YAML::Node& nodes, bool)
     {
         for (const YAML::Node& node : nodes)
@@ -3511,11 +3527,14 @@ void Application::loadReportSpam()
         _spammers.sort();
         return true;
     };
-    config::state().getValue("spammers", loadFunc, false);
+    yconfig.getValue("spammers", loadFunc);
 }
 
 void Application::saveReportSpam()
 {
+    QString stateFile;
+    config::base().getValue("report_spam.file", stateFile);
+
     YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
     {
         for (Spammer* spammer : _spammers)
@@ -3531,8 +3550,10 @@ void Application::saveReportSpam()
         }
         return true;
     };
-    config::state().remove("spammers");
-    config::state().setValue("spammers", saveFunc);
+
+    YamlConfig yconfig;
+    yconfig.setValue("spammers", saveFunc);
+    yconfig.saveFile(stateFile.toStdString());
 }
 
 void Application::loadAntiRaidCache()
@@ -3542,14 +3563,14 @@ void Application::loadAntiRaidCache()
 
     if (!QFile::exists(stateFile))
     {
-        log_warn_m << "Anti-Raid state file not exists " << stateFile;
+        log_warn_m << "Anti-raid state file not exists " << stateFile;
         return;
     }
 
     YamlConfig yconfig;
     if (!yconfig.readFile(stateFile.toStdString()))
     {
-        log_error_m << "Anti-Raid state file structure is corrupted";
+        log_error_m << "Anti-raid state file structure is corrupted";
         return;
     }
 
@@ -3579,13 +3600,13 @@ void Application::loadAntiRaidCache()
         _antiRaidCache.sort();
         return true;
     };
-    yconfig.setValue("anti_raid", loadFunc);
+    yconfig.getValue("anti_raid", loadFunc);
 }
 
 void Application::saveAntiRaidCache()
 {
-    QString configFile;
-    config::base().getValue("anti_raid.file", configFile);
+    QString stateFile;
+    config::base().getValue("anti_raid.file", stateFile);
 
     YamlConfig::Func saveFunc = [this](YamlConfig* conf, YAML::Node& node, bool)
     {
@@ -3633,12 +3654,12 @@ void Application::saveAntiRaidCache()
         if (root.size())
         {
             lastDataIsEmpty = false;
-            yconfig.saveFile(configFile.toStdString());
+            yconfig.saveFile(stateFile.toStdString());
         }
         else if ((root.size() == 0) && !lastDataIsEmpty)
         {
             lastDataIsEmpty = true;
-            yconfig.saveFile(configFile.toStdString());
+            yconfig.saveFile(stateFile.toStdString());
         }
     }
 }
