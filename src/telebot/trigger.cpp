@@ -527,10 +527,13 @@ bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
         return false;
 
     QString messageStr;
-    data::UserJoinTime::Ptr ujt = userJoinTimesFind(chat->id, userId);
 
-    if ((userLimit.time > 0) && ujt)
+    if (userLimit.time > 0)
     {
+        data::UserJoinTime::Ptr ujt = userJoinTimesFind(chat->id, userId);
+        if (ujt.empty())
+            return false;
+
         qint64 curTime = std::time(nullptr);
         qint64 limitTime = ujt->time + userLimit.time * 60*60;
         qint64 diffTime = limitTime - curTime;
@@ -541,8 +544,8 @@ bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
             int remainMinutes = 0;
             if (diffTime > 60*60)
             {
-                remainHours   = diffTime / 60*60;
-                remainMinutes = diffTime % 60*60;
+                remainHours   = diffTime / (60*60);
+                remainMinutes = diffTime % (60*60) / 60;
             }
             else
                 remainMinutes = diffTime / 60;
