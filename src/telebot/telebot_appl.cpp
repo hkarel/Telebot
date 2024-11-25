@@ -3021,7 +3021,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         sendTgCommand(params);
     };
 
-    auto sendMessage = [this, chatId](QString msg, bool messageDel = true)
+    auto sendMessage = [this, chatId](QString msg, bool messageDel = true,
+                                      qint32 replyMsgId = -1)
     {
         // Исключаем из замены html-теги <b> </b> <i> </i> <s> </s> <u> </u>
         static QRegularExpression re1 {R"(<(?!([bisu]>|\/[bisu]>)))"};
@@ -3037,6 +3038,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         params->api["parse_mode"] = "HTML";
         params->delay = 1.5*1000 /*1.5 сек*/;
         params->messageDel = (messageDel) ? 0 : -1;
+
+        if (replyMsgId > 0)
+            params->api["reply_to_message_id"] = replyMsgId;
+
         sendTgCommand(params);
     };
 
@@ -3074,7 +3079,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 deleteMessage();
 
                 QString text = userTrgList->items[fr.index()].text;
-                sendMessage(text, false);
+                tbot::Message::Ptr reply = message->reply_to_message;
+                sendMessage(text, false, (reply) ? reply->message_id : qint32(-1));
                 return true;
             }
         }
