@@ -369,7 +369,7 @@ void Application::timerEvent(QTimerEvent* event)
                     params->api["text"] = botMsg;
                     params->api["parse_mode"] = "HTML";
                     params->messageDel = -1;
-                    emit sendTgCommand(params);
+                    sendTgCommand(params);
                 }
             }
             else
@@ -434,7 +434,7 @@ void Application::timerEvent(QTimerEvent* event)
                     params->api["text"] = botMsg.arg(anames);
                     params->api["parse_mode"] = "HTML";
                     params->messageDel = -1;
-                    emit sendTgCommand(params);
+                    sendTgCommand(params);
                 }
             }
 
@@ -461,7 +461,7 @@ void Application::timerEvent(QTimerEvent* event)
                 params->api["chat_id"] = chatId;
                 params->api["message_id"] = messageId;
                 params->isAntiRaid = true;
-                emit sendTgCommand(params);
+                sendTgCommand(params);
 
                 log_verbose_m << log_format(
                     "Chat: %?. Anti-Raid mode active, remove message %?",
@@ -1235,7 +1235,7 @@ void Application::webhook_readyRead()
                             params->api["chat_id"] = chatId;
                             params->api["text"] = _spamMessage;
                             params->messageDel = -1;
-                            emit sendTgCommand(params);
+                            sendTgCommand(params);
                         }
                     }
                 }
@@ -2567,7 +2567,7 @@ void Application::resetSpam(qint64 chatId, qint64 userId)
         params->api["text"] = botMsg;
         params->api["parse_mode"] = "Markdown";
         params->delay = 500 /*0.5 сек*/;
-        emit sendTgCommand(params);
+        sendTgCommand(params);
 
         // Сообщение в лог
         alog::Line logLine = log_verbose_m << log_format(

@@ -829,7 +829,7 @@ void Processing::run()
                         params->api["until_date"] = qint64(std::time(nullptr));
                         params->api["revoke_messages"] = true;
                         params->delay = 200 /*0.2 сек*/;
-                        sendTgCommand(params);
+                        emit sendTgCommand(params);
 
                         // Отправляем в Телеграм сообщение с описанием причины
                         // блокировки пользователя
@@ -888,7 +888,7 @@ void Processing::run()
                         params->api["until_date"] = qint64(std::time(nullptr));
                         params->api["revoke_messages"] = true;
                         params->delay = 3*1000 /*3 сек*/;
-                        sendTgCommand(params);
+                        emit sendTgCommand(params);
                     }
                     else if (trigger->reportSpam)
                     {
@@ -1004,7 +1004,7 @@ void Processing::run()
                 params->bio.mediaGroupId = message->media_group_id;
                 params->bio.messageOrigin = messageText.trimmed();
                 params->isNewUser = isNewUser;
-                sendTgCommand(params);
+                emit sendTgCommand(params);
             }
 
             // Ограничение пользователя на два и более часа, если он в течении
