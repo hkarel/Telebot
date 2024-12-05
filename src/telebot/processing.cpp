@@ -140,6 +140,7 @@ void Processing::run()
 
         // Признак нового пользователя (только что вошел в группу)
         bool isNewUser = false;
+        bool restrictJoinViaChatFolder = false;
 
         // Событие обновления прав для админа/пользователя или вступления нового
         // пользователя в группу
@@ -162,6 +163,7 @@ void Processing::run()
                 if ((oldStatus == "left") && (newStatus == "member"))
                 {
                     isNewUser = true;
+                    restrictJoinViaChatFolder = update.chat_member->via_chat_folder_invite_link;
 
                     // Всех обманываем и конструируем сообщение
                     Message::Ptr message {new Message};
@@ -535,6 +537,25 @@ void Processing::run()
                 continue;
         }
 
+        auto stringUserInfo = [](const User::Ptr& user) -> QString
+        {
+            // Формируем строку с описанием пользователя
+            //   Смотри решение с Markdown разметкой тут:
+            //   https://core.telegram.org/bots/api#markdown-style
+            QString str = QString("%1 => [%2 %3](tg://user?id=%4)")
+                                 .arg(user->id)
+                                 .arg(user->first_name)
+                                 .arg(user->last_name)
+                                 .arg(user->id);
+
+            if (!user->username.isEmpty())
+            {
+                QString s = QString(" (@%1)").arg(user->username);
+                str += s.replace("_", "\\_");
+            }
+            return str;
+        };
+
         for (int i = 0; i < users.count(); ++i)
         {
             User::Ptr user = users[i];
@@ -579,6 +600,44 @@ void Processing::run()
                     R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in group whitelist)",
                     update.update_id, chat->name(),
                     user->first_name, user->last_name, user->username, user->id);
+                continue;
+            }
+
+            // Проверка присоединения нового пользователя к группе через ссылку
+            // на папку с группами => via a chat folder invite link
+            if (isNewUser && restrictJoinViaChatFolder && chat->restrictJoinViaChatFolder)
+            {
+                log_verbose_m << log_format(
+                    u8"\"update_id\":%?"
+                    u8". Chat: %?. New user %?/%?/@%?/%? excluded from group"
+                    u8". User joined to group via a chat folder invite link",
+                    update.update_id, chat->name(),
+                    user->first_name, user->last_name, user->username, user->id);
+
+                auto params = tgfunction("banChatMember");
+                params->api["chat_id"] = chatId;
+                params->api["user_id"] = user->id;
+                params->api["until_date"] = qint64(std::time(nullptr) + 60);
+                params->api["revoke_messages"] = true;
+                params->delay = 50 /*0.05 сек*/;
+                emit sendTgCommand(params);
+
+                QString botMsg =
+                    u8"Бот исключил пользователя из группы"
+                    u8"\r\n%1"
+                    u8"\r\n---"
+                    u8"\r\nПричина: пользователям запрещено присоединяться к группе "
+                    u8"через ссылку на папку с группами (via a chat folder invite link)";
+
+                botMsg = botMsg.arg(stringUserInfo(user));
+
+                auto params2 = tgfunction("sendMessage");
+                params2->api["chat_id"] = chatId;
+                params2->api["text"] = botMsg;
+                params2->api["parse_mode"] = "Markdown";
+                params2->delay = 500 /*0.5 сек*/;
+                emit sendTgCommand(params2);
+
                 continue;
             }
 
@@ -658,25 +717,6 @@ void Processing::run()
             }
             triggerText[tbot::Trigger::TextType::UserName] = usernameText;
             //---
-
-            auto stringUserInfo = [&](const User::Ptr& user) -> QString
-            {
-                // Формируем строку с описанием пользователя
-                //   Смотри решение с Markdown разметкой тут:
-                //   https://core.telegram.org/bots/api#markdown-style
-                QString str = QString("%1 => [%2 %3](tg://user?id=%4)")
-                                     .arg(user->id)
-                                     .arg(user->first_name)
-                                     .arg(user->last_name)
-                                     .arg(user->id);
-
-                if (!user->username.isEmpty())
-                {
-                    QString s = QString(" (@%1)").arg(user->username);
-                    str += s.replace("_", "\\_");
-                }
-                return str;
-            };
 
             auto deleteMessage = [&](tbot::Trigger* trigger) -> bool
             {

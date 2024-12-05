@@ -176,6 +176,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         newUserMute = ychat["newuser_mute"].as<int>();
     }
 
+    bool restrictJoinViaChatFolder = false;
+    if (ychat["restrict_join_via_chat_folder"].IsDefined())
+    {
+        checkFiedType(ychat, "restrict_join_via_chat_folder", YAML::NodeType::Scalar);
+        restrictJoinViaChatFolder = ychat["restrict_join_via_chat_folder"].as<bool>();
+    }
+
     GroupChat::AntiRaid antiRaid;
     if (ychat["anti_raid"].IsDefined())
     {
@@ -214,6 +221,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
+    chat->restrictJoinViaChatFolder = restrictJoinViaChatFolder;
     chat->antiRaid = antiRaid;
 
     Trigger::List triggers = tbot::triggers();
@@ -332,6 +340,7 @@ void printGroupChats(GroupChat::List& chats)
         logLine << "]";
 
         logLine << "; newuser_mute: " << chat->newUserMute;
+        logLine << "; restrict_join_via_chat_folder: " << chat->restrictJoinViaChatFolder;
 
         logLine << log_format("; anti_raid: {active: %?, time_frame: %?"
                               ", users_limit: %?, duration: %?}",

@@ -527,8 +527,8 @@ struct ChatMemberUpdated  : clife_base
     ChatMemberAdministrator::Ptr old_chat_member; // ChatMember Previous information about the chat member
     ChatMemberAdministrator::Ptr new_chat_member; // ChatMember New information about the chat member
 
-    //invite_link 	ChatInviteLink 	Optional. Chat invite link, which was used by the user to join the chat; for joining by invite link events only.
-    //via_chat_folder_invite_link 	Boolean 	Optional. True, if the user joined the chat via a chat folder invite link
+    //invite_link 	                              // ChatInviteLink Optional. Chat invite link, which was used by the user to join the chat; for joining by invite link events only.
+    bool via_chat_folder_invite_link = {false};   // Optional. True, if the user joined the chat via a chat folder invite link
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( chat            )
@@ -536,6 +536,7 @@ struct ChatMemberUpdated  : clife_base
         J_SERIALIZE_OPT ( date            )
         J_SERIALIZE_OPT ( old_chat_member )
         J_SERIALIZE_OPT ( new_chat_member )
+        J_SERIALIZE_OPT ( via_chat_folder_invite_link )
     J_SERIALIZE_END
 };
 
