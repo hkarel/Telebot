@@ -617,17 +617,16 @@ void Processing::run()
                 auto params = tgfunction("banChatMember");
                 params->api["chat_id"] = chatId;
                 params->api["user_id"] = user->id;
-                params->api["until_date"] = qint64(std::time(nullptr) + 60);
+                params->api["until_date"] = qint64(std::time(nullptr) + 1*60*60 /*1 час*/);
                 params->api["revoke_messages"] = true;
-                params->delay = 50 /*0.05 сек*/;
                 emit sendTgCommand(params);
 
                 QString botMsg =
                     u8"Бот исключил пользователя из группы"
                     u8"\r\n%1"
-                    u8"\r\n---"
                     u8"\r\nПричина: пользователям запрещено присоединяться к группе "
-                    u8"через ссылку на папку с группами (via a chat folder invite link)";
+                    u8"через ссылку на папку с группами (via a chat folder invite link)."
+                    u8"\r\nПользователь сможет вновь присоединиться к группе через один час";
 
                 botMsg = botMsg.arg(stringUserInfo(user));
 
