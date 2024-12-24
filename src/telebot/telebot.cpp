@@ -27,6 +27,8 @@
 #include <csignal>
 #endif
 #include <unistd.h>
+#include <fstream>
+#include <list>
 
 #define APPLICATION_NAME "TeleBot"
 
@@ -77,12 +79,86 @@ void helpInfo()
     alog::logger().flush();
 }
 
+struct TestData
+{
+    int field1 = 10;
+    int field2 = 15;
+};
+
 int main(int argc, char *argv[])
 {
     // Устанавливаем в качестве разделителя целой и дробной части символ '.',
     // если этого не сделать - функции преобразования строк в числа (std::atof)
     // буду неправильно работать.
     qputenv("LC_NUMERIC", "C");
+
+    std::list<TestData> dataList;
+
+//    YamlConfig yconfig;
+//    for (int i = 0; i < 1500; ++i)
+//    {
+//        dataList.append(TestData{});
+
+//        YamlConfig::Func saveFunc = [&dataList](YamlConfig* conf, YAML::Node& node, bool)
+//        {
+//            YAML::Node node1;
+//            for (const TestData& td  : dataList)
+//            {
+//                YAML::Node n;
+//                conf->setValue(n, "field1", td.field1);
+//                conf->setValue(n, "field2", td.field2);
+//                node1.push_back(n);
+//            }
+//            node = node1;
+//            return true;
+//        };
+
+//        //yconfig.remove("test.items");
+//        yconfig.setValue("test.items", saveFunc);
+//    }
+
+//    yconfig.setNodeStyle("test.items", YAML::EmitterStyle::Flow);
+//    yconfig.saveFile("/tmp/mem-leak-test.yaml");
+
+//----------------------------------------------------------------
+
+//    std::ofstream file {"/tmp/mem-leak-test-2.yaml", ios_base::out};
+//    if (!file.is_open())
+//        return 1;
+
+//    YAML::Node rootNode;
+
+//    YAML::Node testNode = rootNode["test"];
+
+//    YAML::Node itemsNode;
+//    for (int i = 0; i < 1500; ++i)
+//    {
+//        dataList.push_back(TestData{});
+//        itemsNode = YAML::Node();
+
+//        for (const TestData& td  : dataList)
+//        {
+//            YAML::Node n;
+//            n["field1"] = td.field1;
+//            n["field2"] = td.field2;
+//            itemsNode.push_back(n);
+//        }
+//        testNode.remove("items");
+//        testNode["items"] = itemsNode;
+//    }
+//    //testNode["items"] = itemsNode;
+//    //testNode["items"].SetStyle(YAML::EmitterStyle::Flow);
+
+//    file << rootNode;
+//    file.close();
+
+    YAML::Node a;
+    for (int i = 0; i < 100000; ++i)
+    {
+        a = YAML::Load("{1B: Prince Fielder, 2B: Rickie Weeks, LF: Ryan Braun}");
+    }
+
+    return 0;
 
     int ret = 0;
     try
