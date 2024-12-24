@@ -931,8 +931,28 @@ void Processing::run()
                     }
                     else if (trigger->reportSpam)
                     {
-                        // Отправляем отчет о спаме
-                        emit reportSpam(chatId, user);
+                        bool sendReportSpam = true;
+                        if (!message->media_group_id.isEmpty()
+                            && dynamic_cast<TriggerEmptyText*>(trigger))
+                        {
+                            QMutexLocker locker {&_threadLock}; (void) locker;
+
+                            // Не отправляем отчет о спаме если на момент срабатывания
+                            // триггера TriggerEmptyText не все сообщения в медиагруппе
+                            // пустые
+                            const MediaGroup& mg = _mediaGroups[message->media_group_id];
+                            for (qint64 msgId : mg.messageIds.keys())
+                                if (!mg.messageIds[msgId])
+                                {
+                                    sendReportSpam = false;
+                                    break;
+                                }
+                        }
+                        if (sendReportSpam)
+                        {
+                            // Отправляем отчет о спаме
+                            emit reportSpam(chatId, user);
+                        }
                     }
                 }
             };
