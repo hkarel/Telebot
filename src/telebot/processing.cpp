@@ -970,8 +970,11 @@ void Processing::run()
                     continue;
                 }
 
-                // Для анализа новых пользователей используем только TriggerRegexp
-                if (isNewUser && !dynamic_cast<TriggerRegexp*>(trigger))
+                // Для анализа новых пользователей используются следующие триггеры:
+                // TriggerRegexp, TriggerBlackUser
+                bool newUserAllowedTrigger = dynamic_cast<TriggerRegexp*>(trigger)
+                                             || dynamic_cast<TriggerBlackUser*>(trigger);
+                if (isNewUser && !newUserAllowedTrigger)
                     continue;
 
                 if (isBioMessage && !trigger->checkBio)
