@@ -743,18 +743,18 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
     if (name.isEmpty())
         throw trigger_logic_error("In a 'trigger' node a field 'name' can not be empty");
 
-    bool active = true;
+    optional<bool> activeO;
     if (ytrigger["active"].IsDefined())
     {
         checkFiedType(ytrigger, "active", YAML::NodeType::Scalar);
-        active = ytrigger["active"].as<bool>();
+        activeO = ytrigger["active"].as<bool>();
     }
 
-    QString description;
+    optional<QString> descriptionO;
     if (ytrigger["description"].IsDefined())
     {
         checkFiedType(ytrigger, "description", YAML::NodeType::Scalar);
-        description = QString::fromStdString(ytrigger["description"].as<string>());
+        descriptionO = QString::fromStdString(ytrigger["description"].as<string>());
     }
 
     QString type;
@@ -1298,9 +1298,9 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
     {
         trigger->name = name;
         trigger->type = type;
-        trigger->active = active;
-        trigger->description = description;
 
+        assignValue(trigger->active, activeO);
+        assignValue(trigger->description, descriptionO);
         assignValue(trigger->skipAdmins, skipAdminsO);
         assignValue(trigger->whiteUsers, whiteUsersO);
         assignValue(trigger->inverse, inverseO);

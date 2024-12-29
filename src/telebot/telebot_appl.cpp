@@ -1792,25 +1792,34 @@ void Application::timelimitCheck()
 
                             _timelimitBegins.sort();
 
-                            log_verbose_m << log_format(
-                                "Trigger timelimit '%?' started. Chat: %?",
-                                trg->name, chat->name());
-
-                            if (!trg->messageBegin.isEmpty())
+                            if (trg->active)
                             {
-                                QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
-                                QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
+                                log_verbose_m << log_format(
+                                    "Trigger timelimit '%?' started. Chat: %?",
+                                    trg->name, chat->name());
 
-                                QString message = trg->messageBegin;
-                                message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                       .replace("{end}",   timeEnd.toString("HH:mm"));
+                                if (!trg->messageBegin.isEmpty())
+                                {
+                                    QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                                    QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
-                                auto params = tbot::tgfunction("sendMessage");
-                                params->api["chat_id"] = chat->id;
-                                params->api["text"] = message;
-                                params->api["parse_mode"] = "HTML";
-                                params->messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
-                                sendTgCommand(params);
+                                    QString message = trg->messageBegin;
+                                    message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                           .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                                    auto params = tbot::tgfunction("sendMessage");
+                                    params->api["chat_id"] = chat->id;
+                                    params->api["text"] = message;
+                                    params->api["parse_mode"] = "HTML";
+                                    params->messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
+                                    sendTgCommand(params);
+                                }
+                            }
+                            else
+                            {
+                                log_verbose_m << log_format(
+                                    "Trigger timelimit '%?'  skipped, it not active. Chat: %?",
+                                    trg->name, chat->name());
                             }
                         }
                     }
@@ -1828,25 +1837,34 @@ void Application::timelimitCheck()
 
                             _timelimitEnds.sort();
 
-                            log_verbose_m << log_format(
-                                "Trigger timelimit '%?' stopped. Chat: %?",
-                                trg->name, chat->name());
-
-                            if (!trg->messageEnd.isEmpty())
+                            if (trg->active)
                             {
-                                QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
-                                QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
+                                log_verbose_m << log_format(
+                                    "Trigger timelimit '%?' stopped. Chat: %?",
+                                    trg->name, chat->name());
 
-                                QString message = trg->messageEnd;
-                                message.replace("{begin}", timeBegin.toString("HH:mm"))
-                                       .replace("{end}",   timeEnd.toString("HH:mm"));
+                                if (!trg->messageEnd.isEmpty())
+                                {
+                                    QTime timeBegin = !time.begin.isNull() ? time.begin : time.hint;
+                                    QTime timeEnd   = !time.end.isNull()   ? time.end   : time.hint;
 
-                                auto params = tbot::tgfunction("sendMessage");
-                                params->api["chat_id"] = chat->id;
-                                params->api["text"] = message;
-                                params->api["parse_mode"] = "HTML";
-                                params->messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
-                                sendTgCommand(params);
+                                    QString message = trg->messageEnd;
+                                    message.replace("{begin}", timeBegin.toString("HH:mm"))
+                                           .replace("{end}",   timeEnd.toString("HH:mm"));
+
+                                    auto params = tbot::tgfunction("sendMessage");
+                                    params->api["chat_id"] = chat->id;
+                                    params->api["text"] = message;
+                                    params->api["parse_mode"] = "HTML";
+                                    params->messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
+                                    sendTgCommand(params);
+                                }
+                            }
+                            else
+                            {
+                                log_verbose_m << log_format(
+                                    "Trigger timelimit '%?'  skipped, it not active. Chat: %?",
+                                    trg->name, chat->name());
                             }
                         }
                     }
