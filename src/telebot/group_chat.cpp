@@ -144,13 +144,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         checkBio = ychat["check_bio"].as<bool>();
     }
 
-    QSet<qint64> whiteUsers;
-    if (ychat["white_users"].IsDefined())
+    QSet<qint64> whiteUsersOld;
+    if (ychat["white_users_old"].IsDefined())
     {
-        checkFiedType(ychat, "white_users", YAML::NodeType::Sequence);
-        const YAML::Node& ywhite_users = ychat["white_users"];
+        checkFiedType(ychat, "white_users_old", YAML::NodeType::Sequence);
+        const YAML::Node& ywhite_users = ychat["white_users_old"];
         for (const YAML::Node& ywhite : ywhite_users)
-            whiteUsers.insert(ywhite.as<int64_t>());
+            whiteUsersOld.insert(ywhite.as<int64_t>());
     }
 
     qint32 userSpamLimit = 5;
@@ -217,7 +217,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->skipAdmins = skipAdmins;
     chat->premiumBan = premiumBan;
     chat->checkBio = checkBio;
-    chat->whiteUsers = whiteUsers;
+    chat->whiteUsersOld = whiteUsersOld;
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
@@ -327,7 +327,7 @@ void printGroupChats(GroupChat::List& chats)
 
         nextCommaVal = false;
         logLine << "; white_users: [";
-        for (qint64 item : chat->whiteUsers)
+        for (qint64 item : chat->whiteUsersOld)
             logLine << nextComma() << item;
         logLine << "]";
 

@@ -594,7 +594,7 @@ void Processing::run()
             }
 
             // Проверка пользователя на принадлежность к белому списку группы
-            if (chat->whiteUsers.contains(user->id))
+            if (chat->whiteUsersOld.contains(user->id))
             {
                 log_verbose_m << log_format(
                     R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in group whitelist)",
@@ -667,7 +667,7 @@ void Processing::run()
                 && messageForwardOrigin->type == "user"
                 && messageForwardOrigin->sender_user
                 && !adminIds.contains(messageForwardOrigin->sender_user->id)
-                && !chat->whiteUsers.contains(messageForwardOrigin->sender_user->id))
+                && !chat->whiteUsersOld.contains(messageForwardOrigin->sender_user->id))
             {
                 usernameText += QString(" %1 %2 %3")
                                        .arg(messageForwardOrigin->sender_user->first_name)
