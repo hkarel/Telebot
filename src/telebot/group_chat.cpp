@@ -144,14 +144,25 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         checkBio = ychat["check_bio"].as<bool>();
     }
 
-    QSet<qint64> whiteUsersOld;
-    if (ychat["white_users_old"].IsDefined())
+    GroupChat::WhiteUser::List whiteUsers;
+    if (ychat["white_users"].IsDefined())
     {
-        checkFiedType(ychat, "white_users_old", YAML::NodeType::Sequence);
-        const YAML::Node& ywhite_users = ychat["white_users_old"];
+        checkFiedType(ychat, "white_users", YAML::NodeType::Sequence);
+        const YAML::Node& ywhite_users = ychat["white_users"];
         for (const YAML::Node& ywhite : ywhite_users)
-            whiteUsersOld.insert(ywhite.as<int64_t>());
+        {
+            checkFiedType(ywhite, "id", YAML::NodeType::Scalar);
+            GroupChat::WhiteUser* wu = whiteUsers.add();
+            wu->userId = ywhite["id"].as<int64_t>();
+
+            if (ywhite["info"].IsDefined())
+            {
+                checkFiedType(ywhite, "info", YAML::NodeType::Scalar);
+                wu->info = QString::fromStdString(ywhite["info"].as<string>());
+            }
+        }
     }
+    whiteUsers.sort();
 
     qint32 userSpamLimit = 5;
     if (ychat["user_spam_limit"].IsDefined())
@@ -217,7 +228,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->skipAdmins = skipAdmins;
     chat->premiumBan = premiumBan;
     chat->checkBio = checkBio;
-    chat->whiteUsersOld = whiteUsersOld;
+    chat->whiteUsers = std::move(whiteUsers);
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
@@ -327,8 +338,8 @@ void printGroupChats(GroupChat::List& chats)
 
         nextCommaVal = false;
         logLine << "; white_users: [";
-        for (qint64 item : chat->whiteUsersOld)
-            logLine << nextComma() << item;
+        for (GroupChat::WhiteUser* wu : chat->whiteUsers)
+            logLine << nextComma() << wu->userId;
         logLine << "]";
 
         logLine << "; user_spam_limit: " << chat->userSpamLimit;

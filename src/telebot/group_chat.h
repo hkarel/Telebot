@@ -38,9 +38,16 @@ public:
     // Проверять у членов группы BIO пользователя на спам
     bool checkBio = {false};
 
+    struct WhiteUser
+    {
+        qint64  userId = {0};
+        QString info;
+        typedef lst::List<WhiteUser, CompareUser<WhiteUser>> List;
+    };
+
     // Список идентификаторов пользователей, на которых не распространяется
     // действие триггеров
-    QSet<qint64> whiteUsersOld;
+    WhiteUser::List whiteUsers;
 
     // Количество спам-сообщений по достижении которого пользователь блокируется.
     // Если параметр равен 0 пользователь блокироваться не будет
