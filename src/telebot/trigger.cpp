@@ -530,7 +530,7 @@ bool TriggerEmptyText::isActive(const Update& update, GroupChat* chat,
 
     if (userLimit.time > 0)
     {
-        data::UserJoinTime::Ptr ujt = userJoinTimesFind(chat->id, userId);
+        data::UserJoinTime::Ptr ujt = userJoinTimes().find(tuple{chat->id, userId});
         if (ujt.empty())
             return false;
 

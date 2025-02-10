@@ -3,6 +3,7 @@
 #include "shared/break_point.h"
 #include "shared/logger/logger.h"
 #include "shared/logger/format.h"
+#include "shared/safe_singleton.h"
 
 #include <QtCore>
 #include <tuple>
@@ -16,48 +17,19 @@
 
 namespace tbot {
 
-static QMutex userJoinTimesMutex;
-static data::UserJoinTime::List userJoinTimesList;
-static bool userJoinTimesChangeFlag = {false};
-
-data::UserJoinTime::List userJoinTimes()
+void UserJoinTimeList::add(qint64 chatId, qint64 userId)
 {
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
+    QMutexLocker locker {&_mutex}; (void) locker;
 
-    data::UserJoinTime::List retlist;
-    for (data::UserJoinTime* t : userJoinTimesList)
-    {
-        t->add_ref();
-        retlist.add(t);
-    }
-    retlist.sort();
-    return retlist;
-}
+    if (_list.sortState() != lst::SortState::Up)
+        _list.sort();
 
-void setUserJoinTimes(data::UserJoinTime::List& list)
-{
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
-
-    userJoinTimesList.swap(list);
-    userJoinTimesChangeFlag = false;
-
-    if (userJoinTimesList.sortState() != lst::SortState::Up)
-        userJoinTimesList.sort();
-}
-
-void userJoinTimesAdd(qint64 chatId, qint64 userId)
-{
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
-
-    if (userJoinTimesList.sortState() != lst::SortState::Up)
-        userJoinTimesList.sort();
-
-    lst::FindResult fr = userJoinTimesList.findRef(tuple{chatId, userId});
+    lst::FindResult fr = _list.findRef(tuple{chatId, userId});
     if (fr.success())
     {
-        data::UserJoinTime* ujt = userJoinTimesList.item(fr.index());
+        data::UserJoinTime* ujt = _list.item(fr.index());
         ujt->time = std::time(nullptr);
-        userJoinTimesChangeFlag = true;
+        _changeFlag = true;
 
         log_debug_m << log_format(
             "The re-adding to list UserJoinTimes. Chat/User/Time: %?/%?/%?",
@@ -71,51 +43,35 @@ void userJoinTimesAdd(qint64 chatId, qint64 userId)
     ujt->userId = userId;
     ujt->time = std::time(nullptr);
 
-    userJoinTimesList.addInSort(ujt, fr);
-    userJoinTimesChangeFlag = true;
+    _list.addInSort(ujt, fr);
+    _changeFlag = true;
 
     log_debug_m << log_format(
-        "The adding to list UserJoinTimes. Chat/User/Time: %?/%?/%?",
+        "User added to list UserJoinTimes. Chat/User/Time: %?/%?/%?",
         ujt->chatId, ujt->userId, ujt->time);
 }
 
-void userJoinTimesRemoveByTime()
+void UserJoinTimeList::removeByTime()
 {
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
+    QMutexLocker locker {&_mutex}; (void) locker;
 
     const qint64 diffTime = 15*24*60*60; // 15 суток
     const qint64 time = std::time(nullptr) - diffTime;
-    userJoinTimesList.removeCond([time, diffTime](data::UserJoinTime* ujt) -> bool
+    _list.removeCond([time, diffTime](data::UserJoinTime* ujt) -> bool
     {
         bool result = (ujt->time < time);
         if (result)
             log_debug_m << log_format(
-                "The removing from list UserJoinTimes. Chat/User/Time: %?/%?/%?",
+                "User removed from list UserJoinTimes. Chat/User/Time: %?/%?/%?",
                 ujt->chatId, ujt->userId, ujt->time);
         return result;
     });
-    userJoinTimesChangeFlag = true;
+    _changeFlag = true;
 }
 
-data::UserJoinTime::Ptr userJoinTimesFind(qint64 chatId, qint64 userId)
+UserJoinTimeList& userJoinTimes()
 {
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
-
-    if (lst::FindResult fr = userJoinTimesList.findRef(tuple{chatId, userId}))
-        return data::UserJoinTime::Ptr(userJoinTimesList.item(fr.index()));
-    return {};
-}
-
-bool userJoinTimesChanged()
-{
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
-    return userJoinTimesChangeFlag;
-}
-
-void userJoinTimesResetChangeFlag()
-{
-    QMutexLocker locker {&userJoinTimesMutex}; (void) locker;
-    userJoinTimesChangeFlag = false;
+    return safe::singleton<UserJoinTimeList>();
 }
 
 } //namespace tbot

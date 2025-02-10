@@ -1074,7 +1074,7 @@ void Processing::run()
             if (isNewUser && !isBioMessage)
             {
                 emit restrictNewUser(chat->id, user->id, chat->newUserMute);
-                userJoinTimesAdd(chat->id, user->id);
+                userJoinTimes().add(chat->id, user->id);
             }
 
             // Проверка на Anti-Raid режим

@@ -32,6 +32,23 @@ template<typename T> struct CompareUser
         {return LIST_COMPARE_ITEM(*userId, item2->userId);}
 };
 
+template<typename T> struct CompareChatUser
+{
+    int operator() (const T* item1, const T* item2) const
+    {
+        LIST_COMPARE_MULTI_ITEM(item1->chatId, item2->chatId)
+        LIST_COMPARE_MULTI_ITEM(item1->userId, item2->userId);
+        return 0;
+    }
+    int operator() (const std::tuple<qint64 /*chat id*/, qint64 /*user id*/>* item1,
+                    const T* item2) const
+    {
+        LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
+        LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->userId)
+        return 0;
+    }
+};
+
 template<typename T> struct CompareName
 {
     int operator() (const T* item1, const T* item2) const

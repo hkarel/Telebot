@@ -263,7 +263,7 @@ void Application::deinit()
     saveReportSpam();
     saveAntiRaidCache();
 
-    if (tbot::userJoinTimesChanged())
+    if (tbot::userJoinTimes().changed())
     {
         qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
         saveBotCommands(user_join_time, timemark);
@@ -646,10 +646,10 @@ void Application::timerEvent(QTimerEvent* event)
     }
     else if (event->timerId() == _userJoinTimerId)
     {
-        if (tbot::userJoinTimesChanged())
+        if (tbot::userJoinTimes().changed())
         {
             updateBotCommands(user_join_time);
-            tbot::userJoinTimesResetChangeFlag();
+            tbot::userJoinTimes().resetChangeFlag();
             config::state().saveFile();
         }
     }
@@ -840,7 +840,7 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
 
         data::UserJoinTimeSync userJoinTimeSync;
         userJoinTimeSync.timemark = timemark;
-        userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+        userJoinTimeSync.items = tbot::userJoinTimes().list();
 
         m = createJsonMessage(userJoinTimeSync);
         m->appendDestinationSocket(answer->socketDescriptor());
@@ -1070,7 +1070,8 @@ void Application::command_UserJoinTimeSync(const Message::Ptr& message)
     // Для master и slave режимов перезаписываем устаревшие данные
     if (userJoinTimeSync.timemark > timemark)
     {
-        tbot::setUserJoinTimes(userJoinTimeSync.items);
+        tbot::userJoinTimes().listSwap(userJoinTimeSync.items);
+        tbot::userJoinTimes().resetChangeFlag();
         saveBotCommands(user_join_time, userJoinTimeSync.timemark);
 
         log_verbose_m << "Updated 'user_join_time' settings for groups";
@@ -1087,7 +1088,7 @@ void Application::command_UserJoinTimeSync(const Message::Ptr& message)
 
             data::UserJoinTimeSync userJoinTimeSync;
             userJoinTimeSync.timemark = timemark;
-            userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+            userJoinTimeSync.items = tbot::userJoinTimes().list();
 
             writeToJsonMessage(userJoinTimeSync, answer);
             _slaveSocket->send(answer);
@@ -2801,7 +2802,8 @@ void Application::loadBotCommands()
             log_error_m << "Failed deserialize User-Join data from file " << stateFile;
             return;
         }
-        tbot::setUserJoinTimes(serialize.items);
+        tbot::userJoinTimes().listSwap(serialize.items);
+        tbot::userJoinTimes().resetChangeFlag();
     };
     loadFunc3();
 }
@@ -2878,7 +2880,7 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         }
 
         data::UserJoinTimeSerialize serialize;
-        serialize.items = std::move(tbot::userJoinTimes());
+        serialize.items = tbot::userJoinTimes().list();
         QByteArray ba = serialize.toJson();
         file.write(ba);
         file.close();
@@ -2929,7 +2931,7 @@ void Application::updateBotCommands(UpdateBotSection section)
     {
         data::UserJoinTimeSync userJoinTimeSync;
         userJoinTimeSync.timemark = timemark;
-        userJoinTimeSync.items = std::move(tbot::userJoinTimes());
+        userJoinTimeSync.items = tbot::userJoinTimes().list();
 
         // Отправляем событие с измененными user_join_time
         Message::Ptr m = createJsonMessage(userJoinTimeSync, {Message::Type::Event});

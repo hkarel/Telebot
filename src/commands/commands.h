@@ -177,24 +177,7 @@ struct UserJoinTime : clife_base
     qint64 userId = {0};
     qint64 time   = {0}; // Время вступления пользователя в группу (в секундах)
 
-    struct Compare
-    {
-        int operator() (const UserJoinTime* item1, const UserJoinTime* item2) const
-        {
-            LIST_COMPARE_MULTI_ITEM(item1->chatId, item2->chatId)
-            LIST_COMPARE_MULTI_ITEM(item1->userId, item2->userId);
-            return 0;
-        }
-        int operator() (const std::tuple<qint64 /*chat id*/, qint64 /*user id*/>* item1,
-                        const UserJoinTime* item2) const
-        {
-            LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
-            LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->userId)
-            return 0;
-        }
-    };
-
-    typedef lst::List<UserJoinTime, Compare, clife_alloc<UserJoinTime>> List;
+    typedef lst::List<UserJoinTime, CompareChatUser<UserJoinTime>, clife_alloc<UserJoinTime>> List;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_MAP_ITEM( "c", chatId )
