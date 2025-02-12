@@ -95,6 +95,7 @@ Application::Application(int& argc, char** argv)
     _antiraidTimerId     = startTimer( 2*1000 /* 2 сек*/);
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
     _userJoinTimerId     = startTimer(30*1000 /*30 сек*/);
+    _whiteUserTimerId    = startTimer(30*1000 /*30 сек*/);
     _configStateTimerId  = startTimer(10*1000 /*10 сек*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
@@ -113,6 +114,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(UserTriggerSync)
     FUNC_REGISTRATION(DeleteDelaySync)
     FUNC_REGISTRATION(UserJoinTimeSync)
+    FUNC_REGISTRATION(WhiteUserSync)
 
     #undef FUNC_REGISTRATION
 
@@ -263,11 +265,13 @@ void Application::deinit()
     saveReportSpam();
     saveAntiRaidCache();
 
+    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+
     if (tbot::userJoinTimes().changed())
-    {
-        qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
         saveBotCommands(user_join_time, timemark);
-    }
+
+    if (tbot::whiteUsers().changed())
+        saveBotCommands(white_user, timemark);
 }
 
 void Application::timerEvent(QTimerEvent* event)
@@ -281,6 +285,7 @@ void Application::timerEvent(QTimerEvent* event)
             KILL_TIMER(_antiraidTimerId)
             KILL_TIMER(_timelimitTimerId)
             KILL_TIMER(_userJoinTimerId)
+            KILL_TIMER(_whiteUserTimerId)
             KILL_TIMER(_configStateTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
@@ -653,6 +658,15 @@ void Application::timerEvent(QTimerEvent* event)
             config::state().saveFile();
         }
     }
+    else if (event->timerId() == _whiteUserTimerId)
+    {
+        if (tbot::whiteUsers().changed())
+        {
+            updateBotCommands(white_user);
+            tbot::whiteUsers().resetChangeFlag();
+            config::state().saveFile();
+        }
+    }
     else if (event->timerId() == _configStateTimerId)
     {
         if (config::state().changed())
@@ -843,6 +857,18 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
         userJoinTimeSync.items = tbot::userJoinTimes().list();
 
         m = createJsonMessage(userJoinTimeSync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
+        // Отправлем команду синхронизации white_user
+        timemark = 0;
+        config::state().getValue("white_user.timemark", timemark);
+
+        data::WhiteUserSync whiteUserSync;
+        whiteUserSync.timemark = timemark;
+        whiteUserSync.items = tbot::whiteUsers().list();
+
+        m = createJsonMessage(whiteUserSync);
         m->appendDestinationSocket(answer->socketDescriptor());
         tcp::listener().send(m);
 
@@ -1091,6 +1117,43 @@ void Application::command_UserJoinTimeSync(const Message::Ptr& message)
             userJoinTimeSync.items = tbot::userJoinTimes().list();
 
             writeToJsonMessage(userJoinTimeSync, answer);
+            _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_WhiteUserSync(const Message::Ptr& message)
+{
+    data::WhiteUserSync whiteUserSync;
+    readFromMessage(message, whiteUserSync);
+
+    qint64 timemark = 0;
+    config::state().getValue("white_user.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (whiteUserSync.timemark > timemark)
+    {
+        tbot::whiteUsers().listSwap(whiteUserSync.items);
+        tbot::whiteUsers().resetChangeFlag();
+        saveBotCommands(white_user, whiteUserSync.timemark);
+
+        log_verbose_m << "Updated 'white_user' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            log_verbose_m << "Send 'white_user' settings to master-bot";
+
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::WhiteUserSync whiteUserSync;
+            whiteUserSync.timemark = timemark;
+            whiteUserSync.items = tbot::whiteUsers().list();
+
+            writeToJsonMessage(whiteUserSync, answer);
             _slaveSocket->send(answer);
         }
     }
@@ -2774,11 +2837,11 @@ void Application::loadBotCommands()
     config::state().getValue("delete_delay.items", loadFunc2, false);
 
     // user_join_time
-    QString stateFile;
-    config::base().getValue("user_join_time.file", stateFile);
-
-    auto loadFunc3 = [stateFile]()
+    auto loadFunc3 = []()
     {
+        QString stateFile;
+        config::base().getValue("user_join_time.file", stateFile);
+
         QFile userJoinFile {stateFile};
         if (!userJoinFile.exists())
         {
@@ -2806,6 +2869,40 @@ void Application::loadBotCommands()
         tbot::userJoinTimes().resetChangeFlag();
     };
     loadFunc3();
+
+    // white_user
+    auto loadFunc4 = []()
+    {
+        QString stateFile;
+        config::base().getValue("white_user.file", stateFile);
+
+        QFile whiteUserFile {stateFile};
+        if (!whiteUserFile.exists())
+        {
+            log_warn_m << "White-User state file not exists " << stateFile;
+            return;
+        }
+
+        if (!whiteUserFile.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open White-User state file in read-only mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        QByteArray ba = whiteUserFile.readAll();
+        whiteUserFile.close();
+
+        data::WhiteUserSerialize serialize;
+        if (!serialize.fromJson(ba))
+        {
+            log_error_m << "Failed deserialize White-User data from file " << stateFile;
+            return;
+        }
+        tbot::whiteUsers().listSwap(serialize.items);
+        tbot::whiteUsers().resetChangeFlag();
+    };
+    loadFunc4();
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -2885,6 +2982,27 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         file.write(ba);
         file.close();
     }
+    else if (section == white_user)
+    {
+        config::state().setValue("white_user.timemark", timemark);
+
+        QString stateFile;
+        config::base().getValue("white_user.file", stateFile);
+
+        QFile file {stateFile};
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            log_error_m << "Failed open White-User state file in write mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        data::WhiteUserSerialize serialize;
+        serialize.items = tbot::whiteUsers().list();
+        QByteArray ba = serialize.toJson();
+        file.write(ba);
+        file.close();
+    }
 
     // Сохранение состояния происходит по таймеру _configStateTimerId
     // config::state().saveFile()
@@ -2935,6 +3053,16 @@ void Application::updateBotCommands(UpdateBotSection section)
 
         // Отправляем событие с измененными user_join_time
         Message::Ptr m = createJsonMessage(userJoinTimeSync, {Message::Type::Event});
+        tcp::listener().send(m);
+    }
+    else if (section == white_user)
+    {
+        data::WhiteUserSync whiteUserSync;
+        whiteUserSync.timemark = timemark;
+        whiteUserSync.items = tbot::whiteUsers().list();
+
+        // Отправляем событие с измененными white_user
+        Message::Ptr m = createJsonMessage(whiteUserSync, {Message::Type::Event});
         tcp::listener().send(m);
     }
 }

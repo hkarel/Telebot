@@ -73,4 +73,17 @@ public:
 
 UserJoinTimeList& userJoinTimes();
 
+/**
+  Класс для работы с белым списком пользователей
+*/
+class WhiteUserList : public DataList<data::WhiteUser>
+{
+public:
+    void add(data::WhiteUser::Ptr);
+    void remove(qint64 chatId, qint64 userId);
+};
+
+WhiteUserList& whiteUsers();
+
+
 } //namespace tbot

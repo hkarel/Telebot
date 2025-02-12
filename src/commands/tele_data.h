@@ -7,7 +7,7 @@
 #include "shared/steady_timer.h"
 #include "pproto/serialize/json.h"
 
-#include "commands/compare.h"
+#include "compare.h"
 
 namespace tbot {
 

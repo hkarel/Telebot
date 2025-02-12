@@ -74,4 +74,54 @@ UserJoinTimeList& userJoinTimes()
     return safe::singleton<UserJoinTimeList>();
 }
 
+void WhiteUserList::add(data::WhiteUser::Ptr whiteUser)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    if (_list.sortState() != lst::SortState::Up)
+        _list.sort();
+
+    whiteUser->add_ref();
+    _changeFlag = true;
+
+    lst::FindResult fr = _list.find(whiteUser.get());
+    if (fr.success())
+    {
+        _list.replace(fr.index(), whiteUser.get(), true);
+
+        log_debug_m << log_format(
+            "The re-adding to list WhiteUsers. Chat/User/Info: %?/%?/%?",
+            whiteUser->chatId, whiteUser->userId, whiteUser->info);
+        return;
+    }
+
+    _list.addInSort(whiteUser.get(), fr);
+
+    log_debug_m << log_format(
+        "User added to list WhiteUsers. Chat/User/Info: %?/%?/%?",
+        whiteUser->chatId, whiteUser->userId, whiteUser->info);
+}
+
+void WhiteUserList::remove(qint64 chatId, qint64 userId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    if (lst::FindResult fr = _list.findRef(tuple{chatId, userId}))
+    {
+        data::WhiteUser::Ptr wu = data::WhiteUser::Ptr(_list.item(fr.index()));
+        _list.remove(fr.index());
+        _changeFlag = true;
+
+        log_debug_m << log_format(
+            "User removed from list WhiteUsers. Chat/User/Info: %?/%?/%?",
+            wu->chatId, wu->userId, wu->info);
+    }
+}
+
+WhiteUserList& whiteUsers()
+{
+    return safe::singleton<WhiteUserList>();
+}
+
+
 } //namespace tbot

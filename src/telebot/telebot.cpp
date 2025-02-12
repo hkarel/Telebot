@@ -1,7 +1,7 @@
 #include "telebot_appl.h"
 
+#include "commands/tele_data.h"
 #include "trigger.h"
-#include "tele_data.h"
 
 #include "shared/defmac.h"
 #include "shared/utils.h"

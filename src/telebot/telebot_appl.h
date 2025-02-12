@@ -1,13 +1,13 @@
 #pragma once
 
-#include "tele_data.h"
 #include "processing.h"
-
-#include "pproto/func_invoker.h"
-#include "pproto/transport/tcp.h"
 
 #include "commands/commands.h"
 #include "commands/error.h"
+#include "commands/tele_data.h"
+
+#include "pproto/func_invoker.h"
+#include "pproto/transport/tcp.h"
 
 #include <QtCore>
 #include <QCoreApplication>
@@ -126,6 +126,7 @@ private:
     void command_UserTriggerSync(const Message::Ptr&);
     void command_DeleteDelaySync(const Message::Ptr&);
     void command_UserJoinTimeSync(const Message::Ptr&);
+    void command_WhiteUserSync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
@@ -136,6 +137,7 @@ private:
         user_trigger,
         delete_delay,
         user_join_time,
+        white_user,
     };
 
     void loadBotCommands();
@@ -160,6 +162,7 @@ private:
     int _antiraidTimerId = {-1};
     int _timelimitTimerId = {-1};
     int _userJoinTimerId = {-1};
+    int _whiteUserTimerId = {-1};
     int _configStateTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 

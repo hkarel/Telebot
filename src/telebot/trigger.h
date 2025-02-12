@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tele_data.h"
+#include "commands/tele_data.h"
 
 #include "shared/list.h"
 #include "shared/defmac.h"
