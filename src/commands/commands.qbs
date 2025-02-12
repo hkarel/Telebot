@@ -32,6 +32,7 @@ Product {
         "commands.h",
         "compare.h",
         "error.h",
+        "tele_data.h",
     ]
     Export {
         Depends { name: "cpp" }

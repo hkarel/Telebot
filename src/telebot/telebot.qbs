@@ -56,7 +56,6 @@ Product {
         "group_chat.h",
         "processing.cpp",
         "processing.h",
-        "tele_data.h",
         "telebot.cpp",
         "telebot_appl.cpp",
         "telebot_appl.h",
