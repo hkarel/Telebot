@@ -179,7 +179,7 @@ struct UserJoinTime : clife_base
     qint64 userId = {0};
     qint64 time   = {0}; // Время вступления пользователя в группу (в секундах)
 
-    typedef lst::List<UserJoinTime, CompareChatUser<UserJoinTime>, clife_alloc<UserJoinTime>> List;
+    typedef lst::List<UserJoinTime, CompareChatUser<UserJoinTime>, clife_alloc_ref<UserJoinTime>> List;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_MAP_ITEM( "c", chatId )
@@ -225,7 +225,7 @@ struct WhiteUser : clife_base
     // Время когда пользователь был добавлен в белый список (в миллисекундах)
     qint64 time = {0};
 
-    typedef lst::List<WhiteUser, CompareChatUser<WhiteUser>, clife_alloc<WhiteUser>> List;
+    typedef lst::List<WhiteUser, CompareChatUser<WhiteUser>, clife_alloc_ref<WhiteUser>> List;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_MAP_ITEM( "chat_id", chatId )

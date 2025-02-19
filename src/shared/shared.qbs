@@ -53,7 +53,6 @@ Product {
         "shared/thread/thread_pool.h",
         "shared/thread/thread_utils.cpp",
         "shared/thread/thread_utils.h",
-        "shared/break_point.h",
         "shared/clife_alloc.h",
         "shared/clife_base.h",
         "shared/clife_ptr.h",

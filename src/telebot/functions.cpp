@@ -92,14 +92,15 @@ void WhiteUserList::add(data::WhiteUser::Ptr whiteUser)
         log_debug_m << log_format(
             "The re-adding to list WhiteUsers. Chat/User/Info: %?/%?/%?",
             whiteUser->chatId, whiteUser->userId, whiteUser->info);
-        return;
     }
+    else
+    {
+        _list.addInSort(whiteUser.get(), fr);
 
-    _list.addInSort(whiteUser.get(), fr);
-
-    log_debug_m << log_format(
-        "User added to list WhiteUsers. Chat/User/Info: %?/%?/%?",
-        whiteUser->chatId, whiteUser->userId, whiteUser->info);
+        log_debug_m << log_format(
+            "User added to list WhiteUsers. Chat/User/Info: %?/%?/%?",
+            whiteUser->chatId, whiteUser->userId, whiteUser->info);
+    }
 }
 
 void WhiteUserList::remove(qint64 chatId, qint64 userId)

@@ -1597,13 +1597,15 @@ Trigger::List triggers(Trigger::List* list)
     if (list)
         triggers.swap(*list);
 
-    Trigger::List retTriggers;
-    for (Trigger* t : triggers)
-    {
-        t->add_ref();
-        retTriggers.add(t);
-    }
-    return retTriggers;
+//    Trigger::List retTriggers;
+//    for (Trigger* t : triggers)
+//    {
+//        t->add_ref();
+//        retTriggers.add(t);
+//    }
+//    return retTriggers;
+
+    return triggers;
 }
 
 bool timeInRange(const QTime& begin, const QTime& time, const QTime& end)
