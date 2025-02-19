@@ -106,7 +106,7 @@ public:
     ChatMemberAdministrator::Ptr botInfo() const;
     void setBotInfo(const ChatMemberAdministrator::Ptr&);
 
-    typedef lst::List<GroupChat, CompareId<GroupChat>, clife_alloc<GroupChat>> List;
+    typedef lst::List<GroupChat, CompareId<GroupChat>, clife_alloc_ref<GroupChat>> List;
 
 private:
     DISABLE_DEFAULT_COPY(GroupChat)

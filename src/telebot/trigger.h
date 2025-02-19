@@ -93,7 +93,7 @@ struct Trigger : public clife_base
         int operator() (const QString* name, const Trigger* item2) const
             {return name->compare(item2->name);}
     };
-    typedef lst::List<Trigger, Find, clife_alloc<Trigger>> List;
+    typedef lst::List<Trigger, Find, clife_alloc_ref<Trigger>> List;
 
 protected:
     Trigger() = default;

@@ -417,14 +417,19 @@ GroupChat::List groupChats(GroupChat::List* list)
         }
     }
 
-    GroupChat::List retChats;
-    for (GroupChat* c : chats)
-    {
-        c->add_ref();
-        retChats.add(c);
-    }
-    retChats.sort();
-    return retChats;
+    if (chats.sortState() != lst::SortState::Up)
+        chats.sort();
+
+//    GroupChat::List retChats;
+//    for (GroupChat* c : chats)
+//    {
+//        c->add_ref();
+//        retChats.add(c);
+//    }
+//    retChats.sort();
+//    return retChats;
+
+    return chats;
 }
 
 static QMutex timelimitInactiveChatsMutex;

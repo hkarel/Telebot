@@ -16,14 +16,16 @@ public:
     List list() const
     {
         QMutexLocker locker {&_mutex}; (void) locker;
-        List rlist;
-        for (auto* t : _list)
-        {
-            t->add_ref();
-            rlist.add(t);
-        }
-        rlist.sort();
-        return rlist;
+        return _list;
+
+//        List rlist;
+//        for (auto* t : _list)
+//        {
+//            t->add_ref();
+//            rlist.add(t);
+//        }
+//        rlist.sort();
+//        return rlist;
     }
 
     void listSwap(List& list)
