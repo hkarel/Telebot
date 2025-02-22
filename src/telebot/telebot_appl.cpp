@@ -3169,21 +3169,28 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         sendTgCommand(params);
     };
 
-    auto sendMessage = [this, chatId](QString msg, bool messageDel = true,
-                                      qint32 replyMsgId = -1)
+    auto sendMessage = [this, chatId](QString msg, QString parseMode = "HTML",
+                                      bool messageDel = true, qint32 replyMsgId = -1)
     {
         // Исключаем из замены html-теги <b> </b> <i> </i> <s> </s> <u> </u>
         static QRegularExpression re1 {R"(<(?!([bisu]>|\/[bisu]>)))"};
         static QRegularExpression re2 {R"((?<!(\/[bisu]|<[bisu]))>)"};
 
-        msg.replace(re1, "&#60;"); // <
-        msg.replace(re2, "&#62;"); // >
-        msg.replace("+", "&#43;"); // +
+        if (parseMode == "HTML")
+        {
+            msg.replace(re1, "&#60;"); // <
+            msg.replace(re2, "&#62;"); // >
+            msg.replace("+", "&#43;"); // +
+        }
+        else if (parseMode == "Markdown")
+        {
+            msg.replace("_", "\\_");
+        }
 
         auto params = tbot::tgfunction("sendMessage");
         params->api["chat_id"] = chatId;
         params->api["text"] = msg;
-        params->api["parse_mode"] = "HTML";
+        params->api["parse_mode"] = parseMode;
         params->delay = 1.5*1000 /*1.5 сек*/;
         params->messageDel = (messageDel) ? 0 : -1;
 
@@ -3191,6 +3198,24 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             params->api["reply_to_message_id"] = replyMsgId;
 
         sendTgCommand(params);
+    };
+
+    auto stringUserInfo = [](const tbot::User::Ptr& user, bool printUserId) -> QString
+    {
+        // Формируем строку с описанием пользователя
+        //   Смотри решение с Markdown разметкой тут:
+        //   https://core.telegram.org/bots/api#markdown-style
+        QString str = QString("[%1 %2](tg://user?id=%3)")
+                             .arg(user->first_name)
+                             .arg(user->last_name)
+                             .arg(user->id);
+
+        if (!user->username.isEmpty())
+        {
+            QString s = QString(" (@%1)").arg(user->username);
+            str += s.replace("_", "\\_");
+        }
+        return str;
     };
 
     static QSet<QString> vaCmdShorts {u8"проверь", u8"проверка", u8"проверить"};
@@ -3228,7 +3253,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 QString text = userTrgList->items[fr.index()].text;
                 tbot::Message::Ptr reply = message->reply_to_message;
-                sendMessage(text, false, (reply) ? reply->message_id : qint32(-1));
+                sendMessage(text, "HTML", false, (reply) ? reply->message_id : qint32(-1));
                 return true;
             }
         }
@@ -3302,6 +3327,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 u8"\r\n%1 trigger [tr]&#185; (add name|del name|list) - "
                 u8"Создание/удаление пользовательских триггеров;"
+                u8"\r\n"
+
+                u8"\r\n%1 whiteuser [wu]&#185; (add user_id comment|del user_id|list) - "
+                u8"Редактирование 'белого' списка пользователей группы;"
                 u8"\r\n"
 
                 u8"\r\n []&#185; - Сокращенное обозначение команды";
@@ -3500,7 +3529,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             if (fr.success())
             {
                 QString text = userTrgList->items[fr.index()].text;
-                sendMessage(text, false);
+                sendMessage(text, "HTML", false);
                 return true;
             }
 
@@ -3622,14 +3651,240 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                     str = str.arg(item->keys.join(QChar(',')) , item->text);
                     botMsg += str;
-
-                    // При выводе списка триггеров исключаем html-форматирование.
-                    // Если  в тегах  html-форматирования  будут  ошибки  список
-                    // триггеров может не отобразиться
-                    botMsg.replace("<", "&#60;");
-                    botMsg.replace(">", "&#62;");
                 }
+
+                // При выводе списка триггеров исключаем html-форматирование.
+                // Если  в тегах  html-форматирования  будут  ошибки  список
+                // триггеров может не отобразиться
+                botMsg.replace("<", "&#60;");
+                botMsg.replace(">", "&#62;");
+
                 sendMessage(botMsg);
+            }
+            return true;
+        }
+        else if ((command == "whiteuser") || (command == "wu"))
+        {
+            QString action;
+            if (actions.count())
+                action = actions[0];
+
+            auto fillUserInfo = [&](const tbot::User::Ptr& user, QString& info)
+            {
+                if (!info.isEmpty() && info.contains("%U ", Qt::CaseInsensitive))
+                {
+                    QString userName = stringUserInfo(user, false);
+                    info.replace(QString("%U "), userName + " ", Qt::CaseInsensitive);
+                }
+                else if (info.isEmpty())
+                {
+                    info = stringUserInfo(user, false);
+                }
+            };
+
+            if (action != "add"
+                && action != "del"
+                && action != "list")
+            {
+                botMsg = (action.isEmpty())
+                    ? u8"Для команды whiteuser требуется указать действие."
+                    : u8"Команда whiteuser не используется с указанным действием: %1.";
+
+                botMsg += u8"\r\nДопустимые действия: add user_id comment/del user_id/list"
+                          u8"\r\nПример: %2 whiteuser add 424579625 <i>Комментарий о пользователе</i>";
+                botMsg = botMsg.arg(action).arg(_commandPrefix);
+
+                sendMessage(botMsg);
+                return true;
+            }
+
+            if (action == "add")
+            {
+                if (tbot::Message::Ptr reply = message->reply_to_message)
+                {
+                    if (chatId != reply->chat->id)
+                    {
+                        log_error_m << "Bot command 'whiteuser' fail: chatId != reply->chat->id";
+                        return false;
+                    }
+
+                    QString info;
+                    if (actions.count() > 1)
+                    {
+                        for (int i = 1; i < actions.count(); ++i)
+                            info += actions[i] + " ";
+                        info = info.trimmed();
+                    }
+                    fillUserInfo(reply->from, info);
+
+                    data::WhiteUser::Ptr whiteUser {new data::WhiteUser};
+                    whiteUser->chatId = chatId;
+                    whiteUser->userId = reply->from->id;
+                    whiteUser->info   = info;
+                    whiteUser->admin  = message->from;
+                    whiteUser->time   = message->date;
+
+                    tbot::whiteUsers().add(whiteUser);
+
+                    botMsg = u8"Пользователь %1 добавлен в белый список группы";
+                    botMsg = botMsg.arg(stringUserInfo(reply->from, true));
+                    sendMessage(botMsg, "Markdown");
+                }
+                else
+                {
+                    if (actions.count() < 2)
+                    {
+                        botMsg =
+                            u8"Невозможно добавить пользователя в белый список группы. "
+                            u8"Не указан идентификатор пользователя";
+                        sendMessage(botMsg);
+                        return true;
+                    }
+
+                    bool ok = false;
+                    qint64 whiteUserId = actions[1].toLongLong(&ok);
+                    if (!ok)
+                    {
+                        log_error_m << log_format(
+                            "Bot command 'whiteuser'. Failed get user id from '%?'",
+                            actions[1]);
+
+                        botMsg = u8"Ошибка получения числового идентификатора пользователя"
+                                 u8"из строкового значения '%1'";
+                        sendMessage(botMsg.arg(actions[1]));
+                        return true;
+                    }
+
+                    QString info;
+                    if (actions.count() > 2)
+                    {
+                        for (int i = 2; i < actions.count(); ++i)
+                            info += actions[i] + " ";
+                        info = info.trimmed();
+                    }
+
+                    data::WhiteUser::Ptr whiteUser {new data::WhiteUser};
+                    whiteUser->chatId = chatId;
+                    whiteUser->userId = whiteUserId;
+                    whiteUser->info   = info;
+                    whiteUser->admin  = message->from;
+                    whiteUser->time   = message->date;
+
+                    tbot::whiteUsers().add(whiteUser);
+
+                    botMsg = u8"Пользователь с идентификатором [%1](tg://user?id=%1) "
+                             u8"добавлен в белый список группы";
+                    botMsg = botMsg.arg(whiteUserId);
+                    sendMessage(botMsg, "Markdown");
+                }
+            }
+            else if (action == "del")
+            {
+                if (tbot::Message::Ptr reply = message->reply_to_message)
+                {
+                    if (chatId != reply->chat->id)
+                    {
+                        log_error_m << "Bot command 'whiteuser' fail: chatId != reply->chat->id";
+                        return false;
+                    }
+
+                    data::WhiteUser::Ptr whiteUser =
+                        tbot::whiteUsers().find(tuple{chatId, reply->from->id});
+                    if (whiteUser)
+                        if (tbot::whiteUsers().remove(whiteUser))
+                        {
+                            botMsg = u8"Пользователь %1 исключен из белого списка группы";
+                            botMsg = botMsg.arg(stringUserInfo(reply->from, true));
+                            sendMessage(botMsg, "Markdown");
+                        }
+                }
+                else
+                {
+                    if (actions.count() < 2)
+                    {
+                        botMsg = u8"Невозможно исключить пользователя из белого списка группы. "
+                                 u8"Не указан идентификатор пользователя";
+                        sendMessage(botMsg);
+                        return true;
+                    }
+
+                    QString numberStr = actions[1];
+                    bool removeByIndex = (numberStr.length() < 4);
+
+                    bool ok = false;
+                    qint64 whiteUserId = actions[1].toLongLong(&ok);
+                    if (!ok)
+                    {
+                        log_error_m << log_format(
+                            "Bot command 'whiteuser'. Failed get user id from '%?'",
+                            actions[1]);
+
+                        botMsg = u8"Ошибка получения числового идентификатора пользователя"
+                                 u8"из строкового значения '%1'";
+                        sendMessage(botMsg.arg(actions[1]));
+                        return true;
+                    }
+
+                    data::WhiteUser::Ptr whiteUser;
+                    if (removeByIndex)
+                    {
+                        data::WhiteUser::List whiteUsers = tbot::whiteUsers().chatList(chatId);
+                        if (lst::checkBounds(whiteUserId, whiteUsers))
+                            whiteUser = data::WhiteUser::Ptr(whiteUsers.item(whiteUserId));
+                    }
+                    else
+                        whiteUser = tbot::whiteUsers().find(tuple{chatId, whiteUserId});
+
+                    if (whiteUser)
+                        if (tbot::whiteUsers().remove(whiteUser))
+                        {
+                            botMsg = u8"Пользователь с идентификатором [%1](tg://user?id=%1) "
+                                     u8"исключен из белого списка группы";
+                            botMsg = botMsg.arg(whiteUser->userId);
+                            sendMessage(botMsg, "Markdown");
+                        }
+                }
+            }
+            else if (action == "list")
+            {
+                botMsg = u8"Белый список пользователей группы (список бота)";
+                if (chat->whiteUsers.count())
+                    for (tbot::GroupChat::WhiteUser* wu : chat->whiteUsers)
+                    {
+                        QString str = u8"\r\n-"
+                                      u8"\r\n[%1](tg://user?id=%1) ➞ %2";
+                        str = str.arg(wu->userId).arg(wu->info);
+                        botMsg += str;
+                    }
+                else
+                    botMsg += u8"\r\n-"
+                              u8"\r\nПусто";
+
+                sendMessage(botMsg, "Markdown");
+
+                botMsg = u8"Белый список пользователей группы (список админов)";
+                data::WhiteUser::List whiteUsers = tbot::whiteUsers().chatList(chatId);
+                if (whiteUsers.count())
+                    for (int i = 0; i < whiteUsers.count(); ++i)
+                    {
+                        data::WhiteUser* wu = whiteUsers.item(i);
+                        QString str = u8"\r\n-"
+                                      u8"\r\n\\[%1] [%2](tg://user?id=%2) ➞ %3"
+                                      u8"\r\nДобавил админ: %4"
+                                      u8"\r\nДата: %5";
+                        QDateTime time = QDateTime::fromTime_t(wu->time);
+                        str = str.arg(i)
+                                 .arg(wu->userId)
+                                 .arg(wu->info)
+                                 .arg(stringUserInfo(wu->admin, true))
+                                 .arg(time.toString("dd.MM.yy HH:mm:ss"));
+                        botMsg += str;
+                    }
+                else
+                    botMsg += u8"\r\n-"
+                              u8"\r\nПусто";
+
+                sendMessage(botMsg, "Markdown");
             }
             return true;
         }

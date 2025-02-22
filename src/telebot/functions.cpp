@@ -103,11 +103,11 @@ void WhiteUserList::add(data::WhiteUser::Ptr whiteUser)
     }
 }
 
-void WhiteUserList::remove(qint64 chatId, qint64 userId)
+bool WhiteUserList::remove(data::WhiteUser::Ptr whiteUser)
 {
     QMutexLocker locker {&_mutex}; (void) locker;
 
-    if (lst::FindResult fr = _list.findRef(tuple{chatId, userId}))
+    if (lst::FindResult fr = _list.find(whiteUser.get()))
     {
         data::WhiteUser::Ptr wu = data::WhiteUser::Ptr(_list.item(fr.index()));
         _list.remove(fr.index());
@@ -116,7 +116,24 @@ void WhiteUserList::remove(qint64 chatId, qint64 userId)
         log_debug_m << log_format(
             "User removed from list WhiteUsers. Chat/User/Info: %?/%?/%?",
             wu->chatId, wu->userId, wu->info);
+        return true;
     }
+    return false;
+}
+
+data::WhiteUser::List WhiteUserList::chatList(qint64 chatId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    data::WhiteUser::List list;
+    for (data::WhiteUser* wu : _list)
+        if (wu->chatId == chatId)
+        {
+            wu->add_ref();
+            list.add(wu);
+        }
+    list.sort();
+    return list;
 }
 
 WhiteUserList& whiteUsers()

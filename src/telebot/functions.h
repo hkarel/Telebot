@@ -45,6 +45,13 @@ public:
         return {};
     }
 
+    void remove(int index)
+    {
+        QMutexLocker locker {&_mutex}; (void) locker;
+        _list.remove(index);
+        _changeFlag = false;
+    }
+
     bool changed()
     {
         QMutexLocker locker {&_mutex}; (void) locker;
@@ -82,7 +89,8 @@ class WhiteUserList : public DataList<data::WhiteUser>
 {
 public:
     void add(data::WhiteUser::Ptr);
-    void remove(qint64 chatId, qint64 userId);
+    bool remove(data::WhiteUser::Ptr);
+    data::WhiteUser::List chatList(qint64 chatId);
 };
 
 WhiteUserList& whiteUsers();

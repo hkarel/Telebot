@@ -436,7 +436,7 @@ void Processing::run()
                     return false;
                 }
 
-                auto stringUserInfo = [&](const User::Ptr& user) -> QString
+                auto stringUserInfo = [](const User::Ptr& user) -> QString
                 {
                     // Формируем строку с описанием пользователя
                     //   Смотри решение с Markdown разметкой тут:
@@ -542,7 +542,7 @@ void Processing::run()
             // Формируем строку с описанием пользователя
             //   Смотри решение с Markdown разметкой тут:
             //   https://core.telegram.org/bots/api#markdown-style
-            QString str = QString("%1 => [%2 %3](tg://user?id=%4)")
+            QString str = QString("%1 ➞ [%2 %3](tg://user?id=%4)")
                                  .arg(user->id)
                                  .arg(user->first_name)
                                  .arg(user->last_name)
@@ -597,7 +597,17 @@ void Processing::run()
             if (chat->whiteUsers.findRef(user->id))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in group whitelist)",
+                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in bot whitelist)",
+                    update.update_id, chat->name(),
+                    user->first_name, user->last_name, user->username, user->id);
+                continue;
+            }
+
+            // Проверка пользователя на принадлежность к белому админскому списку группы
+            if (whiteUsers().find(tuple{chatId, user->id}))
+            {
+                log_verbose_m << log_format(
+                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in admit whitelist)",
                     update.update_id, chat->name(),
                     user->first_name, user->last_name, user->username, user->id);
                 continue;

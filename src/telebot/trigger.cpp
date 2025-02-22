@@ -476,7 +476,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, userId);
 
             activationReasonMessage =
-                QString(u8": пользователь %1 в черном списке => (%2)")
+                QString(u8": пользователь %1 в черном списке ➞ (%2)")
                        .arg(userId).arg(group.description);
             return true;
         }
@@ -488,7 +488,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, forwardUserId);
 
             activationReasonMessage =
-                QString(u8": forward-пользователь %1 в черном списке => (%2)")
+                QString(u8": forward-пользователь %1 в черном списке ➞ (%2)")
                        .arg(forwardUserId).arg(group.description);
             return true;
         }
@@ -500,7 +500,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
                 update.update_id, chat->name(), name, forwardChatId);
 
             activationReasonMessage =
-                QString(u8": forward-чат/канал %1 в черном списке => (%2)")
+                QString(u8": forward-чат/канал %1 в черном списке ➞ (%2)")
                        .arg(forwardChatId).arg(group.description);
             return true;
         }

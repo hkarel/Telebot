@@ -222,7 +222,7 @@ struct WhiteUser : clife_base
     // Администратор добавивший пользователя в белый список
     tbot::User::Ptr admin;
 
-    // Время когда пользователь был добавлен в белый список (в миллисекундах)
+    // Время когда пользователь был добавлен в белый список (в Unix time)
     qint64 time = {0};
 
     typedef lst::List<WhiteUser, CompareChatUser<WhiteUser>, clife_alloc_ref<WhiteUser>> List;
