@@ -689,6 +689,9 @@ void Application::timerEvent(QTimerEvent* event)
                 sendTgCommand(params);
             }
         }
+
+        // Удаляем устаревшую информацию о присоединившихся пользователях
+        tbot::userJoinTimes().removeByTime();
     }
 }
 

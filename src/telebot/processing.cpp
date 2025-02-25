@@ -140,7 +140,7 @@ void Processing::run()
 
         // Признак нового пользователя (только что вошел в группу)
         bool isNewUser = false;
-        bool restrictJoinViaChatFolder = false;
+        bool joinViaChatFolder = false;
 
         // Событие обновления прав для админа/пользователя или вступления нового
         // пользователя в группу
@@ -163,7 +163,7 @@ void Processing::run()
                 if ((oldStatus == "left") && (newStatus == "member"))
                 {
                     isNewUser = true;
-                    restrictJoinViaChatFolder = update.chat_member->via_chat_folder_invite_link;
+                    joinViaChatFolder = update.chat_member->via_chat_folder_invite_link;
 
                     // Всех обманываем и конструируем сообщение
                     Message::Ptr message {new Message};
@@ -616,7 +616,7 @@ void Processing::run()
             // Проверка присоединения нового пользователя к группе через ссылку
             // на папку с группами => via a chat folder invite link
             if (botInfo && isNewUser
-                && restrictJoinViaChatFolder && chat->restrictJoinViaChatFolder)
+                && joinViaChatFolder && chat->restrictJoinViaChatFolder)
             {
                 if (botInfo->can_restrict_members)
                 {
@@ -1112,7 +1112,7 @@ void Processing::run()
             if (isNewUser && !isBioMessage)
             {
                 emit restrictNewUser(chat->id, user->id, chat->newUserMute);
-                userJoinTimes().add(chat->id, user->id);
+                userJoinTimes().add(chat->id, user->id, joinViaChatFolder);
             }
 
             // Проверка на Anti-Raid режим

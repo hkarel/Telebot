@@ -17,7 +17,7 @@
 
 namespace tbot {
 
-void UserJoinTimeList::add(qint64 chatId, qint64 userId)
+void UserJoinTimeList::add(qint64 chatId, qint64 userId, bool joinViaChatFolder)
 {
     QMutexLocker locker {&_mutex}; (void) locker;
 
@@ -29,10 +29,11 @@ void UserJoinTimeList::add(qint64 chatId, qint64 userId)
     {
         data::UserJoinTime* ujt = _list.item(fr.index());
         ujt->time = std::time(nullptr);
+        ujt->joinViaChatFolder = joinViaChatFolder;
         _changeFlag = true;
 
         log_debug_m << log_format(
-            "The re-adding to list UserJoinTimes. Chat/User/Time: %?/%?/%?",
+            "The re-adding to list UserJoinTimes. Chat/User/Time/VCF: %?/%?/%?/%?",
             ujt->chatId, ujt->userId, ujt->time);
         return;
     }
@@ -42,6 +43,7 @@ void UserJoinTimeList::add(qint64 chatId, qint64 userId)
     ujt->chatId = chatId;
     ujt->userId = userId;
     ujt->time = std::time(nullptr);
+    ujt->joinViaChatFolder = joinViaChatFolder;
 
     _list.addInSort(ujt, fr);
     _changeFlag = true;
@@ -55,18 +57,19 @@ void UserJoinTimeList::removeByTime()
 {
     QMutexLocker locker {&_mutex}; (void) locker;
 
-    const qint64 diffTime = 15*24*60*60; // 15 суток
-    const qint64 time = std::time(nullptr) - diffTime;
-    _list.removeCond([time, diffTime](data::UserJoinTime* ujt) -> bool
+    const qint64 diff = 60*24*60*60; // 60 суток
+    const qint64 threshold = std::time(nullptr) - diff;
+    _list.removeCond([threshold, this](data::UserJoinTime* ujt) -> bool
     {
-        bool result = (ujt->time < time);
-        if (result)
+        if (ujt->time < threshold)
+        {
             log_debug_m << log_format(
-                "User removed from list UserJoinTimes. Chat/User/Time: %?/%?/%?",
-                ujt->chatId, ujt->userId, ujt->time);
-        return result;
+                "User removed from list UserJoinTimes. Chat/User/Time/VCF: %?/%?/%?/%?",
+                ujt->chatId, ujt->userId, ujt->time, ujt->joinViaChatFolder);
+            return (_changeFlag = true);
+        }
+        return false;
     });
-    _changeFlag = true;
 }
 
 UserJoinTimeList& userJoinTimes()

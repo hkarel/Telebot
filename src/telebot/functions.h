@@ -76,7 +76,7 @@ protected:
 class UserJoinTimeList : public DataList<data::UserJoinTime>
 {
 public:
-    void add(qint64 chatId, qint64 userId);
+    void add(qint64 chatId, qint64 userId, bool joinViaChatFolder);
     void removeByTime();
 };
 

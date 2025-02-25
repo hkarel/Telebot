@@ -177,14 +177,21 @@ struct UserJoinTime : clife_base
 
     qint64 chatId = {0};
     qint64 userId = {0};
-    qint64 time   = {0}; // Время вступления пользователя в группу (в секундах)
+
+    // Время вступления пользователя в группу (в секундах)
+    qint64 time = {0};
+
+    // Признак присоединения нового пользователя к группе через ссылку
+    // на папку с группами => via a chat folder invite link
+    bool joinViaChatFolder = {false};
 
     typedef lst::List<UserJoinTime, CompareChatUser<UserJoinTime>, clife_alloc_ref<UserJoinTime>> List;
 
     J_SERIALIZE_BEGIN
-        J_SERIALIZE_MAP_ITEM( "c", chatId )
-        J_SERIALIZE_MAP_ITEM( "u", userId )
-        J_SERIALIZE_MAP_ITEM( "t", time   )
+        J_SERIALIZE_MAP_ITEM( "c", chatId            )
+        J_SERIALIZE_MAP_ITEM( "u", userId            )
+        J_SERIALIZE_MAP_ITEM( "t", time              )
+        J_SERIALIZE_MAP_OPT ( "j", joinViaChatFolder )
     J_SERIALIZE_END
 };
 
