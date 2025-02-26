@@ -556,6 +556,24 @@ void Processing::run()
             return str;
         };
 
+        auto messageText = [message]() -> QString
+        {
+            QString text = message->text;
+            if (!message->caption.isEmpty())
+            {
+                if (text.isEmpty())
+                    text = message->caption;
+                else
+                    text = message->caption + '\n' + text;
+            }
+            if (text.length() > 1000)
+            {
+                text.resize(1000);
+                text += u8"…";
+            }
+            return text;
+        };
+
         for (int i = 0; i < users.count(); ++i)
         {
             User::Ptr user = users[i];
@@ -615,14 +633,13 @@ void Processing::run()
 
             // Проверка присоединения нового пользователя к группе через ссылку
             // на папку с группами => via a chat folder invite link
-            if (botInfo && isNewUser
-                && joinViaChatFolder && chat->restrictJoinViaChatFolder)
+            if (isNewUser && joinViaChatFolder && chat->joinViaChatFolder.restrict_)
             {
-                if (botInfo->can_restrict_members)
+                if (botInfo && botInfo->can_restrict_members)
                 {
                     log_verbose_m << log_format(
-                        u8"\"update_id\":%?"
-                        u8". Chat: %?. New user %?/%?/@%?/%? excluded from group"
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". New user %?/%?/@%?/%? excluded from group"
                         u8". User joined to group via a chat folder invite link",
                         update.update_id, chat->name(),
                         user->first_name, user->last_name, user->username, user->id);
@@ -676,6 +693,68 @@ void Processing::run()
                     emit sendTgCommand(params);
                 }
                 continue;
+            }
+
+            if (!isNewUser && !isBioMessage && chat->joinViaChatFolder.mute
+                && botInfo && botInfo->can_delete_messages)
+            {
+                data::UserJoinTime::Ptr ujt = userJoinTimes().find(tuple{chatId, user->id});
+                if (ujt && ujt->joinViaChatFolder)
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%? u8 Chat: %?"
+                        u8". User %?/%?/@%?/%? joined to group via a chat folder invite link"
+                        u8". User is not allowed to post messages",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    auto params = tgfunction("deleteMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["message_id"] = messageId;
+                    params->delay = 200 /*0.2 сек*/;
+                    emit sendTgCommand(params);
+
+                    QString botMsg =
+                        u8"Бот удалил сообщение"
+                        u8"\r\n---"
+                        u8"\r\n%1"
+                        u8"\r\n---"
+                        u8"\r\nПричина: пользователям присоединившимся к группе "
+                        u8"через ссылку на папку с группами (via a chat folder invite link) "
+                        u8"запрещено публиковать сообщения";
+
+                    botMsg = botMsg.arg(messageText());
+
+                    botMsg.replace("+", "&#43;");
+                    botMsg.replace("<", "&#60;");
+                    botMsg.replace(">", "&#62;");
+
+                    auto params2 = tgfunction("sendMessage");
+                    params2->api["chat_id"] = chatId;
+                    params2->api["text"] = botMsg;
+                    params2->api["parse_mode"] = "HTML";
+                    params2->delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand(params2);
+
+                    // Формируем сообщение с идентификатором пользователя
+                    botMsg = stringUserInfo(user);
+
+                    // Отправляем сообщение с идентификатором пользователя
+                    auto params3 = tgfunction("sendMessage");
+                    params3->api["chat_id"] = chatId;
+                    params3->api["text"] = botMsg;
+                    params3->api["parse_mode"] = "Markdown";
+                    params3->delay = 800 /*0.8 сек*/;
+                    emit sendTgCommand(params3);
+
+                    if (chat->joinViaChatFolder.reportSpam
+                        && botInfo && botInfo->can_restrict_members)
+                    {
+                        // Отправляем отчет о спаме
+                        emit reportSpam(chatId, user);
+                    }
+                    continue;
+                }
             }
 
             // Проверка на Anti-Raid режим
@@ -806,32 +885,15 @@ void Processing::run()
                     u8"%3%4;"
                     u8"\r\nтриггер: %5";
 
-                QString messageText;
-                if (!isBioMessage)
-                {
-                    messageText = message->text;
-                    if (!message->caption.isEmpty())
-                    {
-                        if (messageText.isEmpty())
-                            messageText = message->caption;
-                        else
-                            messageText = message->caption + '\n' + messageText;
-                    }
-                }
-                else
-                    messageText = msgData->bio.messageOrigin;
-
-                if (messageText.length() > 1000)
-                {
-                    messageText.resize(1000);
-                    messageText += u8"…";
-                }
+                QString msgText = (isBioMessage)
+                                  ? msgData->bio.messageOrigin
+                                  : messageText();
 
                 QString bioText;
                 if (isBioMessage)
                     bioText = u8"\r\nBIO: " + message->text;
 
-                botMsg = botMsg.arg(messageText)
+                botMsg = botMsg.arg(msgText)
                                .arg(bioText)
                                .arg(trigger->activationReasonMessage)
                                .arg(isBioMessage ? u8" [в BIO]" : u8"")
@@ -848,7 +910,7 @@ void Processing::run()
                 params2->api["chat_id"] = chatId;
                 params2->api["text"] = botMsg;
                 params2->api["parse_mode"] = "HTML";
-                params2->delay = 1*1000 /*1 сек*/;
+                params2->delay = 500 /*0.5 сек*/;
                 emit sendTgCommand(params2);
 
                 // Формируем сообщение с идентификатором пользователя
@@ -859,7 +921,7 @@ void Processing::run()
                 params3->api["chat_id"] = chatId;
                 params3->api["text"] = botMsg;
                 params3->api["parse_mode"] = "Markdown";
-                params3->delay = 1.3*1000 /*1.3 сек*/;
+                params3->delay = 800 /*0.8 сек*/;
                 emit sendTgCommand(params3);
 
                 if (TriggerTimeLimit* trg = dynamic_cast<TriggerTimeLimit*>(trigger))
@@ -881,7 +943,7 @@ void Processing::run()
                         params->api["chat_id"] = chatId;
                         params->api["text"] = message;
                         params->api["parse_mode"] = "HTML";
-                        params->delay = 1.5*1000 /*1.5 сек*/;
+                        params->delay = 1.2*1000 /*1.2 сек*/;
                         params->messageDel = 3*60 /*3 мин*/;
                         emit sendTgCommand(params);
                     }
@@ -943,7 +1005,7 @@ void Processing::run()
                         params2->api["chat_id"] = chatId;
                         params2->api["text"] = botMsg;
                         params2->api["parse_mode"] = "Markdown";
-                        params2->delay = 1*1000 /*1 сек*/;
+                        params2->delay = 500 /*0.5 сек*/;
                         emit sendTgCommand(params2);
                     }
                     else
@@ -1086,14 +1148,6 @@ void Processing::run()
             if (chat->checkBio
                 && !isBioMessage && !messageDeleted && !userRestricted)
             {
-                QString messageText = message->text;
-                if (!message->caption.isEmpty())
-                {
-                    if (messageText.isEmpty())
-                        messageText = message->caption;
-                    else
-                        messageText = message->caption + '\n' + messageText;
-                }
                 auto params = tgfunction("getChat");
                 params->api["chat_id"] = user->id;
                 params->delay = 200 /*0.2 сек*/;
@@ -1102,16 +1156,18 @@ void Processing::run()
                 params->bio.updateId = update.update_id;
                 params->bio.messageId = messageId;
                 params->bio.mediaGroupId = message->media_group_id;
-                params->bio.messageOrigin = messageText.trimmed();
+                params->bio.messageOrigin = messageText().trimmed();
                 params->isNewUser = isNewUser;
                 emit sendTgCommand(params);
             }
 
-            // Ограничение пользователя на два и более часа, если он в течении
-            // одной минуты подключается к нескольким группам
             if (isNewUser && !isBioMessage)
             {
+                // Ограничение пользователя на два и более часа, если он в течении
+                // одной минуты подключается к нескольким группам
                 emit restrictNewUser(chat->id, user->id, chat->newUserMute);
+
+                // Отслеживаем время вступления пользователя в группу
                 userJoinTimes().add(chat->id, user->id, joinViaChatFolder);
             }
 

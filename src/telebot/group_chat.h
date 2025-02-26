@@ -58,9 +58,19 @@ public:
     // равно -1
     qint32 newUserMute = {-1};
 
-    // Ограничивает присоединение к группе нового пользователя если пользователь
-    // подключился к группе через ссылку на папку с группами
-    bool restrictJoinViaChatFolder = {false};
+    struct JoinViaChatFolder
+    {
+        // Запрещает присоединение к группе
+        bool restrict_ = {false};
+
+        //Разрешает присоединение к группе, но запрещает публиковать сообщения
+        bool mute = {false};
+
+        // Отправляет отчет о спаме в систему учета штрафов при попытке опубли-
+        // ковать сообщение
+        bool reportSpam = {true};
+    };
+    JoinViaChatFolder joinViaChatFolder;
 
     // Ограничение пользователя за публикацию спам-сообщений
     QVector<qint32> userRestricts;

@@ -33,8 +33,8 @@ void UserJoinTimeList::add(qint64 chatId, qint64 userId, bool joinViaChatFolder)
         _changeFlag = true;
 
         log_debug_m << log_format(
-            "The re-adding to list UserJoinTimes. Chat/User/Time/VCF: %?/%?/%?/%?",
-            ujt->chatId, ujt->userId, ujt->time);
+            "The re-adding to list UserJoinTimes. Chat/User/Time/JoinVCF: %?/%?/%?/%?",
+            ujt->chatId, ujt->userId, ujt->time, ujt->joinViaChatFolder);
         return;
     }
 
@@ -49,8 +49,8 @@ void UserJoinTimeList::add(qint64 chatId, qint64 userId, bool joinViaChatFolder)
     _changeFlag = true;
 
     log_debug_m << log_format(
-        "User added to list UserJoinTimes. Chat/User/Time: %?/%?/%?",
-        ujt->chatId, ujt->userId, ujt->time);
+        "User added to list UserJoinTimes. Chat/User/Time/JoinVCF: %?/%?/%?/%?",
+        ujt->chatId, ujt->userId, ujt->time, ujt->joinViaChatFolder);
 }
 
 void UserJoinTimeList::removeByTime()
@@ -64,7 +64,7 @@ void UserJoinTimeList::removeByTime()
         if (ujt->time < threshold)
         {
             log_debug_m << log_format(
-                "User removed from list UserJoinTimes. Chat/User/Time/VCF: %?/%?/%?/%?",
+                "User removed from list UserJoinTimes. Chat/User/Time/JoinVCF: %?/%?/%?/%?",
                 ujt->chatId, ujt->userId, ujt->time, ujt->joinViaChatFolder);
             return (_changeFlag = true);
         }

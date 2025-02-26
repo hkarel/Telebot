@@ -187,11 +187,27 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         newUserMute = ychat["newuser_mute"].as<int>();
     }
 
-    bool restrictJoinViaChatFolder = false;
-    if (ychat["restrict_join_via_chat_folder"].IsDefined())
+    GroupChat::JoinViaChatFolder joinViaChatFolder;
+    if (ychat["join_via_chat_folder"].IsDefined())
     {
-        checkFiedType(ychat, "restrict_join_via_chat_folder", YAML::NodeType::Scalar);
-        restrictJoinViaChatFolder = ychat["restrict_join_via_chat_folder"].as<bool>();
+        checkFiedType(ychat, "join_via_chat_folder", YAML::NodeType::Map);
+        const YAML::Node yjoin = ychat["join_via_chat_folder"];
+
+        if (yjoin["restrict"].IsDefined())
+        {
+            checkFiedType(yjoin, "restrict", YAML::NodeType::Scalar);
+            joinViaChatFolder.restrict_ = yjoin["restrict"].as<bool>();
+        }
+        if (yjoin["mute"].IsDefined())
+        {
+            checkFiedType(yjoin, "mute", YAML::NodeType::Scalar);
+            joinViaChatFolder.mute = yjoin["mute"].as<bool>();
+        }
+        if (yjoin["report_spam"].IsDefined())
+        {
+            checkFiedType(yjoin, "report_spam", YAML::NodeType::Scalar);
+            joinViaChatFolder.reportSpam = yjoin["report_spam"].as<bool>();
+        }
     }
 
     GroupChat::AntiRaid antiRaid;
@@ -232,7 +248,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
-    chat->restrictJoinViaChatFolder = restrictJoinViaChatFolder;
+    chat->joinViaChatFolder = joinViaChatFolder;
     chat->antiRaid = antiRaid;
 
     Trigger::List triggers = tbot::triggers();
@@ -351,7 +367,12 @@ void printGroupChats(GroupChat::List& chats)
         logLine << "]";
 
         logLine << "; newuser_mute: " << chat->newUserMute;
-        logLine << "; restrict_join_via_chat_folder: " << chat->restrictJoinViaChatFolder;
+
+        logLine << log_format("; join_via_chat_folder: {restrict: %?, mute: %?"
+                              ", report_spam: %?}",
+                              chat->joinViaChatFolder.restrict_,
+                              chat->joinViaChatFolder.mute,
+                              chat->joinViaChatFolder.reportSpam);
 
         logLine << log_format("; anti_raid: {active: %?, time_frame: %?"
                               ", users_limit: %?, duration: %?}",
