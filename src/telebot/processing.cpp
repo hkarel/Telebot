@@ -714,30 +714,30 @@ void Processing::run()
                     params->delay = 200 /*0.2 сек*/;
                     emit sendTgCommand(params);
 
-                    QString botMsg =
-                        u8"Бот удалил сообщение"
-                        u8"\r\n---"
-                        u8"\r\n%1"
-                        u8"\r\n---"
-                        u8"\r\nПричина: пользователям присоединившимся к группе "
-                        u8"через ссылку на папку с группами (via a chat folder invite link) "
-                        u8"запрещено публиковать сообщения";
+//                    QString botMsg =
+//                        u8"Бот удалил сообщение"
+//                        u8"\r\n---"
+//                        u8"\r\n%1"
+//                        u8"\r\n---"
+//                        u8"\r\nПричина: пользователям присоединившимся к группе "
+//                        u8"через ссылку на папку с группами (via a chat folder invite link) "
+//                        u8"запрещено публиковать сообщения";
 
-                    botMsg = botMsg.arg(messageText());
+//                    botMsg = botMsg.arg(messageText());
 
-                    botMsg.replace("+", "&#43;");
-                    botMsg.replace("<", "&#60;");
-                    botMsg.replace(">", "&#62;");
+//                    botMsg.replace("+", "&#43;");
+//                    botMsg.replace("<", "&#60;");
+//                    botMsg.replace(">", "&#62;");
 
-                    auto params2 = tgfunction("sendMessage");
-                    params2->api["chat_id"] = chatId;
-                    params2->api["text"] = botMsg;
-                    params2->api["parse_mode"] = "HTML";
-                    params2->delay = 500 /*0.5 сек*/;
-                    emit sendTgCommand(params2);
+//                    auto params2 = tgfunction("sendMessage");
+//                    params2->api["chat_id"] = chatId;
+//                    params2->api["text"] = botMsg;
+//                    params2->api["parse_mode"] = "HTML";
+//                    params2->delay = 500 /*0.5 сек*/;
+//                    emit sendTgCommand(params2);
 
                     // Формируем сообщение с идентификатором пользователя
-                    botMsg = stringUserInfo(user);
+                    QString botMsg = stringUserInfo(user) + " ➞ VCF";
 
                     // Отправляем сообщение с идентификатором пользователя
                     auto params3 = tgfunction("sendMessage");
@@ -1163,6 +1163,25 @@ void Processing::run()
 
             if (isNewUser && !isBioMessage)
             {
+                if (joinViaChatFolder)
+                {
+                    // Отправляем сообщение о вступившем в группу пользователе
+                    // через ссылку на папку с группами
+                    QString botMsg =
+                            u8"Пользователь %1 присоединился к группе "
+                            u8"через ссылку на папку с группами (via a chat folder invite link) "
+                            u8"➞ VCF";
+
+                    botMsg = botMsg.arg(stringUserInfo(user));
+
+                    auto params = tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg;
+                    params->api["parse_mode"] = "Markdown";
+                    params->delay = 100 /*0.1 сек*/;
+                    emit sendTgCommand(params);
+                }
+
                 // Ограничение пользователя на два и более часа, если он в течении
                 // одной минуты подключается к нескольким группам
                 emit restrictNewUser(chat->id, user->id, chat->newUserMute);
