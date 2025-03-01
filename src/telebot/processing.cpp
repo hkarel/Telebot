@@ -11,6 +11,7 @@
 #include "shared/config/appl_conf.h"
 
 #include <QTextCodec>
+#include <random>
 
 #define log_error_m   alog::logger().error  (alog_line_location, "Processing")
 #define log_warn_m    alog::logger().warn   (alog_line_location, "Processing")
@@ -633,32 +634,74 @@ void Processing::run()
 
             // Проверка присоединения нового пользователя к группе через ссылку
             // на папку с группами => via a chat folder invite link
-            if (isNewUser && joinViaChatFolder && chat->joinViaChatFolder.restrict_)
+            if (isNewUser && joinViaChatFolder
+                && (chat->joinViaChatFolder.restrict_ || chat->joinViaChatFolder.mute))
             {
+                QString botMsg;
                 if (botInfo && botInfo->can_restrict_members)
                 {
-                    log_verbose_m << log_format(
-                        u8"\"update_id\":%?. Chat: %?"
-                        u8". New user %?/%?/@%?/%? excluded from group"
-                        u8". User joined to group via a chat folder invite link",
-                        update.update_id, chat->name(),
-                        user->first_name, user->last_name, user->username, user->id);
+                    if (chat->joinViaChatFolder.restrict_)
+                    {
+                        log_verbose_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". New user %?/%?/@%?/%? excluded from group"
+                            u8". User joined to group via a chat folder invite link",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id);
 
-                    auto params = tgfunction("banChatMember");
-                    params->api["chat_id"] = chatId;
-                    params->api["user_id"] = user->id;
-                    params->api["until_date"] = qint64(std::time(nullptr) + 1*60*60 /*1 час*/);
-                    params->api["revoke_messages"] = true;
-                    emit sendTgCommand(params);
+                        auto params = tgfunction("banChatMember");
+                        params->api["chat_id"] = chatId;
+                        params->api["user_id"] = user->id;
+                        params->api["until_date"] = qint64(std::time(nullptr) + 1*60*60 /*1 час*/);
+                        params->api["revoke_messages"] = true;
+                        emit sendTgCommand(params);
 
-                    QString botMsg =
-                        u8"Бот исключил пользователя из группы"
-                        u8"\r\n%1"
-                        u8"\r\nПричина: пользователям запрещено присоединяться к группе "
-                        u8"через ссылку на папку с группами (via a chat folder invite link)."
-                        u8"\r\nПользователь сможет вновь присоединиться к группе через один час";
+                        botMsg =
+                            u8"Бот исключил пользователя из группы"
+                            u8"\r\n%1"
+                            u8"\r\nПричина: пользователям запрещено присоединяться к группе "
+                            u8"через ссылку на папку с группами (via a chat folder invite link) ➞ VCF."
+                            u8"\r\nПользователь сможет вновь присоединиться к группе через один час";
 
-                    botMsg = botMsg.arg(stringUserInfo(user));
+                        botMsg = botMsg.arg(stringUserInfo(user));
+                    }
+                    else if (chat->joinViaChatFolder.mute)
+                    {
+                        random_device rd;
+                        mt19937 generator {rd()};
+                        uniform_int_distribution<> distribution {30*60 /*30 мин*/, 3*60*60 /*3 часа*/};
+
+                        // Псевдослучайное время блокировки (в секундах)
+                        int restrictTime = distribution(generator);
+
+                        log_verbose_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". New user %?/%?/@%?/%? restricted/mute to %? min"
+                            u8". User joined to group via a chat folder invite link",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id,
+                            restrictTime / 60);
+
+                        tbot::ChatPermissions chatPermissions;
+                        QByteArray permissions = chatPermissions.toJson();
+
+                        auto params = tbot::tgfunction("restrictChatMember");
+                        params->api["chat_id"] = chatId;
+                        params->api["user_id"] = user->id;
+                        params->api["until_date"] = qint64(std::time(nullptr)) + restrictTime;
+                        params->api["permissions"] = permissions;
+                        params->api["use_independent_chat_permissions"] = false;
+                        sendTgCommand(params);
+
+                        botMsg =
+                            u8"Бот ограничил пользователя"
+                            u8"\r\n%1 на %2 минут(ы)"
+                            u8"\r\nПричина: пользователь присоединился к группе "
+                            u8"через ссылку на папку с группами (via a chat folder invite link) "
+                            u8"➞ VCF";
+
+                        botMsg = botMsg.arg(stringUserInfo(user)).arg(restrictTime / 60);
+                    }
 
                     auto params2 = tgfunction("sendMessage");
                     params2->api["chat_id"] = chatId;
@@ -669,21 +712,42 @@ void Processing::run()
                 }
                 else
                 {
-                    log_warn_m << log_format(
-                        u8"\"update_id\":%?. Chat: %?"
-                        u8". New user %?/%?/@%?/%? joined to group via a chat folder invite link"
-                        u8". Bot does not have enough rights to exclude user from group",
-                        update.update_id, chat->name(),
-                        user->first_name, user->last_name, user->username, user->id);
+                    if (chat->joinViaChatFolder.restrict_)
+                    {
+                        log_warn_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". New user %?/%?/@%?/%? joined to group via a chat folder invite link"
+                            u8". Bot does not have enough rights to exclude user from group",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id);
 
-                    QString botMsg =
-                        u8"‼️Бот не смог исключить из группы пользователя"
-                        u8"\r\n%1"
-                        u8"\r\nприсоединившегося через ссылку на папку с группами "
-                        u8"(via a chat folder invite link)."
-                        u8"\r\nУ бота нет прав на блокировку пользователей";
+                        botMsg =
+                            u8"‼️Бот не смог исключить из группы пользователя"
+                            u8"\r\n%1"
+                            u8"\r\nприсоединившегося через ссылку на папку с группами "
+                            u8"(via a chat folder invite link) ➞ VCF."
+                            u8"\r\nУ бота нет прав на блокировку пользователей";
 
-                    botMsg = botMsg.arg(stringUserInfo(user));
+                        botMsg = botMsg.arg(stringUserInfo(user));
+                    }
+                    else if (chat->joinViaChatFolder.mute)
+                    {
+                        log_warn_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". New user %?/%?/@%?/%? joined to group via a chat folder invite link"
+                            u8". Bot does not have enough rights to restrict/mute user",
+                            update.update_id, chat->name(),
+                            user->first_name, user->last_name, user->username, user->id);
+
+                        botMsg =
+                            u8"‼️Бот не смог ограничить пользователя"
+                            u8"\r\n%1"
+                            u8"\r\nприсоединившегося через ссылку на папку с группами "
+                            u8"(via a chat folder invite link) ➞ VCF."
+                            u8"\r\nУ бота нет прав на блокировку/ограничение пользователей";
+
+                        botMsg = botMsg.arg(stringUserInfo(user));
+                    }
 
                     auto params = tgfunction("sendMessage");
                     params->api["chat_id"] = chatId;
@@ -721,7 +785,7 @@ void Processing::run()
 //                        u8"\r\n---"
 //                        u8"\r\nПричина: пользователям присоединившимся к группе "
 //                        u8"через ссылку на папку с группами (via a chat folder invite link) "
-//                        u8"запрещено публиковать сообщения";
+//                        u8"➞ VCF запрещено публиковать сообщения";
 
 //                    botMsg = botMsg.arg(messageText());
 
