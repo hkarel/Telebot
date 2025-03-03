@@ -682,6 +682,9 @@ void Processing::run()
                             user->first_name, user->last_name, user->username, user->id,
                             restrictTime / 60);
 
+                        // Отслеживаем время вступления пользователя в группу
+                        userJoinTimes().add(chatId, user->id, joinViaChatFolder);
+
                         tbot::ChatPermissions chatPermissions;
                         QByteArray permissions = chatPermissions.toJson();
 
@@ -1248,10 +1251,10 @@ void Processing::run()
 
                 // Ограничение пользователя на два и более часа, если он в течении
                 // одной минуты подключается к нескольким группам
-                emit restrictNewUser(chat->id, user->id, chat->newUserMute);
+                emit restrictNewUser(chatId, user->id, chat->newUserMute);
 
                 // Отслеживаем время вступления пользователя в группу
-                userJoinTimes().add(chat->id, user->id, joinViaChatFolder);
+                userJoinTimes().add(chatId, user->id, joinViaChatFolder);
             }
 
             // Проверка на Anti-Raid режим
