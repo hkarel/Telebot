@@ -265,7 +265,7 @@ void Application::deinit()
     saveReportSpam();
     saveAntiRaidCache();
 
-    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    qint64 timemark = QDateTime::currentDateTimeUtc().toMSecsSinceEpoch();
 
     if (tbot::userJoinTimes().changed())
         saveBotCommands(user_join_time, timemark);
@@ -573,7 +573,7 @@ void Application::timerEvent(QTimerEvent* event)
 
         //--- DeleteDelay ---
         bool deleteDelayActive = false;
-        qint64 currentTime = QDateTime::currentDateTime().toMSecsSinceEpoch();
+        qint64 currentTime = QDateTime::currentDateTimeUtc().toMSecsSinceEpoch();
         for (int i = 0; i < _deleteDelays.count(); ++i)
         {
             const data::DeleteDelay& dd = _deleteDelays[i];
@@ -2237,7 +2237,7 @@ void Application::httpResultHandler(const ReplyData& rd)
                     dd.chatId = chatId;
                     dd.messageId = messageId;
 
-                    QDateTime deleteTime = QDateTime::currentDateTime();
+                    QDateTime deleteTime = QDateTime::currentDateTimeUtc();
                     deleteTime = deleteTime.addSecs(rd.params->messageDel);
                     dd.deleteTime = deleteTime.toMSecsSinceEpoch();
 
@@ -3013,7 +3013,7 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
 
 void Application::updateBotCommands(UpdateBotSection section)
 {
-    qint64 timemark = QDateTime::currentDateTime().toMSecsSinceEpoch();
+    qint64 timemark = QDateTime::currentDateTimeUtc().toMSecsSinceEpoch();
 
     // Сохраняем состояние секции/команды
     saveBotCommands(section, timemark);
