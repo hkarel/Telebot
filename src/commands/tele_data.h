@@ -86,7 +86,7 @@ struct BusinessLocation : clife_base
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( address  )
-        J_SERIALIZE_ITEM( location )
+        J_SERIALIZE_OPT ( location )
     J_SERIALIZE_END
 };
 
