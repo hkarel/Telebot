@@ -3214,10 +3214,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                              .arg(user->id);
 
         if (!user->username.isEmpty())
-        {
-            QString s = QString(" (@%1)").arg(user->username);
-            str += s.replace("_", "\\_");
-        }
+            str += QString(" (@%1)").arg(user->username);
+
         return str;
     };
 
