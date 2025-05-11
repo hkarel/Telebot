@@ -65,6 +65,10 @@ bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
     if (message.empty())
         return false;
 
+    QString chatUrl;
+    if (!message->chat.empty() && !message->chat->username.isEmpty())
+        chatUrl = "https://t.me/" + message->chat->username;
+
     auto goodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
@@ -91,6 +95,15 @@ bool TriggerLinkDisable::isActive(const Update& update, GroupChat* chat,
             urlStr.prepend("https://");
             url = QUrl::fromEncoded(urlStr.toUtf8());
         }
+
+        // Проверка на приватную ссылку группы
+        if (urlStr.startsWith("https://t.me/c/", Qt::CaseInsensitive))
+            return true;
+
+        // Проверка на публичную ссылку группы
+        if (!chatUrl.isEmpty() && urlStr.startsWith(chatUrl, Qt::CaseInsensitive))
+            return true;
+
         QString host = url.host();
         QString path = url.path();
         for (const ItemLink& item : whiteList)
@@ -159,6 +172,10 @@ bool TriggerLinkEnable::isActive(const Update& update, GroupChat* chat,
     if (message.empty())
         return false;
 
+    QString chatUrl;
+    if (!message->chat.empty() && !message->chat->username.isEmpty())
+        chatUrl = "https://t.me/" + message->chat->username;
+
     auto goodEntitiy = [&](const QString& text, const MessageEntity& entity) -> bool
     {
         QString urlStr;
@@ -185,6 +202,15 @@ bool TriggerLinkEnable::isActive(const Update& update, GroupChat* chat,
             urlStr.prepend("https://");
             url = QUrl::fromEncoded(urlStr.toUtf8());
         }
+
+        // Проверка на приватную ссылку группы
+        if (urlStr.startsWith("https://t.me/c/", Qt::CaseInsensitive))
+            return true;
+
+        // Проверка на публичную ссылку группы
+        if (!chatUrl.isEmpty() && urlStr.startsWith(chatUrl, Qt::CaseInsensitive))
+            return true;
+
         QString host = url.host();
         QString path = url.path();
         for (const ItemLink& item : whiteList)
