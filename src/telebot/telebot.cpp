@@ -126,9 +126,22 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+////----------------------------
+//        QFile fl {configFile};
+//        fl.open(QIODevice::ReadOnly);
+//        QByteArray bb = fl.readAll();
+//        fl.close();
+//        string sss = bb.toStdString();
+//        if (!config::base().readString(sss, true))
+//        {
+//            alog::stop();
+//            return 1;
+//        }
+////---------------------------
+
         config::base().setReadOnly(true);
         config::base().setSaveDisabled(true);
-        if (!config::base().readFile(configFile.toStdString()))
+        if (!config::base().readFile(configFile.toStdString(), true))
         {
             alog::stop();
             return 1;

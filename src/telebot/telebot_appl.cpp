@@ -952,7 +952,7 @@ void Application::command_ConfSync(const Message::Ptr& message)
 
     // Проверяем структуру config-файла
     YamlConfig yconfig; (void) yconfig;
-    if (!yconfig.readString(confSync.config.toStdString()))
+    if (!yconfig.readString(confSync.config.toStdString(), true))
     {
         log_error_m << "Groups config file structure is corrupted";
         return;
@@ -1716,7 +1716,7 @@ void Application::reloadGroups(const QString& configFile)
         return;
 
     YamlConfig config;
-    if (!config.readFile(configFile.toStdString()))
+    if (!config.readFile(configFile.toStdString(), true))
         return;
 
     tbot::globalConfigParceErrors = 0;
