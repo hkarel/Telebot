@@ -36,6 +36,7 @@ Project {
             "PPROTO_VERSION_LOW=0",
             "PPROTO_VERSION_HIGH=0",
             "PPROTO_JSON_SERIALIZE",
+            "PPROTO_MESSAGE_NEW_JSON_FORMAT",
             "SODIUM_ENCRYPTION",
             "DEFAULT_PORT=28443",
             "CONFIG_DIR=\"/etc/telebot\"",
