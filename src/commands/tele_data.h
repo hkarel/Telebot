@@ -16,6 +16,9 @@ using namespace pproto;
 class Message;
 typedef clife_ptr<Message> MessagePtr;
 
+class Chat;
+typedef clife_ptr<Chat> ChatPtr;
+
 /**
   https://core.telegram.org/bots/api#update
 */
@@ -93,10 +96,11 @@ struct BusinessLocation : clife_base
 struct UserBio
 {
     qint64  id = {0};
-    QString first_name; // User's or bot's first name
-    QString last_name;  // Optional. User's or bot's last name
-    QString username;   // Optional. User's or bot's username
-    QString bio;        // Optional
+    QString first_name;    // User's or bot's first name
+    QString last_name;     // Optional. User's or bot's last name
+    QString username;      // Optional. User's or bot's username
+    QString bio;           // Optional
+    ChatPtr personal_chat; // Optional
     BusinessLocation::Ptr business_location; // Optional
 
     J_SERIALIZE_BEGIN
@@ -105,6 +109,7 @@ struct UserBio
         J_SERIALIZE_OPT ( last_name         )
         J_SERIALIZE_OPT ( username          )
         J_SERIALIZE_OPT ( bio               )
+        J_SERIALIZE_OPT ( personal_chat     )
         J_SERIALIZE_OPT ( business_location )
     J_SERIALIZE_END
 };
@@ -440,6 +445,8 @@ struct Message : clife_base
 //    web_app_data 	WebAppData 	Optional. Service message: data sent by a Web App
 //    reply_markup 	InlineKeyboardMarkup 	Optional. Inline keyboard attached to the message. login_url buttons are represented as ordinary url buttons.
 
+    Chat::Ptr personal_chat; // My Optional
+
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( message_id              )
         J_SERIALIZE_OPT ( message_thread_id       )
@@ -472,6 +479,7 @@ struct Message : clife_base
         J_SERIALIZE_OPT ( caption_entities        )
         J_SERIALIZE_OPT ( new_chat_members        )
         J_SERIALIZE_OPT ( left_chat_member        )
+        J_SERIALIZE_OPT ( personal_chat           )
     J_SERIALIZE_END
 };
 

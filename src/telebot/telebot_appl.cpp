@@ -2190,6 +2190,8 @@ void Application::httpResultHandler(const ReplyData& rd)
                     message->from = user;
                     message->chat = chat;
 
+                    message->personal_chat = userBio.personal_chat;
+
                     if (userBio.business_location)
                         message->text += " " + userBio.business_location->address;
 

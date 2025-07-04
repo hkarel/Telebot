@@ -803,6 +803,15 @@ void Processing::run()
                                        .arg(message->sender_chat->username);
                 usernameText = usernameText.trimmed();
             }
+            if (message->personal_chat)
+            {
+                usernameText += QString(" %1 %2 %3 %4")
+                                       .arg(message->personal_chat->title)
+                                       .arg(message->personal_chat->first_name)
+                                       .arg(message->personal_chat->last_name)
+                                       .arg(message->personal_chat->username);
+                usernameText = usernameText.trimmed();
+            }
             if (message->via_bot)
             {
                 usernameText += QString(" %1 %2 %3")
