@@ -53,6 +53,12 @@ extern const QUuidEx UserJoinTimeSync;
 */
 extern const QUuidEx WhiteUserSync;
 
+/**
+  Синхронизация списка спам-пользователей
+*/
+extern const QUuidEx SpamUserSync;
+
+
 } // namespace command
 
 //---------------- Структуры данных используемые в сообщениях ----------------
@@ -243,7 +249,7 @@ struct WhiteUser : clife_base
     J_SERIALIZE_END
 };
 
-// Вспомогательная структура для сериализации списка UserJoinTime
+// Вспомогательная структура для сериализации списка WhiteUser
 struct WhiteUserSerialize
 {
     WhiteUser::List items;
@@ -257,6 +263,44 @@ struct WhiteUserSync : Data<&command::WhiteUserSync,
 {
     qint64 timemark = {0};
     WhiteUser::List items;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "timemark", timemark )
+        J_SERIALIZE_MAP_ITEM( "items"   , items    )
+    J_SERIALIZE_END
+};
+
+struct SpamUser : clife_base
+{
+    typedef clife_ptr<SpamUser> Ptr;
+
+    qint64 userId = {0};
+
+    // Время когда пользователь был добавлен в спам-список (в Unix time)
+    qint64 time = {0};
+
+    typedef lst::List<SpamUser, CompareUser<SpamUser>, clife_alloc_ref<SpamUser>> List;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "u", userId )
+        J_SERIALIZE_MAP_ITEM( "t", time   )
+    J_SERIALIZE_END
+};
+
+// Вспомогательная структура для сериализации списка SpamUser
+struct SpamUserSerialize
+{
+    SpamUser::List items;
+    J_SERIALIZE_MAP_ONE( "items", items )
+};
+
+struct SpamUserSync : Data<&command::SpamUserSync,
+                            Message::Type::Command,
+                            Message::Type::Answer,
+                            Message::Type::Event>
+{
+    qint64 timemark = {0};
+    SpamUser::List items;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_MAP_ITEM( "timemark", timemark )

@@ -127,6 +127,7 @@ private:
     void command_DeleteDelaySync(const Message::Ptr&);
     void command_UserJoinTimeSync(const Message::Ptr&);
     void command_WhiteUserSync(const Message::Ptr&);
+    void command_SpamUserSync(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();
@@ -138,6 +139,7 @@ private:
         delete_delay,
         user_join_time,
         white_user,
+        spam_user,
     };
 
     void loadBotCommands();
@@ -163,6 +165,7 @@ private:
     int _timelimitTimerId = {-1};
     int _userJoinTimerId = {-1};
     int _whiteUserTimerId = {-1};
+    int _spamUserTimerId = {-1};
     int _configStateTimerId = {-1};
     int _updateAdminsTimerId = {-1};
 
@@ -302,6 +305,16 @@ private:
     };
     NewUser::List _newUsers;
 
+//    struct SpamNotifyLimit
+//    {
+//        qint64 chatIds = {0};
+//        qint64 userId = {0};
+//        steady_timer timer;
+
+//        typedef lst::List<SpamNotifyLimit, CompareChatUser<SpamNotifyLimit>> List;
+//    };
+//    SpamNotifyLimit::List _spamNotifyLimits;
+
     // Сопутствующее/соседнее сообщение
     struct AdjacentMessage
     {
@@ -326,23 +339,7 @@ private:
         // Идентификатор медиагруппы сопутствующего сообщения
         QString mediaGroupForDelete;
 
-        struct Compare
-        {
-            int operator() (const AdjacentMessage* item1, const AdjacentMessage* item2) const
-            {
-                LIST_COMPARE_MULTI_ITEM(item1->chatId,    item2->chatId)
-                LIST_COMPARE_MULTI_ITEM(item1->messageId, item2->messageId)
-                return 0;
-            }
-            int operator() (const tuple<qint64 /*chat id*/, qint32 /*message id*/>* item1,
-                            const AdjacentMessage* item2) const
-            {
-                LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
-                LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->messageId)
-                return 0;
-            }
-        };
-        typedef lst::List<AdjacentMessage, Compare> List;
+        typedef lst::List<AdjacentMessage, CompareChatMsg<AdjacentMessage>> List;
     };
     AdjacentMessage::List _adjacentMessages;
 

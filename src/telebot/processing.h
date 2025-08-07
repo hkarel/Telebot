@@ -88,6 +88,9 @@ struct MessageData
     // Пользователь только что вступил в группу
     bool isNewUser = {false};
 
+    // Администратор группы отметивший сообщение как спам
+    User::Ptr adminMarkSpam;
+
     // Десериализованное Телеграм-сообщение
     Update update;
 };

@@ -144,5 +144,76 @@ WhiteUserList& whiteUsers()
     return safe::singleton<WhiteUserList>();
 }
 
+void SpamUserList::add(qint64 userId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    if (_list.sortState() != lst::SortState::Up)
+        _list.sort();
+
+    lst::FindResult fr = _list.findRef(userId);
+    if (fr.success())
+    {
+        data::SpamUser* su = _list.item(fr.index());
+        su->time = std::time(nullptr);
+        _changeFlag = true;
+
+        log_debug_m << log_format(
+            "The re-adding to list SpamUsers. User/Time: %?/%?",
+            su->userId, su->time);
+        return;
+    }
+
+    data::SpamUser* su {new data::SpamUser};
+    su->add_ref();
+    su->userId = userId;
+    su->time = std::time(nullptr);
+
+    _list.addInSort(su, fr);
+    _changeFlag = true;
+
+    log_debug_m << log_format(
+        "User added to list SpamUsers. User/Time: %?/%?",
+        su->userId, su->time);
+}
+
+bool SpamUserList::remove(qint64 userId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    if (lst::FindResult fr = _list.findRef(userId))
+    {
+        _list.remove(fr.index());
+        _changeFlag = true;
+
+        log_debug_m << log_format("User %? removed from list SpamUsers", userId);
+        return true;
+    }
+    return false;
+}
+
+void SpamUserList::removeByTime()
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    const qint64 diff = 60*24*60*60; // 60 суток
+    const qint64 threshold = std::time(nullptr) - diff;
+    _list.removeCond([threshold, this](data::SpamUser* su) -> bool
+    {
+        if (su->time < threshold)
+        {
+            log_debug_m << log_format(
+                "User removed from list SpamUsers. User/Time: %?/%?",
+                su->userId, su->time);
+            return (_changeFlag = true);
+        }
+        return false;
+    });
+}
+
+SpamUserList& spamUsers()
+{
+    return safe::singleton<SpamUserList>();
+}
 
 } //namespace tbot
