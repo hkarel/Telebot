@@ -56,7 +56,7 @@ public:
     struct ReplyData
     {
         QNetworkReply* reply = {nullptr};
-        quint64 replyNumer = {0};
+        quint64 replyNumber = {0};
 
         // Параметры для функции sendTgCommand()
         tbot::TgParams::Ptr params;

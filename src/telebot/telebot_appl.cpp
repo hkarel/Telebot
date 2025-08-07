@@ -251,7 +251,7 @@ void Application::deinit()
     {
         const ReplyData& rd = it.value();
         log_debug_m << log_format(
-            "QObject::disconnect(). Http reply id: %?", rd.replyNumer);
+            "QObject::disconnect(). Http reply id: %?", rd.replyNumber);
 
         QObject::disconnect(rd.reply, nullptr, this, nullptr);
     }
@@ -1387,17 +1387,17 @@ void Application::http_finished()
     auto printToLog = [&rd]()
     {
         log_debug_m << log_format("Http answer (reply id: %?) func   : %? (attempt: %?)",
-                                  rd.replyNumer, rd.params->funcName, rd.params->attempt);
+                                  rd.replyNumber, rd.params->funcName, rd.params->attempt);
 
         { //Block for alog::Line
             alog::Line logLine = log_debug_m << log_format(
-                                  "Http answer (reply id: %?) params : ", rd.replyNumer);
+                                  "Http answer (reply id: %?) params : ", rd.replyNumber);
 
             for (auto&& it = rd.params->api.cbegin(); it != rd.params->api.cend(); ++it)
                 logLine << it.key() << ": " << it.value().toString() << "; ";
         }
         log_debug_m << log_format("Http answer (reply id: %?) return : %?",
-                                  rd.replyNumer, rd.data);
+                                  rd.replyNumber, rd.data);
     };
 
     if (rd.params->funcName == "getChat"
@@ -1552,7 +1552,7 @@ void Application::http_error(QNetworkReply::NetworkError /*error*/)
 
     rd.success = false;
     log_error_m << log_format("Http error (reply id: %?). %?",
-                              rd.replyNumer, reply->errorString());
+                              rd.replyNumber, reply->errorString());
 }
 
 void Application::http_encrypted()
@@ -1980,13 +1980,13 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
         ReplyData& rd = _httpReplyMap[replyId];
 
         rd.reply = reply;
-        rd.replyNumer = ++httpReplyNumber;
+        rd.replyNumber = ++httpReplyNumber;
         rd.params = params;
 
         auto printToLog = [&rd, &url]()
         {
             log_debug_m << log_format("Http call %? (reply id: %?). Send command: %?",
-                                      rd.params->funcName, rd.replyNumer, url.toString());
+                                      rd.params->funcName, rd.replyNumber, url.toString());
         };
 
         if (rd.params->funcName == "getChat"
