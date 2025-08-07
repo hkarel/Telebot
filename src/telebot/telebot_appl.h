@@ -302,6 +302,16 @@ private:
     };
     NewUser::List _newUsers;
 
+    struct SpamNotifyLimit
+    {
+        qint64 chatIds = {0};
+        qint64 userId = {0};
+        steady_timer timer;
+
+        typedef lst::List<SpamNotifyLimit, CompareChatUser<SpamNotifyLimit>> List;
+    };
+    SpamNotifyLimit::List _spamNotifyLimits;
+
     // Сопутствующее/соседнее сообщение
     struct AdjacentMessage
     {

@@ -3222,7 +3222,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     };
 
     static QSet<QString> vaCmdShorts {u8"проверь", u8"проверка", u8"проверить"};
+    static QSet<QString> spamNotify  {u8"спам", u8"spam"};
 
+    QString botMsg;
     bool isBotCommand = false;
     for (const tbot::MessageEntity& entity : message->entities)
         if (entity.type == "bot_command")
@@ -3235,6 +3237,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
     if (!isBotCommand)
     {
         if (message->text.length() < 12)
+        {
             if (vaCmdShorts.contains(message->text.toLower().trimmed()))
             {
                 // Удаляем сообщение с командой
@@ -3243,6 +3246,37 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 tbot::Processing::addVerifyAdmin(chatId, userId, messageId + 1);
                 return true;
             }
+            if (spamNotify.contains(message->text.toLower().trimmed()))
+            {
+                tbot::Message::Ptr reply = message->reply_to_message;
+                if (reply.empty())
+                    return false;
+
+                // Удаляем сообщение с уведомлением о спаме
+                deleteMessage();
+
+                if (chat->adminIds().contains(userId))
+                {
+
+                }
+                else
+                {
+                    botMsg =
+                        u8"Администраторы группы, обратите внимание на сообщение"
+                        u8", возможно это спам."
+                        u8"\r\n---"
+                        u8"\r\n%1";
+
+                    QString anames;
+                    for (const QString& s : chat->adminNames())
+                        anames += "@" + s + " ";
+
+                    sendMessage(botMsg.arg(anames), "Markdown", false, reply->message_id);
+                    return true;
+                }
+
+            }
+        }
 
         if (data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId))
         {
@@ -3262,7 +3296,6 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         }
     }
 
-    QString botMsg;
     for (const tbot::MessageEntity& entity : message->entities)
     {
         if (entity.type != "bot_command")
