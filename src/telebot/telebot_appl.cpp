@@ -96,6 +96,7 @@ Application::Application(int& argc, char** argv)
     _timelimitTimerId    = startTimer(15*1000 /*15 сек*/);
     _userJoinTimerId     = startTimer(30*1000 /*30 сек*/);
     _whiteUserTimerId    = startTimer(30*1000 /*30 сек*/);
+    _spamUserTimerId     = startTimer(30*1000 /*30 сек*/);
     _configStateTimerId  = startTimer(10*1000 /*10 сек*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
@@ -115,6 +116,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(DeleteDelaySync)
     FUNC_REGISTRATION(UserJoinTimeSync)
     FUNC_REGISTRATION(WhiteUserSync)
+    FUNC_REGISTRATION(SpamUserSync)
 
     #undef FUNC_REGISTRATION
 
@@ -272,6 +274,9 @@ void Application::deinit()
 
     if (tbot::whiteUsers().changed())
         saveBotCommands(white_user, timemark);
+
+    if (tbot::spamUsers().changed())
+        saveBotCommands(spam_user, timemark);
 }
 
 void Application::timerEvent(QTimerEvent* event)
@@ -286,6 +291,7 @@ void Application::timerEvent(QTimerEvent* event)
             KILL_TIMER(_timelimitTimerId)
             KILL_TIMER(_userJoinTimerId)
             KILL_TIMER(_whiteUserTimerId)
+            KILL_TIMER(_spamUserTimerId)
             KILL_TIMER(_configStateTimerId)
             KILL_TIMER(_updateAdminsTimerId)
 
@@ -667,6 +673,15 @@ void Application::timerEvent(QTimerEvent* event)
             config::state().saveFile();
         }
     }
+    else if (event->timerId() == _spamUserTimerId)
+    {
+        if (tbot::spamUsers().changed())
+        {
+            updateBotCommands(spam_user);
+            tbot::spamUsers().resetChangeFlag();
+            config::state().saveFile();
+        }
+    }
     else if (event->timerId() == _configStateTimerId)
     {
         if (config::state().changed())
@@ -692,6 +707,9 @@ void Application::timerEvent(QTimerEvent* event)
 
         // Удаляем устаревшую информацию о присоединившихся пользователях
         tbot::userJoinTimes().removeByTime();
+
+        // Удаляем устаревшую информацию о спам-пользователях
+        tbot::spamUsers().removeByTime();
     }
 }
 
@@ -872,6 +890,18 @@ void Application::command_SlaveAuth(const Message::Ptr& message)
         whiteUserSync.items = tbot::whiteUsers().list();
 
         m = createJsonMessage(whiteUserSync);
+        m->appendDestinationSocket(answer->socketDescriptor());
+        tcp::listener().send(m);
+
+        // Отправлем команду синхронизации spam_user
+        timemark = 0;
+        config::state().getValue("spam_user.timemark", timemark);
+
+        data::SpamUserSync spamUserSync;
+        spamUserSync.timemark = timemark;
+        spamUserSync.items = tbot::spamUsers().list();
+
+        m = createJsonMessage(spamUserSync);
         m->appendDestinationSocket(answer->socketDescriptor());
         tcp::listener().send(m);
 
@@ -1157,6 +1187,43 @@ void Application::command_WhiteUserSync(const Message::Ptr& message)
             whiteUserSync.items = tbot::whiteUsers().list();
 
             writeToJsonMessage(whiteUserSync, answer);
+            _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_SpamUserSync(const Message::Ptr& message)
+{
+    data::SpamUserSync spamUserSync;
+    readFromMessage(message, spamUserSync);
+
+    qint64 timemark = 0;
+    config::state().getValue("spam_user.timemark", timemark);
+
+    // Для master и slave режимов перезаписываем устаревшие данные
+    if (spamUserSync.timemark > timemark)
+    {
+        tbot::spamUsers().listSwap(spamUserSync.items);
+        tbot::spamUsers().resetChangeFlag();
+        saveBotCommands(spam_user, spamUserSync.timemark);
+
+        log_verbose_m << "Updated 'spam_user' settings for groups";
+    }
+    else
+    {
+        // Если у slave-бота значение timemark больше чем у master-a,
+        // то выполняем обратную синхронизацию
+        if (_slaveSocket && (message->type() != Message::Type::Answer))
+        {
+            log_verbose_m << "Send 'spam_user' settings to master-bot";
+
+            Message::Ptr answer = message->cloneForAnswer();
+
+            data::SpamUserSync spamUserSync;
+            spamUserSync.timemark = timemark;
+            spamUserSync.items = tbot::spamUsers().list();
+
+            writeToJsonMessage(spamUserSync, answer);
             _slaveSocket->send(answer);
         }
     }
@@ -2908,6 +2975,40 @@ void Application::loadBotCommands()
         tbot::whiteUsers().resetChangeFlag();
     };
     loadFunc4();
+
+    // spam_user
+    auto loadFunc5 = []()
+    {
+        QString stateFile;
+        config::base().getValue("spam_user.file", stateFile);
+
+        QFile spamUserFile {stateFile};
+        if (!spamUserFile.exists())
+        {
+            log_warn_m << "Spam-User state file not exists " << stateFile;
+            return;
+        }
+
+        if (!spamUserFile.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open Spam-User state file in read-only mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        QByteArray ba = spamUserFile.readAll();
+        spamUserFile.close();
+
+        data::SpamUserSerialize serialize;
+        if (!serialize.fromJson(ba))
+        {
+            log_error_m << "Failed deserialize Spam-User data from file " << stateFile;
+            return;
+        }
+        tbot::spamUsers().listSwap(serialize.items);
+        tbot::spamUsers().resetChangeFlag();
+    };
+    loadFunc5();
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -3008,6 +3109,27 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         file.write(ba);
         file.close();
     }
+    else if (section == spam_user)
+    {
+        config::state().setValue("spam_user.timemark", timemark);
+
+        QString stateFile;
+        config::base().getValue("spam_user.file", stateFile);
+
+        QFile file {stateFile};
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            log_error_m << "Failed open Spam-User state file in write mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        data::SpamUserSerialize serialize;
+        serialize.items = tbot::spamUsers().list();
+        QByteArray ba = serialize.toJson();
+        file.write(ba);
+        file.close();
+    }
 
     // Сохранение состояния происходит по таймеру _configStateTimerId
     // config::state().saveFile()
@@ -3068,6 +3190,16 @@ void Application::updateBotCommands(UpdateBotSection section)
 
         // Отправляем событие с измененными white_user
         Message::Ptr m = createJsonMessage(whiteUserSync, {Message::Type::Event});
+        tcp::listener().send(m);
+    }
+    else if (section == spam_user)
+    {
+        data::SpamUserSync spamUserSync;
+        spamUserSync.timemark = timemark;
+        spamUserSync.items = tbot::spamUsers().list();
+
+        // Отправляем событие с измененными spam_user
+        Message::Ptr m = createJsonMessage(spamUserSync, {Message::Type::Event});
         tcp::listener().send(m);
     }
 }
@@ -3246,6 +3378,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 tbot::Processing::addVerifyAdmin(chatId, userId, messageId + 1);
                 return true;
             }
+
             if (spamNotify.contains(message->text.toLower().trimmed()))
             {
                 tbot::Message::Ptr reply = message->reply_to_message;
@@ -3257,7 +3390,72 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 if (chat->adminIds().contains(userId))
                 {
+                    auto params = tbot::tgfunction("deleteMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["message_id"] = reply->message_id;
+                    params->delay = 300 /*0.3 сек*/;
+                    sendTgCommand(params);
 
+                    if (reply->from.empty())
+                        return true;
+
+                    tbot::User::Ptr spamUser = reply->from;
+                    tbot::spamUsers().add(spamUser->id);
+
+                    tbot::ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
+                    if (botInfo && botInfo->can_restrict_members)
+                    {
+                        log_verbose_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". User %?/%?/@%?/%? excluded from group. User was marked as spammer",
+                            msgData->update.update_id, chat->name(),
+                            spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
+
+                        auto params = tbot::tgfunction("banChatMember");
+                        params->api["chat_id"] = chat->id;
+                        params->api["user_id"] = spamUser->id;
+                        params->api["until_date"] = qint64(std::time(nullptr));
+                        params->api["revoke_messages"] = false;
+                        params->delay = 400 /*0.4 сек*/;
+                        sendTgCommand(params);
+
+                        botMsg =
+                            u8"Бот исключил пользователя из группы"
+                            u8"\r\n%1"
+                            u8"\r\nПричина: администратор группы отметил сообщение пользователя как спам";
+
+                        botMsg = botMsg.arg(stringUserInfo(spamUser, true));
+
+                        auto params2 = tbot::tgfunction("sendMessage");
+                        params2->api["chat_id"] = chatId;
+                        params2->api["text"] = botMsg;
+                        params2->api["parse_mode"] = "Markdown";
+                        params2->delay = 500 /*0.5 сек*/;
+                        emit sendTgCommand(params2);
+                    }
+                    else
+                    {
+                        log_warn_m << log_format(
+                            u8"\"update_id\":%?. Chat: %?"
+                            u8". Bot does not have enough rights to exclude user %?/%?/@%?/%? from group",
+                            msgData->update.update_id, chat->name(),
+                            spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
+
+                        botMsg =
+                            u8"‼️Бот не смог исключить из группы пользователя"
+                            u8"\r\n%1."
+                            u8"\r\nУ бота нет прав на блокировку пользователей";
+
+                        botMsg = botMsg.arg(stringUserInfo(spamUser, true));
+
+                        auto params = tbot::tgfunction("sendMessage");
+                        params->api["chat_id"] = chatId;
+                        params->api["text"] = botMsg;
+                        params->api["parse_mode"] = "Markdown";
+                        params->delay = 500 /*0.5 сек*/;
+                        emit sendTgCommand(params);
+                    }
+                    return true;
                 }
                 else
                 {
@@ -3274,7 +3472,6 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     sendMessage(botMsg.arg(anames), "Markdown", false, reply->message_id);
                     return true;
                 }
-
             }
         }
 

@@ -95,5 +95,16 @@ public:
 
 WhiteUserList& whiteUsers();
 
+/**
+  Класс для работы со списком спам-пользователей
+*/
+class SpamUserList : public DataList<data::SpamUser>
+{
+public:
+    void add(qint64 userId);
+    void removeByTime();
+};
+
+SpamUserList& spamUsers();
 
 } //namespace tbot
