@@ -594,7 +594,7 @@ void Processing::run()
                 if (_temporaryNewUsers.contains(temporaryKey))
                 {
                     log_verbose_m << log_format(
-                        R"("update_id":%?. Chat: %?. Redetect new user %?/%?/@%?/%?. User skipped)",
+                        u8"\"update_id\":%?. Chat: %?. Redetect new user %?/%?/@%?/%?. User skipped",
                         update.update_id, chat->name(),
                         user->first_name, user->last_name, user->username, user->id);
                     continue;
@@ -606,9 +606,130 @@ void Processing::run()
             if (chat->skipAdmins && adminIds.contains(user->id))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? is admin)",
+                    u8"\"update_id\":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? is admin",
                     update.update_id, chat->name(),
                     user->first_name, user->last_name, user->username, user->id);
+                continue;
+            }
+
+            auto deteleMessage = [&](Message::Ptr message)
+            {
+                if (!message->media_group_id.isEmpty())
+                {
+                    QMutexLocker locker {&_threadLock}; (void) locker;
+                    MediaGroup& mg = _mediaGroups[message->media_group_id];
+
+                    mg.isBad = true;
+                    for (qint64 msgId : mg.messageIds.keys())
+                    {
+                        auto params = tgfunction("deleteMessage");
+                        params->api["chat_id"] = mg.chatId;
+                        params->api["message_id"] = msgId;
+                        params->delay = 200 /*0.2 сек*/;
+                        emit sendTgCommand(params);
+                    }
+                    mg.messageIds.clear();
+                }
+                else
+                {
+                    auto params = tgfunction("deleteMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["message_id"] = messageId;
+                    params->delay = 200 /*0.2 сек*/;
+                    emit sendTgCommand(params);
+                }
+            };
+
+            // Обработка сообщения отмеченного администратором как спам
+            if (msgData->markAsSpam)
+            {
+                QString botMsg;
+                if (botInfo && botInfo->can_delete_messages)
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?. Delete message marked as spam (message_id: %?)"
+                        u8". User %?/%?/@%?/%?",
+                        update.update_id, chat->name(), messageId,
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    deteleMessage(message);
+                }
+                else
+                {
+                    log_warn_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". Bot does not have enough rights to delete message of user %?/%?/@%?/%?",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    botMsg =
+                        u8"‼️Бот не смог удалить сообщение пользователя"
+                        u8"\r\n%1."
+                        u8"\r\nУ бота нет прав на удаление сообщений";
+
+                    auto params = tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg.arg(stringUserInfo(user));
+                    params->api["parse_mode"] = "Markdown";
+                    params->delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand(params);
+                }
+
+                if (botInfo && botInfo->can_restrict_members)
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". User %?/%?/@%?/%? excluded from group. User was marked as spammer",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    auto params = tgfunction("banChatMember");
+                    params->api["chat_id"] = chatId;
+                    params->api["user_id"] = user->id;
+                    params->api["until_date"] = qint64(std::time(nullptr));
+                    params->api["revoke_messages"] = false;
+                    params->delay = 400 /*0.4 сек*/;
+                    sendTgCommand(params);
+
+                    botMsg =
+                        u8"Бот исключил пользователя из группы"
+                        u8"\r\n%1"
+                        u8"\r\nПричина: администратор группы отметил сообщение пользователя как спам";
+
+                    auto params2 = tgfunction("sendMessage");
+                    params2->api["chat_id"] = chatId;
+                    params2->api["text"] = botMsg.arg(stringUserInfo(user));
+                    params2->api["parse_mode"] = "Markdown";
+                    params2->delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand(params2);
+                }
+                else
+                {
+                    log_warn_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". Bot does not have enough rights to exclude user %?/%?/@%?/%? from group",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    botMsg =
+                        u8"‼️Бот не смог исключить из группы пользователя"
+                        u8"\r\n%1."
+                        u8"\r\nУ бота нет прав на блокировку пользователей";
+
+                    auto params = tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg.arg(stringUserInfo(user));
+                    params->api["parse_mode"] = "Markdown";
+                    params->delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand(params);
+                }
+
+                // Добавляем пользователя в список спамеров
+                spamUsers().add(user->id);
+
+                // TODO
+                spamCollector
+
                 continue;
             }
 
@@ -616,7 +737,7 @@ void Processing::run()
             if (chat->whiteUsers.findRef(user->id))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in bot whitelist)",
+                    u8"\"update_id\":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in bot whitelist",
                     update.update_id, chat->name(),
                     user->first_name, user->last_name, user->username, user->id);
                 continue;
@@ -626,9 +747,64 @@ void Processing::run()
             if (whiteUsers().find(tuple{chatId, user->id}))
             {
                 log_verbose_m << log_format(
-                    R"("update_id":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in admit whitelist)",
+                    u8"\"update_id\":%?. Chat: %?. Triggers skipped, user %?/%?/@%?/%? in admit whitelist",
                     update.update_id, chat->name(),
                     user->first_name, user->last_name, user->username, user->id);
+                continue;
+            }
+
+            // Если пользователь в спам-списке бота - удаляем его сообщение и затем блокируем
+            if (spamUsers().find(user->id))
+            {
+                QString botMsg;
+                if (!isNewUser && botInfo && botInfo->can_delete_messages)
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". Delete message of user marked as spammer (message_id: %?)"
+                        u8". User %?/%?/@%?/%?",
+                        update.update_id, chat->name(), messageId,
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    deteleMessage(message);
+                }
+                else
+                {
+                    log_error_m << "The bot does not have rights to delete message";
+                }
+
+                if (botInfo && botInfo->can_restrict_members)
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". User %?/%?/@%?/%? excluded from group. User was marked as spammer",
+                        update.update_id, chat->name(),
+                        user->first_name, user->last_name, user->username, user->id);
+
+                    auto params = tgfunction("banChatMember");
+                    params->api["chat_id"] = chatId;
+                    params->api["user_id"] = user->id;
+                    params->api["until_date"] = qint64(std::time(nullptr));
+                    params->api["revoke_messages"] = false;
+                    params->delay = 400 /*0.4 сек*/;
+                    sendTgCommand(params);
+
+                    botMsg =
+                        u8"Бот исключил пользователя из группы"
+                        u8"\r\n%1"
+                        u8"\r\nПричина: пользователь в спам-списке бота";
+
+                    auto params2 = tgfunction("sendMessage");
+                    params2->api["chat_id"] = chatId;
+                    params2->api["text"] = botMsg.arg(stringUserInfo(user));
+                    params2->api["parse_mode"] = "Markdown";
+                    params2->delay = 500 /*0.5 сек*/;
+                    emit sendTgCommand(params2);
+                }
+                else
+                {
+                    log_error_m << "The bot does not have rights to ban user";
+                }
                 continue;
             }
 
@@ -704,7 +880,7 @@ void Processing::run()
                 if (ujt && ujt->joinViaChatFolder)
                 {
                     log_verbose_m << log_format(
-                        u8"\"update_id\":%? u8 Chat: %?"
+                        u8"\"update_id\":%?. Chat: %?"
                         u8". User %?/%?/@%?/%? joined to group via a chat folder invite link"
                         u8". User is not allowed to post messages",
                         update.update_id, chat->name(),
@@ -823,7 +999,7 @@ void Processing::run()
             triggerText[tbot::Trigger::TextType::UserName] = usernameText;
             //---
 
-            auto deleteMessage = [&](tbot::Trigger* trigger) -> bool
+            auto deleteMessageTrg = [&](tbot::Trigger* trigger) -> bool
             {
                 if (!message->media_group_id.isEmpty())
                 {
@@ -940,14 +1116,14 @@ void Processing::run()
                 return true;
             };
 
-            auto banUser = [&](tbot::Trigger* trigger)
+            auto banUserTrg = [&](tbot::Trigger* trigger)
             {
                 if (isNewUser)
                 {
                     if (trigger->newUserBan || trigger->immediatelyBan)
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Ban new user %?/%?/@%?/%?)",
+                            u8"\"update_id\":%?. Chat: %?. Ban new user %?/%?/@%?/%?",
                             update.update_id, chat->name(),
                             user->first_name, user->last_name, user->username, user->id);
 
@@ -1000,7 +1176,7 @@ void Processing::run()
                     else
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Skipped new user %?/%?/@%?/%?)",
+                            u8"\"update_id\":%?. Chat: %?. Skipped new user %?/%?/@%?/%?",
                             update.update_id, chat->name(),
                             user->first_name, user->last_name, user->username, user->id);
                     }
@@ -1054,7 +1230,7 @@ void Processing::run()
                 if (!trigger->active)
                 {
                     log_verbose_m << log_format(
-                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, it not active)",
+                        u8"\"update_id\":%?. Chat: %?. Trigger '%?' skipped, it not active",
                         update.update_id, chat->name(), trigger->name);
                     continue;
                 }
@@ -1076,7 +1252,7 @@ void Processing::run()
                 if (trigger->skipAdmins && adminIds.contains(user->id))
                 {
                     log_verbose_m << log_format(
-                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? is admin)",
+                        u8"\"update_id\":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? is admin",
                         update.update_id, chat->name(), trigger->name,
                         user->first_name, user->last_name, user->username, user->id);
                     continue;
@@ -1086,7 +1262,7 @@ void Processing::run()
                 if (trigger->whiteUsers.contains(user->id))
                 {
                     log_verbose_m << log_format(
-                        R"("update_id":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? in trigger whitelist)",
+                        u8"\"update_id\":%?. Chat: %?. Trigger '%?' skipped, user %?/%?/@%?/%? in trigger whitelist",
                         update.update_id, chat->name(), trigger->name,
                         user->first_name, user->last_name, user->username, user->id);
                     continue;
@@ -1108,11 +1284,11 @@ void Processing::run()
                     if (!isNewUser)
                     {
                         log_verbose_m << log_format(
-                            R"("update_id":%?. Chat: %?. Delete message (message_id: %?), user %?/%?/@%?/%?)",
+                            u8"\"update_id\":%?. Chat: %?. Delete message (message_id: %?), user %?/%?/@%?/%?",
                             update.update_id, chat->name(), messageId,
                             user->first_name, user->last_name, user->username, user->id);
 
-                        messageDeleted = deleteMessage(trigger);
+                        messageDeleted = deleteMessageTrg(trigger);
                     }
                 }
                 else
@@ -1122,7 +1298,7 @@ void Processing::run()
 
                 if (botInfo && botInfo->can_restrict_members)
                 {
-                    banUser(trigger);
+                    banUserTrg(trigger);
                     userBanned = true;
                 }
                 else
@@ -1178,7 +1354,7 @@ void Processing::run()
                         tbot::ChatPermissions chatPermissions;
                         QByteArray permissions = chatPermissions.toJson();
 
-                        auto params = tbot::tgfunction("restrictChatMember");
+                        auto params = tgfunction("restrictChatMember");
                         params->api["chat_id"] = chatId;
                         params->api["user_id"] = user->id;
                         params->api["until_date"] = qint64(std::time(nullptr)) + restrictTime;
@@ -1285,7 +1461,7 @@ void Processing::run()
         if (!textMentions.isEmpty())
         {
             log_debug_m << log_format(
-                R"("update_id":%?. Non print mention symbols {offset, unicode}: %?)",
+                u8"\"update_id\":%?. Non print mention symbols {offset, unicode}: %?",
                 update.update_id, textMentions);
         }
 

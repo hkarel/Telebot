@@ -339,23 +339,7 @@ private:
         // Идентификатор медиагруппы сопутствующего сообщения
         QString mediaGroupForDelete;
 
-        struct Compare
-        {
-            int operator() (const AdjacentMessage* item1, const AdjacentMessage* item2) const
-            {
-                LIST_COMPARE_MULTI_ITEM(item1->chatId,    item2->chatId)
-                LIST_COMPARE_MULTI_ITEM(item1->messageId, item2->messageId)
-                return 0;
-            }
-            int operator() (const tuple<qint64 /*chat id*/, qint32 /*message id*/>* item1,
-                            const AdjacentMessage* item2) const
-            {
-                LIST_COMPARE_MULTI_ITEM(std::get<0>(*item1), item2->chatId)
-                LIST_COMPARE_MULTI_ITEM(std::get<1>(*item1), item2->messageId)
-                return 0;
-            }
-        };
-        typedef lst::List<AdjacentMessage, Compare> List;
+        typedef lst::List<AdjacentMessage, CompareChatMsg<AdjacentMessage>> List;
     };
     AdjacentMessage::List _adjacentMessages;
 

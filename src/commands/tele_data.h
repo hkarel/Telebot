@@ -528,9 +528,9 @@ struct ChatMemberUpdated  : clife_base
 {
     typedef clife_ptr<ChatMemberUpdated> Ptr;
 
-    Chat::Ptr chat;       // Chat the user belongs to
-    User::Ptr from;       // Performer of the action, which resulted in the change
-    qint32    date = {0}; // Date the change was done in Unix time
+    Chat::Ptr chat;                               // Chat the user belongs to
+    User::Ptr from;                               // Performer of the action, which resulted in the change
+    qint32    date = {0};                         // Date the change was done in Unix time
 
     ChatMemberAdministrator::Ptr old_chat_member; // ChatMember Previous information about the chat member
     ChatMemberAdministrator::Ptr new_chat_member; // ChatMember New information about the chat member
@@ -550,15 +550,15 @@ struct ChatMemberUpdated  : clife_base
 
 struct Update
 {
-    qint32       update_id = {0};     // The update's unique identifier. Update identifiers start from a certain positive number and increase
-                                      // sequentially. This ID becomes especially handy if you're using webhooks, since it allows you to ignore
-                                      // repeated updates or to restore the correct update sequence, should they get out of order. If there are
-                                      // no new updates for at least a week, then identifier of the next update will be chosen randomly instead
-                                      // of sequentially.
-    Message::Ptr message;             // Optional. New incoming message of any kind - text, photo, sticker, etc.
-    Message::Ptr edited_message;      // Optional. New version of a message that is known to the bot and was edited
-    Message::Ptr channel_post;        // Optional. New incoming channel post of any kind - text, photo, sticker, etc.
-    Message::Ptr edited_channel_post; // Optional. New version of a channel post that is known to the bot and was edited
+    qint32       update_id = {0};          // The update's unique identifier. Update identifiers start from a certain positive number and increase
+                                           // sequentially. This ID becomes especially handy if you're using webhooks, since it allows you to ignore
+                                           // repeated updates or to restore the correct update sequence, should they get out of order. If there are
+                                           // no new updates for at least a week, then identifier of the next update will be chosen randomly instead
+                                           // of sequentially.
+    Message::Ptr message;                  // Optional. New incoming message of any kind - text, photo, sticker, etc.
+    Message::Ptr edited_message;           // Optional. New version of a message that is known to the bot and was edited
+    Message::Ptr channel_post;             // Optional. New incoming channel post of any kind - text, photo, sticker, etc.
+    Message::Ptr edited_channel_post;      // Optional. New version of a channel post that is known to the bot and was edited
 
     ChatMemberUpdated::Ptr my_chat_member; // Optional. The bot's chat member status was updated in a chat. For private chats,
                                            //           this update is received only when the bot is blocked or unblocked by the user.
@@ -566,8 +566,6 @@ struct Update
     ChatMemberUpdated::Ptr chat_member;    // Optional. A chat member's status was updated in a chat. The bot must be an administrator
                                            //           in the chat and must explicitly specify "chat_member" in the list of allowed_updates
                                            //           to receive these updates.
-
-    //User::Ptr    from;
 
     J_SERIALIZE_BEGIN
         J_SERIALIZE_ITEM( update_id           )

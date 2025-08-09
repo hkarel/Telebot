@@ -3390,71 +3390,30 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
                 if (chat->adminIds().contains(userId))
                 {
-                    auto params = tbot::tgfunction("deleteMessage");
-                    params->api["chat_id"] = chatId;
-                    params->api["message_id"] = reply->message_id;
-                    params->delay = 300 /*0.3 сек*/;
-                    sendTgCommand(params);
-
                     if (reply->from.empty())
                         return true;
 
                     tbot::User::Ptr spamUser = reply->from;
-                    tbot::spamUsers().add(spamUser->id);
-
-                    tbot::ChatMemberAdministrator::Ptr botInfo = chat->botInfo();
-                    if (botInfo && botInfo->can_restrict_members)
+                    if (chat->adminIds().contains(spamUser->id))
                     {
                         log_verbose_m << log_format(
                             u8"\"update_id\":%?. Chat: %?"
-                            u8". User %?/%?/@%?/%? excluded from group. User was marked as spammer",
+                            u8". Administrator of group %?/%?/@%?/%? cannot be marked as spammer",
                             msgData->update.update_id, chat->name(),
                             spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
 
-                        auto params = tbot::tgfunction("banChatMember");
-                        params->api["chat_id"] = chat->id;
-                        params->api["user_id"] = spamUser->id;
-                        params->api["until_date"] = qint64(std::time(nullptr));
-                        params->api["revoke_messages"] = false;
-                        params->delay = 400 /*0.4 сек*/;
-                        sendTgCommand(params);
-
-                        botMsg =
-                            u8"Бот исключил пользователя из группы"
-                            u8"\r\n%1"
-                            u8"\r\nПричина: администратор группы отметил сообщение пользователя как спам";
-
-                        botMsg = botMsg.arg(stringUserInfo(spamUser, true));
-
-                        auto params2 = tbot::tgfunction("sendMessage");
-                        params2->api["chat_id"] = chatId;
-                        params2->api["text"] = botMsg;
-                        params2->api["parse_mode"] = "Markdown";
-                        params2->delay = 500 /*0.5 сек*/;
-                        emit sendTgCommand(params2);
+                        botMsg = u8"Администраторы группы %1 не может быть отмечен как спаммер";
+                        sendMessage(botMsg.arg(stringUserInfo(spamUser, true)), "Markdown");
+                        return true;
                     }
-                    else
-                    {
-                        log_warn_m << log_format(
-                            u8"\"update_id\":%?. Chat: %?"
-                            u8". Bot does not have enough rights to exclude user %?/%?/@%?/%? from group",
-                            msgData->update.update_id, chat->name(),
-                            spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
 
-                        botMsg =
-                            u8"‼️Бот не смог исключить из группы пользователя"
-                            u8"\r\n%1."
-                            u8"\r\nУ бота нет прав на блокировку пользователей";
-
-                        botMsg = botMsg.arg(stringUserInfo(spamUser, true));
-
-                        auto params = tbot::tgfunction("sendMessage");
-                        params->api["chat_id"] = chatId;
-                        params->api["text"] = botMsg;
-                        params->api["parse_mode"] = "Markdown";
-                        params->delay = 500 /*0.5 сек*/;
-                        emit sendTgCommand(params);
-                    }
+                    // Конструируем сообщение с пометкой 'спам' и отправляем  в модуль  обработки
+                    // на анализ существования медиагруппы с последующим удалением всех сообщений
+                    // и блокировкой пользователя
+                    tbot::MessageData::Ptr msgData2 {tbot::MessageData::Ptr::create()};
+                    msgData2->markAsSpam = true;
+                    msgData2->update.message = reply;
+                    sendToProcessing(msgData2);
                     return true;
                 }
                 else
