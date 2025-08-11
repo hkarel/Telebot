@@ -306,10 +306,10 @@ void Processing::run()
             }
         }
 
-        tbot::Trigger::Text triggerText;
+        Trigger::Text triggerText;
 
         //--- Trigger::TextType::Content ---
-        triggerText[tbot::Trigger::TextType::Content] = clearText.trimmed();
+        triggerText[Trigger::TextType::Content] = clearText.trimmed();
 
         MessageOrigin::Ptr messageForwardOrigin;
         if (message->external_reply)
@@ -323,7 +323,7 @@ void Processing::run()
             && messageForwardOrigin->type == "user"
             && messageForwardOrigin->sender_user)
         {
-            triggerText[tbot::Trigger::TextType::FrwdUserId] = messageForwardOrigin->sender_user->id;
+            triggerText[Trigger::TextType::FrwdUserId] = messageForwardOrigin->sender_user->id;
         }
 
         //--- Trigger::TextType::FrwdChatId ---
@@ -331,13 +331,13 @@ void Processing::run()
             && messageForwardOrigin->type == "chat"
             && messageForwardOrigin->sender_chat)
         {
-            triggerText[tbot::Trigger::TextType::FrwdChatId] = messageForwardOrigin->sender_chat->id;
+            triggerText[Trigger::TextType::FrwdChatId] = messageForwardOrigin->sender_chat->id;
         }
         if (messageForwardOrigin
             && messageForwardOrigin->type == "channel"
             && messageForwardOrigin->chat)
         {
-            triggerText[tbot::Trigger::TextType::FrwdChatId] = messageForwardOrigin->chat->id;
+            triggerText[Trigger::TextType::FrwdChatId] = messageForwardOrigin->chat->id;
         }
 
         //--- Trigger::TextType::FileMime ---
@@ -365,7 +365,7 @@ void Processing::run()
                                    .arg(message->video->mime_type);
             filemimeText = filemimeText.trimmed();
         }
-        triggerText[tbot::Trigger::TextType::FileMime] = filemimeText;
+        triggerText[Trigger::TextType::FileMime] = filemimeText;
 
         //--- Trigger::TextType::UrlLinks ---
         QString urllinksText;
@@ -384,7 +384,7 @@ void Processing::run()
         for (const MessageEntity& entity : message->entities)
             readEntities(message->text, entity);
 
-        triggerText[tbot::Trigger::TextType::UrlLinks] = urllinksText.trimmed();
+        triggerText[Trigger::TextType::UrlLinks] = urllinksText.trimmed();
         //---
 
         auto verifyAdmin = [&]() -> bool
@@ -767,9 +767,13 @@ void Processing::run()
                     params->messageDel = -1;
                     emit sendTgCommand(params);
 
+                    QString text = triggerText[Trigger::TextType::Content].toString();
+                    if (text.isEmpty())
+                        text = u8"СООБЩЕНИЕ БЕЗ ТЕКСТА";
+
                     auto params2 = tgfunction("sendMessage");
                     params2->api["chat_id"] = spamCollectorChatId;
-                    params2->api["text"] = triggerText[tbot::Trigger::TextType::Content];
+                    params2->api["text"] = text;
                     params2->api["parse_mode"] = "HTML";
                     params2->delay = 150 /*0.15 сек*/;
                     params2->messageDel = -1;
@@ -980,10 +984,10 @@ void Processing::run()
             bool isPremium = user->is_premium;
 
             //--- Trigger::TextType::UserId ---
-            triggerText[tbot::Trigger::TextType::UserId] = user->id;
+            triggerText[Trigger::TextType::UserId] = user->id;
 
             //--- Trigger::TextType::IsPremium ---
-            triggerText[tbot::Trigger::TextType::IsPremium] = user->is_premium;
+            triggerText[Trigger::TextType::IsPremium] = user->is_premium;
 
             //--- Trigger::TextType::UserName ---
             QString usernameText = QString(" %1 %2 %3")
@@ -1051,10 +1055,10 @@ void Processing::run()
                                        .arg(message->via_bot->username);
                 usernameText = usernameText.trimmed();
             }
-            triggerText[tbot::Trigger::TextType::UserName] = usernameText;
+            triggerText[Trigger::TextType::UserName] = usernameText;
             //---
 
-            auto deleteMessageTrg = [&](tbot::Trigger* trigger) -> bool
+            auto deleteMessageTrg = [&](Trigger* trigger) -> bool
             {
                 if (!message->media_group_id.isEmpty())
                 {
@@ -1171,7 +1175,7 @@ void Processing::run()
                 return true;
             };
 
-            auto banUserTrg = [&](tbot::Trigger* trigger)
+            auto banUserTrg = [&](Trigger* trigger)
             {
                 if (isNewUser)
                 {
@@ -1280,7 +1284,7 @@ void Processing::run()
             bool messageDeleted = false;
             bool userBanned = false;
 
-            for (tbot::Trigger* trigger : chat->triggers)
+            for (Trigger* trigger : chat->triggers)
             {
                 if (!trigger->active)
                 {
@@ -1408,7 +1412,7 @@ void Processing::run()
                         // Отслеживаем время вступления пользователя в группу
                         userJoinTimes().add(chatId, user->id, joinViaChatFolder);
 
-                        tbot::ChatPermissions chatPermissions;
+                        ChatPermissions chatPermissions;
                         QByteArray permissions = chatPermissions.toJson();
 
                         auto params = tgfunction("restrictChatMember");
