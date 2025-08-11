@@ -177,6 +177,12 @@ void SpamUserList::add(qint64 userId)
         su->userId, su->time);
 }
 
+bool SpamUserList::check(qint64 userId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+    return bool(_list.findRef(userId));
+}
+
 bool SpamUserList::remove(qint64 userId)
 {
     QMutexLocker locker {&_mutex}; (void) locker;

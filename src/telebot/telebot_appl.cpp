@@ -3486,47 +3486,49 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             botMsg =
                 u8"Список доступных команд:"
-
-                u8"\r\n%1 help [h]&#185; - "
-                u8"Справка по списку команд;"
                 u8"\r\n"
 
-                u8"\r\n%1 version [v]&#185; - "
-                u8"Версия бота;"
+                u8"\r\n%1 help [h]&#185; "
+                u8"\r\nСправка по списку команд;"
                 u8"\r\n"
 
-                u8"\r\n%1 timelimit [tl]&#185; (start|stop|status) - "
-                u8"Активация/деактивация триггеров с типом timelimit;"
+                u8"\r\n%1 version [v]&#185; "
+                u8"\r\nВерсия бота;"
                 u8"\r\n"
 
-                u8"\r\n%1 spamreset [sr]&#185; ID - "
-                u8"Аннулировать спам-штрафы для пользователя с идентификатором ID;"
+                u8"\r\n%1 timelimit [tl]&#185; (start | stop | status) "
+                u8"\r\nАктивация/деактивация триггеров с типом timelimit;"
                 u8"\r\n"
 
-                u8"\r\n%1 spamuser [su]&#185; del ID - "
-                u8"Удалить пользователя с идентификатором ID из спам-списка бота;"
+                u8"\r\n%1 spamreset [sr]&#185; ID "
+                u8"\r\nАннулировать спам-штрафы для пользователя с идентификатором ID;"
                 u8"\r\n"
 
-//                u8"\r\n%1 globalblack [gb]&#185; ID - "
-//                u8"Добавить пользователя с идентификатором ID в глобальный черный "
-//                u8"список. Пользователь будет заблокирован во всех группах, где "
-//                u8"установлен бот;"
-//                u8"\r\n"
-
-                u8"\r\n%1 verifyadmin [va]&#185; - "
-                u8"Проверить принадлежность пользователя к администраторам группы;"
+                u8"\r\n%1 spamuser [su]&#185; (add ID | del ID | check ID) "
+                u8"\r\nРедактирование спам-списка бота (ID - идентификатор пользователя);"
                 u8"\r\n"
 
-                u8"\r\n%1 reloadgroup [rg]&#185; - "
-                u8"Обновить информацию о группе и её администраторах;"
+                //u8"\r\n%1 globalblack [gb]&#185; ID - "
+                //u8"Добавить пользователя с идентификатором ID в глобальный черный "
+                //u8"список. Пользователь будет заблокирован во всех группах, где "
+                //u8"установлен бот;"
+                //u8"\r\n"
+
+                u8"\r\n%1 verifyadmin [va]&#185; "
+                u8"\r\nПроверить принадлежность пользователя к администраторам группы;"
                 u8"\r\n"
 
-                u8"\r\n%1 trigger [tr]&#185; (add name|del name|list) - "
-                u8"Создание/удаление пользовательских триггеров;"
+                u8"\r\n%1 reloadgroup [rg]&#185; "
+                u8"\r\nОбновить информацию о группе и её администраторах;"
                 u8"\r\n"
 
-                u8"\r\n%1 whiteuser [wu]&#185; (add user_id comment|del user_id|list) - "
-                u8"Редактирование 'белого' списка пользователей группы;"
+                u8"\r\n%1 trigger [tr]&#185; (add NAME | del NAME | list) "
+                u8"\r\nСоздание/удаление пользовательского триггера с именем NAME"
+                u8"\r\n"
+
+                u8"\r\n%1 whiteuser [wu]&#185; (add ID comment | del ID | list) "
+                u8"\r\nРедактирование 'белого' списка пользователей группы "
+                u8"(ID - идентификатор пользователя);"
                 u8"\r\n"
 
                 u8"\r\n []&#185; - Сокращенное обозначение команды";
@@ -3562,6 +3564,21 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             return true;
         }
 
+        auto getUserId = [](const QStringList& actions, qint64& userId) -> bool
+        {
+            for (const QString& action : actions)
+            {
+                bool ok = false;
+                qint64 number = action.toLongLong(&ok);
+                if (ok)
+                {
+                    userId = number;
+                    return true;
+                }
+            }
+            return false;
+        };
+
         //--- Команды могут быть выполнены только администратором ---
         if ((command == "help") || (command == "h"))
         {
@@ -3582,7 +3599,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             QString action;
             if (actions.count())
-                action = actions[0];
+                action = actions.takeFirst();
 
             if (action != "start"
                 && action != "stop"
@@ -3591,12 +3608,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 botMsg = (action.isEmpty())
                     ? u8"Для команды timelimit требуется указать действие."
                     : u8"Команда timelimit не используется с указанным действием: %1.";
-
-                botMsg += u8"\r\nДопустимые действия: start/stop/status"
-                          u8"\r\nПример: %2 timelimit status";
-                botMsg = botMsg.arg(_commandPrefix).arg(action);
-
-                sendMessage(botMsg);
+                botMsg = botMsg.arg(action);
+                botMsg += u8"\r\nДопустимые действия: start | stop | status"
+                          u8"\r\nПример: %1 timelimit status";
+                sendMessage(botMsg.arg(_commandPrefix));
                 return true;
             }
 
@@ -3678,22 +3693,22 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         }
         else if ((command == "spamreset") || (command == "sr"))
         {
-            bool ok = false;
-            qint64 spamUserId = 0;
-            for (const QString& action : actions)
+            if (actions.isEmpty())
             {
-                spamUserId = action.toLongLong(&ok);
-                if (ok) break;
-            }
-            if (!ok)
-            {
-                log_error_m << log_format(
-                    "Bot command 'spamreset'. Failed extract user id from '%?'",
-                    actionLine);
-
-                botMsg = u8"Команда spamreset. Ошибка получения "
-                         u8"идентификатора пользователя";
+                botMsg =
+                    u8"Команда spamreset … "
+                    u8"\r\nНе указан идентификатор пользователя";
                 sendMessage(botMsg);
+                return true;
+            }
+
+            qint64 spamUserId = 0;
+            if (!getUserId(actions, spamUserId))
+            {
+                botMsg = u8"Команда spamreset … "
+                         u8"\r\nОшибка получения числового идентификатора "
+                         u8"пользователя из строкового значения '%1'";
+                sendMessage(botMsg.arg(actions.join(QChar(' '))));
             }
             else
             {
@@ -3705,54 +3720,105 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             QString action;
             if (actions.count())
-                action = actions[0];
+                action = actions.takeFirst();
 
-            if (action != "del")
+            if (action != "add"
+                && action != "del"
+                && action != "check")
             {
-                botMsg = u8"Команда spamuser. Требуется указать действие: "
-                         u8"del ID-пользоветеля";
-                sendMessage(botMsg);
+                botMsg = (action.isEmpty())
+                    ? u8"Для команды spamuser требуется указать действие."
+                    : u8"Команда spamuser не используется с указанным действием: %1.";
+                botMsg = botMsg.arg(action);
+                botMsg += u8"\r\nДопустимые действия: add ID | del ID | check"
+                          u8"\r\nПример: %1 spamuser add 424579625";
+                sendMessage(botMsg.arg(_commandPrefix));
                 return true;
             }
 
-            if (action == "del")
+            if (action == "add")
             {
-                if (actions.count() < 2)
+                if (actions.isEmpty())
                 {
-                    botMsg = u8"Команда spamuser. Не указан идентификатор "
-                             u8"пользователя";
+                    botMsg = u8"Команда spamuser add … "
+                             u8"\r\nНе указан идентификатор пользователя";
                     sendMessage(botMsg);
                     return true;
                 }
 
-                bool ok = false;
                 qint64 spamUserId = 0;
-                for (int i = 1; i < actions.count(); ++i)
+                if (!getUserId(actions, spamUserId))
                 {
-                    spamUserId = actions[i].toLongLong(&ok);
-                    if (ok) break;
+                    botMsg = u8"Команда spamuser add … "
+                             u8"\r\nОшибка получения числового идентификатора "
+                             u8"пользователя из строкового значения '%1'";
+                    sendMessage(botMsg.arg(actions.join(QChar(' '))));
+                    return true;
                 }
-                if (!ok)
-                {
-                    log_error_m << log_format(
-                        "Bot command 'spamuser'. Failed extract user id from '%?'",
-                        actionLine);
 
-                    botMsg = u8"Команда spamuser. Ошибка получения "
-                             u8"идентификатора пользователя";
+                tbot::spamUsers().add(spamUserId);
+
+                botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
+                         u8"добавлен в спам-список бота";
+                sendMessage(botMsg.arg(spamUserId), "Markdown");
+            }
+            else if (action == "del")
+            {
+                if (actions.isEmpty())
+                {
+                    botMsg = u8"Команда spamuser del … "
+                             u8"\r\nНе указан идентификатор пользователя";
                     sendMessage(botMsg);
+                    return true;
                 }
-                else
-                {
-                    if (tbot::spamUsers().remove(spamUserId))
-                        botMsg = u8"Пользователь с идентификатором %1 "
-                                 u8"удален из спам-списка бота";
-                    else
-                        botMsg = u8"Пользователь с идентификатором %1 "
-                                 u8"не найден в спам-списке бота";
 
-                    sendMessage(botMsg.arg(spamUserId));
+                qint64 spamUserId = 0;
+                if (!getUserId(actions, spamUserId))
+                {
+                    botMsg = u8"Команда spamuser del … "
+                             u8"\r\nОшибка получения числового идентификатора "
+                             u8"пользователя из строкового значения '%1'";
+                    sendMessage(botMsg.arg(actions.join(QChar(' '))));
+                    return true;
                 }
+
+                if (tbot::spamUsers().remove(spamUserId))
+                    botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
+                             u8"удален из спам-списка бота";
+                else
+                    botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
+                             u8"не найден в спам-списке бота";
+
+                sendMessage(botMsg.arg(spamUserId), "Markdown");
+            }
+            else if (action == "check")
+            {
+                if (actions.isEmpty())
+                {
+                    botMsg = u8"Команда spamuser check … "
+                             u8"\r\nНе указан идентификатор пользователя";
+                    sendMessage(botMsg);
+                    return true;
+                }
+
+                qint64 spamUserId = 0;
+                if (!getUserId(actions, spamUserId))
+                {
+                    botMsg = u8"Команда spamuser check … "
+                             u8"\r\nОшибка получения числового идентификатора "
+                             u8"пользователя из строкового значения '%1'";
+                    sendMessage(botMsg.arg(actions.join(QChar(' '))));
+                    return true;
+                }
+
+                if (tbot::spamUsers().check(spamUserId))
+                    botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
+                             u8"ПРИСУТСТВУЕТ в спам-списке бота";
+                else
+                    botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
+                             u8"НЕ НАЙДЕН в спам-списке бота";
+
+                sendMessage(botMsg.arg(spamUserId), "Markdown");
             }
             return true;
         }
@@ -3765,7 +3831,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             QString action;
             if (actions.count())
-                action = actions[0];
+                action = actions.takeFirst();
 
             data::UserTrigger* userTrgList = _userTriggers.findItem(&chatId);
             if (userTrgList == nullptr)
@@ -3791,20 +3857,19 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 botMsg = (action.isEmpty())
                     ? u8"Для команды trigger требуется указать действие."
                     : u8"Команда trigger не используется с указанным действием: %1.";
-
+                botMsg = botMsg.arg(action);
                 botMsg += u8"\r\nДопустимые действия: add name/del name/list"
-                          u8"\r\nПример: %2 trigger add карта";
-                botMsg = botMsg.arg(action).arg(_commandPrefix);
-
-                sendMessage(botMsg);
+                          u8"\r\nПример: %1 trigger add карта";
+                sendMessage(botMsg.arg(_commandPrefix));
                 return true;
             }
 
             if (action == "add")
             {
-                if (actions.count() < 2)
+                if (actions.isEmpty())
                 {
-                    botMsg = u8"Не указано имя триггера";
+                    botMsg = u8"Команда trigger add … "
+                             u8"\r\nНе указано имя триггера";
                     sendMessage(botMsg);
                     return true;
                 }
@@ -3812,7 +3877,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 tbot::Message::Ptr reply = message->reply_to_message;
                 if (reply.empty())
                 {
-                    botMsg = u8"Не указано сообщение для пользовательского триггера";
+                    botMsg = u8"Команда trigger add … "
+                             u8"\r\nНе указано сообщение для пользовательского триггера";
                     sendMessage(botMsg);
                     return true;
                 }
@@ -3823,7 +3889,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return false;
                 }
 
-                QStringList triggerKeys = actions[1].split(QChar(','), QString::SkipEmptyParts);
+                QStringList triggerKeys = actions[0].split(QChar(','), QString::SkipEmptyParts);
                 triggerKeys.sort(Qt::CaseInsensitive);
                 for (const QString& key : triggerKeys)
                 {
@@ -3861,14 +3927,15 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             }
             else if (action == "del")
             {
-                if (actions.count() < 2)
+                if (actions.isEmpty())
                 {
-                    botMsg = u8"Не указано имя триггера";
+                    botMsg = u8"Команда trigger del … "
+                             u8"\r\nНе указано имя триггера";
                     sendMessage(botMsg);
                     return true;
                 }
 
-                QString triggerName = actions[1];
+                QString triggerName = actions[0];
                 lst::FindResult fr =
                     userTrgList->items.findRef(triggerName, {lst::BruteForce::Yes});
                 if (fr.failed())
@@ -3918,7 +3985,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         {
             QString action;
             if (actions.count())
-                action = actions[0];
+                action = actions.takeFirst();
 
             auto fillUserInfo = [&](const tbot::User::Ptr& user, QString& info)
             {
@@ -3941,7 +4008,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     ? u8"Для команды whiteuser требуется указать действие."
                     : u8"Команда whiteuser не используется с указанным действием: %1.";
 
-                botMsg += u8"\r\nДопустимые действия: add user_id comment/del user_id/list"
+                botMsg += u8"\r\nДопустимые действия: add ID comment | del ID | list"
                           u8"\r\nПример: %2 whiteuser add 424579625 <i>Комментарий о пользователе</i>";
                 botMsg = botMsg.arg(action).arg(_commandPrefix);
 
@@ -3962,8 +4029,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     QString info;
                     if (actions.count() > 1)
                     {
-                        for (int i = 1; i < actions.count(); ++i)
-                            info += actions[i] + " ";
+                        for (const QString& action : actions)
+                            info += action + " ";
                         info = info.trimmed();
                     }
                     fillUserInfo(reply->from, info);
@@ -3983,7 +4050,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 }
                 else
                 {
-                    if (actions.count() < 2)
+                    if (actions.isEmpty())
                     {
                         botMsg =
                             u8"Невозможно добавить пользователя в белый список группы. "
@@ -3992,24 +4059,23 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                         return true;
                     }
 
-                    bool ok = false;
-                    qint64 whiteUserId = actions[1].toLongLong(&ok);
-                    if (!ok)
+                    qint64 whiteUserId = 0;
+                    if (!getUserId(actions, whiteUserId))
                     {
                         log_error_m << log_format(
                             "Bot command 'whiteuser'. Failed get user id from '%?'",
-                            actions[1]);
+                            actions.join(QChar(' ')));
 
                         botMsg = u8"Ошибка получения числового идентификатора пользователя"
                                  u8"из строкового значения '%1'";
-                        sendMessage(botMsg.arg(actions[1]));
+                        sendMessage(botMsg.arg(actions.join(QChar(' '))));
                         return true;
                     }
 
                     QString info;
-                    if (actions.count() > 2)
+                    if (actions.count() > 1)
                     {
-                        for (int i = 2; i < actions.count(); ++i)
+                        for (int i = 1; i < actions.count(); ++i)
                             info += actions[i] + " ";
                         info = info.trimmed();
                     }
@@ -4051,7 +4117,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 }
                 else
                 {
-                    if (actions.count() < 2)
+                    if (actions.count() < 1)
                     {
                         botMsg = u8"Невозможно исключить пользователя из белого списка группы. "
                                  u8"Не указан идентификатор пользователя";
@@ -4059,20 +4125,20 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                         return true;
                     }
 
-                    QString numberStr = actions[1];
+                    QString numberStr = actions[0];
                     bool removeByIndex = (numberStr.length() < 4);
 
                     bool ok = false;
-                    qint64 whiteUserId = actions[1].toLongLong(&ok);
+                    qint64 whiteUserId = actions[0].toLongLong(&ok);
                     if (!ok)
                     {
                         log_error_m << log_format(
                             "Bot command 'whiteuser'. Failed get user id from '%?'",
-                            actions[1]);
+                            actions[0]);
 
                         botMsg = u8"Ошибка получения числового идентификатора пользователя"
                                  u8"из строкового значения '%1'";
-                        sendMessage(botMsg.arg(actions[1]));
+                        sendMessage(botMsg.arg(actions[0]));
                         return true;
                     }
 

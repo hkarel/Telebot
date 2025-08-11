@@ -102,6 +102,7 @@ class SpamUserList : public DataList<data::SpamUser>
 {
 public:
     void add(qint64 userId);
+    bool check(qint64 userId);
     bool remove(qint64 userId);
     void removeByTime();
 };
