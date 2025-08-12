@@ -3547,6 +3547,21 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         QString command = lines.takeFirst();
         QStringList actions = lines;
 
+        auto getUserId = [](const QStringList& actions, qint64& userId) -> bool
+        {
+            for (const QString& action : actions)
+            {
+                bool ok = false;
+                qint64 number = action.toLongLong(&ok);
+                if (ok)
+                {
+                    userId = number;
+                    return true;
+                }
+            }
+            return false;
+        };
+
         //--- Команда может быть выполнена обычным пользователем ---
         if ((command == "verifyadmin") || (command == "va"))
         {
@@ -3563,21 +3578,6 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
             reportSpam(chatId, message->from);
             return true;
         }
-
-        auto getUserId = [](const QStringList& actions, qint64& userId) -> bool
-        {
-            for (const QString& action : actions)
-            {
-                bool ok = false;
-                qint64 number = action.toLongLong(&ok);
-                if (ok)
-                {
-                    userId = number;
-                    return true;
-                }
-            }
-            return false;
-        };
 
         //--- Команды могут быть выполнены только администратором ---
         if ((command == "help") || (command == "h"))
@@ -3756,7 +3756,15 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return true;
                 }
 
+                // Добавляем пользователя в спам-список бота
                 tbot::spamUsers().add(spamUserId);
+
+                tbot::User::Ptr admin = message->from;
+                log_verbose_m << log_format(
+                    u8"User %? added to list SpamUsers"
+                    u8". Chat name/id: %?/%?. Admin: %?/%?/@%?/%?",
+                    spamUserId, chat->name(), chat->id,
+                    admin->first_name, admin->last_name, admin->username, admin->id);
 
                 botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
                          u8"добавлен в спам-список бота";
@@ -3782,9 +3790,19 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return true;
                 }
 
-                if (tbot::spamUsers().remove(spamUserId))
+                if (tbot::spamUsers().check(spamUserId))
+                {
+                    tbot::spamUsers().remove(spamUserId);
+                    tbot::User::Ptr admin = message->from;
+                    log_verbose_m << log_format(
+                        u8"User %? removed from list SpamUsers"
+                        u8". Chat name/id: %?/%?. Admin: %?/%?/@%?/%?",
+                        spamUserId, chat->name(), chat->id,
+                        admin->first_name, admin->last_name, admin->username, admin->id);
+
                     botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
                              u8"удален из спам-списка бота";
+                }
                 else
                     botMsg = u8"[Пользователь](tg://user?id=%1) с идентификатором %1 "
                              u8"не найден в спам-списке бота";

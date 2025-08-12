@@ -730,8 +730,15 @@ void Processing::run()
                         emit sendTgCommand(params);
                     }
 
-                    // Добавляем пользователя в список спамеров
+                    // Добавляем пользователя в спам-список бота
                     spamUsers().add(user->id);
+
+                    User::Ptr admin = msgData->adminMarkSpam;
+                    log_verbose_m << log_format(
+                        u8"User %? added to list SpamUsers"
+                        u8". Chat name/id: %?/%?. Admin: %?/%?/@%?/%?",
+                        user->id, chat->name(), chat->id,
+                        admin->first_name, admin->last_name, admin->username, admin->id);
                 }
 
                 qint64 spamCollectorChatId = 0;

@@ -159,8 +159,7 @@ void SpamUserList::add(qint64 userId)
         _changeFlag = true;
 
         log_debug_m << log_format(
-            "The re-adding to list SpamUsers. User/Time: %?/%?",
-            su->userId, su->time);
+            "User %? re-added to list SpamUsers", su->userId);
         return;
     }
 
@@ -173,8 +172,7 @@ void SpamUserList::add(qint64 userId)
     _changeFlag = true;
 
     log_debug_m << log_format(
-        "User added to list SpamUsers. User/Time: %?/%?",
-        su->userId, su->time);
+        "User %? added to list SpamUsers", su->userId);
 }
 
 bool SpamUserList::check(qint64 userId)
@@ -209,8 +207,7 @@ void SpamUserList::removeByTime()
         if (su->time < threshold)
         {
             log_debug_m << log_format(
-                "User removed from list SpamUsers. User/Time: %?/%?",
-                su->userId, su->time);
+                "User %? removed from list SpamUsers by timeout", su->userId);
             return (_changeFlag = true);
         }
         return false;
