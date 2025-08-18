@@ -3381,12 +3381,20 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
 
             if (spamNotify.contains(message->text.toLower().trimmed()))
             {
-                tbot::Message::Ptr reply = message->reply_to_message;
-                if (reply.empty())
-                    return false;
-
                 // Удаляем сообщение с уведомлением о спаме
                 deleteMessage();
+
+                tbot::Message::Ptr reply = message->reply_to_message;
+                if (reply.empty())
+                {
+                    botMsg = u8"Слова <i>%1</i> зарезервированы, "
+                             u8"они используются для обозначения спам-сообщений";
+                    QStringList sl {spamNotify.toList()}; sl.sort();
+                    botMsg = botMsg.arg(sl.join(QChar(' ')));
+
+                    sendMessage(botMsg);
+                    return true;
+                }
 
                 if (chat->adminIds().contains(userId))
                 {
