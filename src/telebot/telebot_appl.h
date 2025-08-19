@@ -343,6 +343,16 @@ private:
     };
     AdjacentMessage::List _adjacentMessages;
 
+    // Информационное сообщение пользователя о спаме
+    struct UserSpanInform
+    {
+        qint64 chatId = {0};
+        qint32 messageId = {0};     // Идентификатор сообщения пользователя
+        qint32 spamMessageId = {0}; // Идентификатор спам-сообщения
+        steady_timer timer;
+    };
+    QList<UserSpanInform> _userSpanInforms;
+
     data::UserTrigger::List _userTriggers;
     QList<data::DeleteDelay> _deleteDelays;
 

@@ -596,6 +596,21 @@ void Application::timerEvent(QTimerEvent* event)
         }
         if (deleteDelayActive)
             updateBotCommands(delete_delay);
+
+        //--- UserSpanInform ---
+        for (int i = 0; i < _userSpanInforms.count(); ++i)
+        {
+            const UserSpanInform& usi = _userSpanInforms[i];
+            if (usi.timer.elapsed() > 10*60*1000 /*10 мин*/)
+            {
+                auto params = tbot::tgfunction("deleteMessage");
+                params->api["chat_id"] = usi.chatId;
+                params->api["message_id"] = usi.messageId;
+                sendTgCommand(params);
+
+                _userSpanInforms.removeAt(i--);
+            }
+        }
     }
     else if (event->timerId() == _antiraidTimerId)
     {
@@ -2283,9 +2298,12 @@ void Application::httpResultHandler(const ReplyData& rd)
             return;
 
         // Удаляем служебные сообщения бота
-        tbot::SendMessage_Result result;
-        if ((rd.params->messageDel >= 0) && result.fromJson(rd.data))
+        if (rd.params->messageDel >= 0)
         {
+            tbot::SendMessage_Result result;
+            if (!result.fromJson(rd.data))
+                return;
+
             qint64 chatId = result.message.chat->id;
             qint64 userId = result.message.from->id;
             qint32 messageId = result.message.message_id;
@@ -2314,6 +2332,21 @@ void Application::httpResultHandler(const ReplyData& rd)
                     updateBotCommands(delete_delay);
                 }
             }
+        }
+        if (rd.params->spamMessageId != 0)
+        {
+            tbot::SendMessage_Result result;
+            if (!result.fromJson(rd.data))
+                return;
+
+            qint64 chatId = result.message.chat->id;
+            qint32 messageId = result.message.message_id;
+
+            UserSpanInform usi;
+            usi.chatId = chatId;
+            usi.messageId = messageId;
+            usi.spamMessageId = rd.params->spamMessageId;
+            _userSpanInforms.append(usi);
         }
     }
     else if (rd.params->funcName == "getChatAdministrators")
@@ -3387,34 +3420,51 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                 tbot::Message::Ptr reply = message->reply_to_message;
                 if (reply.empty())
                 {
-                    botMsg = u8"Слова <i>%1</i> зарезервированы, "
-                             u8"они используются для обозначения спам-сообщений";
-                    QStringList sl {spamNotify.toList()}; sl.sort();
-                    botMsg = botMsg.arg(sl.join(QChar(' ')));
+                    if (!chat->adminIds().contains(userId))
+                    {
+                        botMsg = u8"Слова <i>%1</i> зарезервированы, "
+                                 u8"они используются для обозначения спам-сообщений";
+                        QStringList sl {spamNotify.toList()}; sl.sort();
+                        botMsg = botMsg.arg(sl.join(QChar(' ')));
 
-                    sendMessage(botMsg);
+                        auto params = tbot::tgfunction("sendMessage");
+                        params->api["chat_id"] = chatId;
+                        params->api["text"] = botMsg;
+                        params->api["parse_mode"] = "HTML";
+                        params->delay = 1.5*1000 /*1.5 сек*/;
+                        params->messageDel = 15  /* 15 сек*/;
+                        sendTgCommand(params);
+                    }
+                    return true;
+                }
+
+                if (reply->from.empty())
+                    return true;
+
+                tbot::User::Ptr spamUser = reply->from;
+                if (chat->adminIds().contains(spamUser->id))
+                {
+                    log_verbose_m << log_format(
+                        u8"\"update_id\":%?. Chat: %?"
+                        u8". Administrator of group %?/%?/@%?/%? cannot be marked as spammer",
+                        msgData->update.update_id, chat->name(),
+                        spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
+
+                    botMsg = u8"Сообщение администратора группы не может быть отмечено как спам";
+
+                    auto params = tbot::tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg; //.arg(stringUserInfo(spamUser, true));
+                    params->api["parse_mode"] = "Markdown";
+                    params->api["reply_to_message_id"] = reply->message_id;
+                    params->delay = 1.5*1000 /*1.5 сек*/;
+                    params->messageDel = 20  /* 20 сек*/;
+                    sendTgCommand(params);
                     return true;
                 }
 
                 if (chat->adminIds().contains(userId))
                 {
-                    if (reply->from.empty())
-                        return true;
-
-                    tbot::User::Ptr spamUser = reply->from;
-                    if (chat->adminIds().contains(spamUser->id))
-                    {
-                        log_verbose_m << log_format(
-                            u8"\"update_id\":%?. Chat: %?"
-                            u8". Administrator of group %?/%?/@%?/%? cannot be marked as spammer",
-                            msgData->update.update_id, chat->name(),
-                            spamUser->first_name, spamUser->last_name, spamUser->username, spamUser->id);
-
-                        botMsg = u8"Администратор группы %1 не может быть отмечен как спаммер";
-                        sendMessage(botMsg.arg(stringUserInfo(spamUser, true)), "Markdown");
-                        return true;
-                    }
-
                     // Конструируем сообщение с пометкой 'спам' и отправляем  в модуль  обработки
                     // на анализ существования медиагруппы с последующим удалением всех сообщений
                     // и блокировкой пользователя
@@ -3422,6 +3472,22 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     msgData2->adminMarkSpam = message->from;
                     msgData2->update.message = reply;
                     sendToProcessing(msgData2);
+
+                    // Удаляем информ-сообщения пользователей о спаме
+                    for (int i = 0; i < _userSpanInforms.count(); ++i)
+                    {
+                        const UserSpanInform& usi = _userSpanInforms[i];
+                        if (usi.spamMessageId == reply->message_id)
+                        {
+                            auto params = tbot::tgfunction("deleteMessage");
+                            params->api["chat_id"] = usi.chatId;
+                            params->api["message_id"] = usi.messageId;
+                            params->delay = 200 /*0.2 сек*/;
+                            sendTgCommand(params);
+
+                            _userSpanInforms.removeAt(i--);
+                        }
+                    }
                     return true;
                 }
                 else
@@ -3436,7 +3502,18 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     for (const QString& s : chat->adminNames())
                         anames += "@" + s + " ";
 
-                    sendMessage(botMsg.arg(anames), "Markdown", false, reply->message_id);
+                    botMsg = botMsg.arg(anames);
+                    botMsg.replace("_", "\\_"); // Markdown message format
+
+                    auto params = tbot::tgfunction("sendMessage");
+                    params->api["chat_id"] = chatId;
+                    params->api["text"] = botMsg;
+                    params->api["parse_mode"] = "Markdown";
+                    params->api["reply_to_message_id"] = reply->message_id;
+                    params->delay = 1.5*1000 /*1.5 сек*/;
+                    params->messageDel = -1;
+                    params->spamMessageId = reply->message_id;
+                    sendTgCommand(params);
                     return true;
                 }
             }

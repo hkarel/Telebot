@@ -62,6 +62,10 @@ struct TgParams
 
     // Признак бот-команды
     bool isBotCommand = {false};
+
+    // Идентификатор спам-сообщения, используется как признак информационного
+    // сообщения о спаме
+    qint32 spamMessageId = {0};
 };
 
 inline TgParams::Ptr tgfunction(const char* funcName)
