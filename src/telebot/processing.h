@@ -27,6 +27,19 @@ struct Bio
 };
 
 /**
+  Вспомогательная структура для обработки команды getFile
+*/
+struct Image
+{
+    qint64  userId = {0};
+    qint64  chatId = {0};
+    qint32  updateId = {0};
+    qint32  messageId = {0}; // Идентификатор оригинального сообщения
+    QString mediaGroupId;    // Идентификатор медиагруппы оригинального сообщения
+    QString messageOrigin;   // Текст оригинального сообщения
+};
+
+/**
   Параметры для функции sendTgCommand()
 */
 struct TgParams
@@ -53,6 +66,9 @@ struct TgParams
 
     // Вспомогательное поле для обработки BIO сообщений
     Bio bio;
+
+    // Вспомогательное поле для обработки изображений
+    Image image;
 
     // Пользователь только что вступил в группу
     bool isNewUser = {false};

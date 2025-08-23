@@ -204,6 +204,23 @@ struct MessageEntity /*: clife_base*/
     J_SERIALIZE_END
 };
 
+struct PhotoSize
+{
+    QString file_id;         // Identifier for this file, which can be used to download or reuse the file
+    QString file_unique_id;  // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
+    qint32  width = {0};     // Photo width
+    qint32  height = {0};    // Photo height
+    qint32  file_size = {0}; // Optional. File size in bytes
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( file_id        )
+        J_SERIALIZE_ITEM( file_unique_id )
+        J_SERIALIZE_ITEM( width          )
+        J_SERIALIZE_ITEM( height         )
+        J_SERIALIZE_OPT ( file_size      )
+    J_SERIALIZE_END
+};
+
 struct Chat : clife_base
 {
     typedef clife_ptr<Chat> Ptr;
@@ -402,7 +419,9 @@ struct Message : clife_base
     Video::Ptr    video;    // Optional. Message is a video, information about the video
 
 //    animation  Animation 	Optional. Message is an animation, information about the animation. For backward compatibility, when this field is set, the document field will also be set
-//    photo 	Array of PhotoSize 	Optional. Message is a photo, available sizes of the photo
+
+    QList<PhotoSize> photo; // Optional. Message is a photo, available sizes of the photo
+
 //    sticker 	Sticker  Optional. Message is a sticker, information about the sticker
 //    video_note 	VideoNote 	Optional. Message is a video note, information about the video message
 //    voice 	Voice 	Optional. Message is a voice message, information about the file
@@ -475,6 +494,7 @@ struct Message : clife_base
         J_SERIALIZE_OPT ( audio                   )
         J_SERIALIZE_OPT ( document                )
         J_SERIALIZE_OPT ( video                   )
+        J_SERIALIZE_OPT ( photo                   )
         J_SERIALIZE_OPT ( caption                 )
         J_SERIALIZE_OPT ( caption_entities        )
         J_SERIALIZE_OPT ( new_chat_members        )
@@ -545,6 +565,21 @@ struct ChatMemberUpdated  : clife_base
         J_SERIALIZE_OPT ( old_chat_member )
         J_SERIALIZE_OPT ( new_chat_member )
         J_SERIALIZE_OPT ( via_chat_folder_invite_link )
+    J_SERIALIZE_END
+};
+
+struct File
+{
+    QString file_id;         // Identifier for this file, which can be used to download or reuse the file
+    QString file_unique_id;  // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
+    qint32  file_size = {0}; // Optional. File size in bytes. It can be bigger than 2^31 and some programming languages may have difficulty/silent defects in interpreting it. But it has at most 52 significant bits, so a signed 64-bit integer or double-precision float type are safe for storing this value.
+    QString file_path;       // Optional. File path. Use https://api.telegram.org/file/bot<token>/<file_path> to get the file.
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( file_id        )
+        J_SERIALIZE_ITEM( file_unique_id )
+        J_SERIALIZE_OPT ( file_size      )
+        J_SERIALIZE_OPT ( file_path      )
     J_SERIALIZE_END
 };
 
@@ -627,6 +662,15 @@ struct GetChatAdministrators_Result
 {
     QList<ChatMemberAdministrator::Ptr> items;
     J_SERIALIZE_MAP_ONE( "result", items )
+};
+
+/**
+  Результат вызова функции getFile()
+*/
+struct GetFile_Result
+{
+    File file;
+    J_SERIALIZE_MAP_ONE( "result", file )
 };
 
 //--- struct Chat ---

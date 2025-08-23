@@ -1378,8 +1378,7 @@ void Processing::run()
             }
 
             // Отправляем запрос на получение BIO
-            if (chat->checkBio
-                && !isBioMessage && !messageDeleted && !userBanned)
+            if (chat->checkBio && !isBioMessage && !messageDeleted && !userBanned)
             {
                 auto params = tgfunction("getChat");
                 params->api["chat_id"] = user->id;
@@ -1488,6 +1487,25 @@ void Processing::run()
                     params->api["text"] = botMsg;
                     params->api["parse_mode"] = "Markdown";
                     params->delay = 100 /*0.1 сек*/;
+                    emit sendTgCommand(params);
+                }
+            }
+
+            // Отправляем запрос на получение изображений сообщения
+            if (!isNewUser && !isBioMessage && !messageDeleted && !userBanned)
+            {
+                if (!message->photo.isEmpty())
+                {
+                    const PhotoSize& photo = message->photo.last();
+                    auto params = tgfunction("getFile");
+                    params->api["file_id"] = photo.file_id;
+                    params->delay = 200 /*0.2 сек*/;
+                    params->image.userId = user->id;
+                    params->image.chatId = chatId;
+                    params->image.updateId = update.update_id;
+                    params->image.messageId = messageId;
+                    params->image.mediaGroupId = message->media_group_id;
+                    params->image.messageOrigin = messageText().trimmed();
                     emit sendTgCommand(params);
                 }
             }

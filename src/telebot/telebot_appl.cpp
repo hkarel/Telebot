@@ -2036,15 +2036,33 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
             urlStr = "http://%1:%2";
             urlStr = urlStr.arg(_localServerAddr).arg(_localServerPort);
         }
-        urlStr += "/bot%1/%2";
-        urlStr = urlStr.arg(_botId).arg(params->funcName);
 
-        QUrlQuery query;
-        for (auto&& it = params->api.cbegin(); it != params->api.cend(); ++it)
-            query.addQueryItem(it.key(), it.value().toString());
+        QUrl url;
+        if (params->funcName == "downloadFile")
+        {
+            // TODO не работает с локальным телеграм-бот-сервером, не отлажено
 
-        QUrl url {urlStr};
-        url.setQuery(query);
+            urlStr += "/file/bot%1";
+            urlStr = urlStr.arg(_botId);
+
+            QString filePath = params->api["file_path"].toString();
+            if (!filePath.isEmpty() && filePath[0] != QChar('/'))
+                filePath.prepend(QChar('/'));
+
+            urlStr += filePath;
+            url.setUrl(urlStr);
+        }
+        else
+        {
+            urlStr += "/bot%1/%2";
+            urlStr = urlStr.arg(_botId).arg(params->funcName);
+            url.setUrl(urlStr);
+
+            QUrlQuery query;
+            for (auto&& it = params->api.cbegin(); it != params->api.cend(); ++it)
+                query.addQueryItem(it.key(), it.value().toString());
+            url.setQuery(query);
+        }
 
         QNetworkRequest request {url};
         QNetworkReply* reply = _networkAccManager->get(request);
@@ -2478,6 +2496,40 @@ void Application::httpResultHandler(const ReplyData& rd)
         }
         if (frSpmr.success() && (rd.params->funcName == "banChatMember"))
             _spammers.remove(frSpmr.index());
+    }
+    else if (rd.params->funcName == "getFile")
+    {
+        tbot::HttpResult httpResult;
+        if (!httpResult.fromJson(rd.data))
+            return;
+
+        if (!httpResult.ok)
+            return;
+
+        tbot::GetFile_Result result;
+        if (result.fromJson(rd.data))
+        {
+            log_info_m << log_format("File path: %?", result.file.file_path);
+
+            if (_localServer)
+            {
+
+            }
+            else
+            {
+                // TODO не работает с локальным телеграм-бот-сервером, не отлажено
+
+                // auto params = tbot::tgfunction("downloadFile");
+                // params->api["file_path"] = result.file.file_path;
+                // params->image = rd.params->image;
+                // sendTgCommand(params);
+            }
+        }
+    }
+    else if (rd.params->funcName == "downloadFile")
+    {
+        tbot::HttpResult httpResult;
+        (void) httpResult;
     }
 }
 
