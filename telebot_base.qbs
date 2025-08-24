@@ -39,6 +39,7 @@ Project {
             "PPROTO_MESSAGE_NEW_JSON_FORMAT",
             "SODIUM_ENCRYPTION",
             "DEFAULT_PORT=28443",
+            "GROUP_ANONYMOUS_BOT_ID=1087968824",
             "CONFIG_DIR=\"/etc/telebot\"",
             "VAROPT_DIR=\"/var/opt/telebot\"",
         ];

@@ -187,6 +187,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         newUserMute = ychat["newuser_mute"].as<int>();
     }
 
+    bool anonymousAsAdmin = true;
+    if (ychat["anonymous_as_admin"].IsDefined())
+    {
+        checkFiedType(ychat, "anonymous_as_admin", YAML::NodeType::Scalar);
+        anonymousAsAdmin = ychat["anonymous_as_admin"].as<bool>();
+    }
+
     GroupChat::JoinViaChatFolder joinViaChatFolder;
     if (ychat["join_via_chat_folder"].IsDefined())
     {
@@ -248,6 +255,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->userSpamLimit = userSpamLimit;
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
+    chat->anonymousAsAdmin = anonymousAsAdmin;
     chat->joinViaChatFolder = joinViaChatFolder;
     chat->antiRaid = antiRaid;
 
@@ -367,6 +375,7 @@ void printGroupChats(GroupChat::List& chats)
         logLine << "]";
 
         logLine << "; newuser_mute: " << chat->newUserMute;
+        logLine << "; anonymous_as_admin: " << chat->anonymousAsAdmin;
 
         logLine << log_format("; join_via_chat_folder: {restrict: %?, mute: %?"
                               ", report_spam: %?}",
@@ -422,7 +431,14 @@ GroupChat::List groupChats(GroupChat::List* list)
                     newChat->setName(chatName);
 
                 if (!adminIds.isEmpty())
+                {
+                    if (newChat->anonymousAsAdmin)
+                        adminIds.insert(GROUP_ANONYMOUS_BOT_ID);
+                    else
+                        adminIds.remove(GROUP_ANONYMOUS_BOT_ID);
+
                     newChat->setAdminIds(adminIds);
+                }
 
                 if (!ownerIds.isEmpty())
                     newChat->setOwnerIds(ownerIds);

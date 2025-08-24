@@ -2030,6 +2030,19 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
         if (_stop)
             return;
 
+        if (params->funcName == "restrictChatMember"
+            && params->api["user_id"].toLongLong() == GROUP_ANONYMOUS_BOT_ID)
+        {
+            log_error_m << "GroupAnonymousBot cannot be restricted";
+            return;
+        }
+        if (params->funcName == "banChatMember"
+            && params->api["user_id"].toLongLong() == GROUP_ANONYMOUS_BOT_ID)
+        {
+            log_error_m << "GroupAnonymousBot cannot be banned";
+            return;
+        }
+
         QString urlStr = "https://api.telegram.org";
         if (_localServer)
         {
@@ -2383,6 +2396,9 @@ void Application::httpResultHandler(const ReplyData& rd)
                             botInfo = item;
                     }
 
+                if (chat->anonymousAsAdmin)
+                    adminIds.insert(GROUP_ANONYMOUS_BOT_ID);
+
                 chat->setAdminIds(adminIds);
                 chat->setOwnerIds(ownerIds);
                 chat->setAdminNames(adminNames);
@@ -2586,6 +2602,14 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
         {
             alog::Line logLine =
                 log_verbose_m << "Admin of chat cannot receive penalty";
+            userLogInfo(logLine, user, chat);
+            return;
+        }
+
+        if (user->id == GROUP_ANONYMOUS_BOT_ID)
+        {
+            alog::Line logLine =
+                log_verbose_m << "GroupAnonymousBot cannot receive penalty";
             userLogInfo(logLine, user, chat);
             return;
         }

@@ -58,6 +58,9 @@ public:
     // равно -1
     qint32 newUserMute = {-1};
 
+    // Интерпретировать GroupAnonymousBot как администратора
+    bool anonymousAsAdmin = {true};
+
     struct JoinViaChatFolder
     {
         // Запрещает присоединение к группе
