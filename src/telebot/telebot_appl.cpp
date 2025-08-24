@@ -2702,6 +2702,13 @@ void Application::reportSpam(qint64 chatId, const tbot::User::Ptr& user)
                 continue;
             }
 
+            QSet<qint64> adminIds = chat->adminIds();
+            if (adminIds.contains(spammer->user->id))
+            {
+                // Случай, когда "спамер" стал админом
+                continue;
+            }
+
             // Блокировка пользователя
             if (spammer->spamTimes.count() >= chat->userSpamLimit)
             {
