@@ -2030,17 +2030,40 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
         if (_stop)
             return;
 
-        if (params->funcName == "restrictChatMember"
-            && params->api["user_id"].toLongLong() == GROUP_ANONYMOUS_BOT_ID)
-        {
-            log_error_m << "GroupAnonymousBot cannot be restricted";
-            return;
-        }
         if (params->funcName == "banChatMember"
-            && params->api["user_id"].toLongLong() == GROUP_ANONYMOUS_BOT_ID)
+            && params->funcName == "restrictChatMember")
         {
-            log_error_m << "GroupAnonymousBot cannot be banned";
-            return;
+            qint64 chatId = params->api["chat_id"].toLongLong();
+            qint64 userId = params->api["user_id"].toLongLong();
+
+            tbot::GroupChat::List chats = tbot::groupChats();
+            if (tbot::GroupChat* chat = chats.findItem(&chatId))
+            {
+                QSet<qint64> ownerIds = chat->ownerIds();
+                if (ownerIds.contains(userId))
+                {
+                    log_error_m << log_format(
+                        "Prohibited call the function %? for owner of chat %?/%?",
+                        params->funcName, userId, chatId);
+                    return;
+                }
+
+                QSet<qint64> adminIds = chat->adminIds();
+                if (adminIds.contains(userId))
+                {
+                    log_error_m << log_format(
+                        "Prohibited call the function %? for admin of chat %?/%?",
+                        params->funcName, userId, chatId);
+                    return;
+                }
+            }
+            if (userId  == GROUP_ANONYMOUS_BOT_ID)
+            {
+                log_error_m << log_format(
+                    "Prohibited call the function %? for GroupAnonymousBot",
+                    params->funcName);
+                return;
+            }
         }
 
         QString urlStr = "https://api.telegram.org";
