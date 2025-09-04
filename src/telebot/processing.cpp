@@ -1113,8 +1113,8 @@ void Processing::run()
                     u8"\r\n---"
                     u8"%2"
                     u8"\r\nПричина удаления сообщения"
-                    u8"%3%4;"
-                    u8"\r\nтриггер: %5";
+                    u8"%3%4."
+                    u8"\r\nТриггер: %5";
 
                 QString msgText = (isBioMessage)
                                   ? msgData->bio.messageOrigin
@@ -1208,8 +1208,8 @@ void Processing::run()
                             u8"\r\n%1"
                             u8"\r\n---"
                             u8"\r\nПричина блокировки"
-                            u8"%2%3;"
-                            u8"\r\nтриггер: %4";
+                            u8"%2%3."
+                            u8"\r\nТриггер: %4";
 
                         QString reasonMessage = trigger->activationReasonMessage;
                         reasonMessage.replace("_", "\\_");
