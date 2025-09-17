@@ -372,7 +372,11 @@ bool TriggerRegexp::isActive(const Update& update, GroupChat* chat,
                 ". Regular expression '%?' matched. Captured text: ",
                 update.update_id, chat->name(), name, re.pattern());
             for (const QString& cap : match.capturedTexts())
-                logLine << cap << "; ";
+            {
+                logLine << cap;
+                if (match.capturedTexts().count() > 1)
+                    logLine << "; ";
+            }
 
             activationReasonMessage = u8"\r\nфраза: " + match.capturedTexts()[0];
             return true;

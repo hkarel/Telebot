@@ -575,6 +575,12 @@ void Processing::run()
             return text;
         };
 
+        auto chopDot = [](QString& s)
+        {
+            if (!s.isEmpty() && (s[s.count() - 1]) == QChar('.'))
+                s.chop(1);
+        };
+
         for (int i = 0; i < users.count(); ++i)
         {
             User::Ptr user = users[i];
@@ -1124,9 +1130,12 @@ void Processing::run()
                 if (isBioMessage)
                     bioText = u8"\r\nBIO: " + message->text;
 
+                QString reasonMessage = trigger->activationReasonMessage;
+                chopDot(reasonMessage);
+
                 botMsg = botMsg.arg(msgText)
                                .arg(bioText)
-                               .arg(trigger->activationReasonMessage)
+                               .arg(reasonMessage)
                                .arg(isBioMessage ? u8" [в BIO]" : u8"")
                                .arg(trigger->name);
 
@@ -1213,6 +1222,7 @@ void Processing::run()
 
                         QString reasonMessage = trigger->activationReasonMessage;
                         reasonMessage.replace("_", "\\_");
+                        chopDot(reasonMessage);
 
                         QString triggerName = trigger->name;
                         triggerName.replace("_", "\\_");
