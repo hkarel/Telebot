@@ -28,6 +28,8 @@ struct trigger_logic_error : public std::logic_error
     explicit trigger_logic_error(const string& msg) : std::logic_error(msg) {}
 };
 
+thread_local QString Trigger::activationReasonMessage;
+
 void Trigger::assign(const Trigger& trigger)
 {
     name           = trigger.name;

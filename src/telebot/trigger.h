@@ -82,7 +82,7 @@ struct Trigger : public clife_base
 
     // Содержит текстовую информацию о причине активации триггера, используется
     // для объяснения причины удаления телеграм-сообщения
-    mutable QString activationReasonMessage;
+    static thread_local QString activationReasonMessage;
 
     // Проверяет сообщение на соответствие критериям фильтрации.
     // Параметр Text содержит текстовое сообщение с удаленными линками
