@@ -279,10 +279,18 @@ void Application::deinit()
         saveBotCommands(spam_user, timemark);
 }
 
+//static int testvlg = 0;
+
 void Application::timerEvent(QTimerEvent* event)
 {
     if (event->timerId() == _stopTimerId)
     {
+//        if (testvlg++ > 60)
+//        {
+//            exit(_exitCode);
+//            return;
+//        }
+
         if (_stop)
         {
             KILL_TIMER(_stopTimerId)

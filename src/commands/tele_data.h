@@ -232,7 +232,7 @@ struct Chat : clife_base
     bool           has_protected_content    = {false}; // Optional. True, if messages from the chat can't be forwarded to other chats. Returned only in getChat.
     QString        sticker_set_name;                   // Optional. For supergroups, name of group sticker set. Returned only in getChat.
     bool           can_set_sticker_set      = {false}; // Optional. True, if the bot can change the group sticker set. Returned only in getChat.
-    qint64         linked_chat_id;                     // Optional. Unique identifier for the linked chat, i.e. the discussion group identifier for a channel and vice versa; for supergroups and channel chats. This identifier may be greater than 32 bits and some programming languages may have difficulty/silent defects in interpreting it. But it is smaller than 52 bits, so a signed 64 bit integer or double-precision float type are safe for storing this identifier. Returned only in getChat.
+    qint64         linked_chat_id           = {0};     // Optional. Unique identifier for the linked chat, i.e. the discussion group identifier for a channel and vice versa; for supergroups and channel chats. This identifier may be greater than 32 bits and some programming languages may have difficulty/silent defects in interpreting it. But it is smaller than 52 bits, so a signed 64 bit integer or double-precision float type are safe for storing this identifier. Returned only in getChat.
   //ChatLocatPtr   location;                           // Optional. For supergroups, the location to which the supergroup is connected. Returned only in getChat.
 
     DECLARE_J_SERIALIZE_FUNC
@@ -290,9 +290,9 @@ struct Video : clife_base
 
     QString file_id;         // Identifier for this file, which can be used to download or reuse the file
     QString file_unique_id;  // Unique identifier for this file, which is supposed to be the same over time and for different bots. Can't be used to download or reuse the file.
-    qint32  width = {0};     // Video width as defined by sender
-    qint32  height = {0};    // Video height as defined by sender
-    qint32  duration = {0};  // Duration of the video in seconds as defined by sender
+    qint32  width     = {0}; // Video width as defined by sender
+    qint32  height    = {0}; // Video height as defined by sender
+    qint32  duration  = {0}; // Duration of the video in seconds as defined by sender
   //PhotoSize thumbnail;     // Optional. Video thumbnail
     QString file_name;       // Optional. Original filename as defined by sender
     QString mime_type;       // Optional. MIME type of the file as defined by sender

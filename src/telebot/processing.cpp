@@ -1006,7 +1006,8 @@ void Processing::run()
             QString usernameText = QString(" %1 %2 %3")
                                           .arg(user->first_name)
                                           .arg(user->last_name)
-                                          .arg(user->username).trimmed();
+                                          .arg(user->username);
+            usernameText = usernameText.trimmed();
 
             if (messageForwardOrigin
                 && messageForwardOrigin->type == "user"
