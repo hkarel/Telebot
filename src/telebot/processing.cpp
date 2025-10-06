@@ -1505,9 +1505,12 @@ void Processing::run()
 
             if (isNewUser && !isBioMessage && !userBanned)
             {
-                // Ограничение пользователя на два и более часа, если он в течении
-                // одной минуты подключается к нескольким группам
-                emit restrictNewUser(chatId, user->id, chat->newUserMute);
+                if (!joinViaChatFolder || !chat->joinViaChatFolder.mute)
+                {
+                    // Ограничение пользователя на два и более  часа,  если  он
+                    // в течении одной минуты подключается к нескольким группам
+                    emit restrictNewUser(chatId, user->id, chat->newUserMute);
+                }
 
                 // Отслеживаем время вступления пользователя в группу
                 userJoinTimes().add(chatId, user->id, joinViaChatFolder);
