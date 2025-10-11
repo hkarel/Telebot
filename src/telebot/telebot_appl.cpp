@@ -1387,13 +1387,14 @@ void Application::webhook_readyRead()
                                                  " in config. It skipped", chatId);
 
                         if (_spamIsActive && !_spamMessage.isEmpty())
-                        {
-                            auto params = tbot::tgfunction("sendMessage");
-                            params->api["chat_id"] = chatId;
-                            params->api["text"] = _spamMessage;
-                            params->messageDel = -1;
-                            sendTgCommand(params);
-                        }
+                            if (_reloadConfigTime.secsTo(QDateTime::currentDateTimeUtc()) > 15*60 /*15 мин*/)
+                            {
+                                auto params = tbot::tgfunction("sendMessage");
+                                params->api["chat_id"] = chatId;
+                                params->api["text"] = _spamMessage;
+                                params->messageDel = -1;
+                                sendTgCommand(params);
+                            }
                     }
                 }
 
@@ -1657,6 +1658,8 @@ void Application::http_sslErrors(const QList<QSslError>&)
 
 void Application::reloadConfig()
 {
+    _reloadConfigTime = QDateTime::currentDateTimeUtc();
+
     QString masterModeStr;
     config::base().getValue("bot.work_mode", masterModeStr);
 
@@ -1801,6 +1804,8 @@ void Application::reloadGroup(qint64 chatId, bool botCommand)
 
 void Application::reloadGroups(const QString& configFile)
 {
+    _reloadConfigTime = QDateTime::currentDateTimeUtc();
+
     QFileInfo configInfo {configFile};
     if (configInfo.fileName() != "telebot.groups")
         return;

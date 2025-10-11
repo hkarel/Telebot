@@ -196,6 +196,8 @@ private:
     QDateTime _botStartTime;       // Время старта бота
     QDateTime _masterStartTime;    // Время старта master-бота, используется
                                    // в slave-режиме
+    QDateTime  _reloadConfigTime;  // Время последней перезагрузки конфиг-файла
+
     FunctionInvoker _funcInvoker;
 
     struct Spammer
