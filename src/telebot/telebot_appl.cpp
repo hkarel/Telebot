@@ -1818,6 +1818,13 @@ void Application::reloadGroups(const QString& configFile)
         if (_printTriggers)
             tbot::printTriggers(triggers);
 
+        if (triggers.empty())
+        {
+            log_error_m << "---";
+            log_error_m << "Triggers list is empty";
+            log_error_m << "---";
+            return;
+        }
         tbot::triggers(&triggers);
     }
 
@@ -1830,6 +1837,13 @@ void Application::reloadGroups(const QString& configFile)
         if (_printGroupChats)
             tbot::printGroupChats(chats);
 
+        if (chats.empty())
+        {
+            log_error_m << "---";
+            log_error_m << "Chats list is empty";
+            log_error_m << "---";
+            return;
+        }
         tbot::groupChats(&chats);
         oldChats.swap(chats);
     }
