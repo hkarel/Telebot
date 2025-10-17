@@ -497,6 +497,7 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
     qint64 userId = text_[TextType::UserId].toLongLong();
     qint64 forwardUserId = text_[TextType::FrwdUserId].toLongLong();
     qint64 forwardChatId = text_[TextType::FrwdChatId].toLongLong();
+    qint64 personalChatId = text_[TextType::PersChatId].toLongLong();
 
     for (const Group& group : groups)
     {
@@ -533,6 +534,18 @@ bool TriggerBlackUser::isActive(const Update& update, GroupChat* chat,
 
             activationReasonMessage =
                 QString(u8": forward-чат/канал %1 в черном списке ➞ (%2)")
+                       .arg(forwardChatId).arg(group.description);
+            return true;
+        }
+        if (group.chatIds.contains(personalChatId))
+        {
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The personal-channel id '%?' was found",
+                update.update_id, chat->name(), name, forwardChatId);
+
+            activationReasonMessage =
+                QString(u8": personal-канал %1 в черном списке ➞ (%2)")
                        .arg(forwardChatId).arg(group.description);
             return true;
         }

@@ -27,6 +27,7 @@ struct Trigger : public clife_base
         IsPremium,
         FrwdUserId, // Forward UserId
         FrwdChatId, // Forward ChatId
+        PersChatId, // Personal ChatId
         UserName,
         FileMime,
         UrlLinks,

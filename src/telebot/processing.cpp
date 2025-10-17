@@ -1060,6 +1060,7 @@ void Processing::run()
                                        .arg(message->personal_chat->last_name)
                                        .arg(message->personal_chat->username);
                 usernameText = usernameText.trimmed();
+                triggerText[Trigger::TextType::PersChatId] = message->personal_chat->id;
             }
             if (message->via_bot)
             {
