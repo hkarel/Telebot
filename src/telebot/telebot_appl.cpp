@@ -419,6 +419,9 @@ void Application::timerEvent(QTimerEvent* event)
                             "Chat: %?. Anti-Raid mode is active, user %?/%?/@%?/%? added to ban list",
                             chat->name(), user->first_name, user->last_name, user->username, user->id);
 
+                        // Добавляем пользователя в спам-список бота
+                        tbot::spamUsers().add(user->id);
+
                         user->add_ref();
                         antiRaid->usersBan.add(user);
                     }
@@ -2880,10 +2883,14 @@ void Application::antiRaidUser(qint64 chatId, const tbot::User::Ptr& user)
         if (fr.failed())
         {
             if (chat->antiRaidTurnOn)
+            {
                 log_verbose_m << log_format(
                     "Chat: %?. Anti-Raid mode is active, user %?/%?/@%?/%? added to ban list",
                     chat->name(), user->first_name, user->last_name, user->username, user->id);
 
+                // Добавляем пользователя в спам-список бота
+                tbot::spamUsers().add(user->id);
+            }
             user->add_ref();
             users->addInSort(user, fr);
         }
