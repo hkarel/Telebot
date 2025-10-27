@@ -36,18 +36,24 @@ fi
 #
 # Назначение прав на рабочие директории
 #
-chown -R root:$group_name  /etc/$product_dir
-chmod -R ug=rwX,o=rX       /etc/$product_dir
+chown -R root:$group_name        /etc/$product_dir
+chmod -R ug=rwX,o=rX             /etc/$product_dir
 
-chown -R root:$group_name  /var/opt/$product_dir
-chmod -R ug=rwX,o=rX       /var/opt/$product_dir
+chown -R root:$group_name        /var/opt/$product_dir/log
+chmod -R ug=rwX,o=rX             /var/opt/$product_dir/log
+
+chown    root:$group_name        /var/opt/$product_dir/state
+chmod    ug=rwX,o=rX             /var/opt/$product_dir/state
+
+chown    $SUDO_USER:$group_name  /var/opt/$product_dir/state/*
+chmod    u=rwX,og=rX             /var/opt/$product_dir/state/*
 
 #
 # Регистрация systemd-сервиса
 #
 sed -e "s/%TARGET_USER%/$SUDO_USER/" \
     -i /etc/systemd/system/$service_name
-    
+
 # sed -e "s/%TARGET_USER%/root/" \
 #     -i /etc/systemd/system/$service_name
 
