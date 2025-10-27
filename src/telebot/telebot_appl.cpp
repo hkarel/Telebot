@@ -1016,10 +1016,18 @@ void Application::command_ConfSync(const Message::Ptr& message)
 
     config::observer().stop();
 
+    if (QFile::exists(configFileS))
+        if (!QFile::remove(configFileS))
+        {
+            log_error_m << "Failed remove old groups config file: " << configFileS;
+            config::observer().start();
+            return;
+        }
+
     QFile file {configFileS};
     if (!file.open(QIODevice::WriteOnly))
     {
-        log_error_m << "Failed open to save config file: " << configFileS;
+        log_error_m << "Failed open to save groups config file: " << configFileS;
         config::observer().start();
         return;
     }
@@ -3195,6 +3203,14 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         QString stateFile;
         config::base().getValue("user_join_time.file", stateFile);
 
+        if (QFile::exists(stateFile))
+            if (!QFile::remove(stateFile))
+            {
+                log_error_m << "Failed remove old User-Join state file: "
+                            << stateFile;
+                return;
+            }
+
         QFile file {stateFile};
         if (!file.open(QIODevice::WriteOnly))
         {
@@ -3216,6 +3232,14 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
         QString stateFile;
         config::base().getValue("white_user.file", stateFile);
 
+        if (QFile::exists(stateFile))
+            if (!QFile::remove(stateFile))
+            {
+                log_error_m << "Failed remove old White-User state file: "
+                            << stateFile;
+                return;
+            }
+
         QFile file {stateFile};
         if (!file.open(QIODevice::WriteOnly))
         {
@@ -3236,6 +3260,14 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
 
         QString stateFile;
         config::base().getValue("spam_user.file", stateFile);
+
+        if (QFile::exists(stateFile))
+            if (!QFile::remove(stateFile))
+            {
+                log_error_m << "Failed remove old Spam-User state file: "
+                            << stateFile;
+                return;
+            }
 
         QFile file {stateFile};
         if (!file.open(QIODevice::WriteOnly))
