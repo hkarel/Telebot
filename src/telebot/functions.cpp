@@ -200,7 +200,7 @@ void SpamUserList::removeByTime()
 {
     QMutexLocker locker {&_mutex}; (void) locker;
 
-    const qint64 diff = 60*24*60*60; // 60 суток
+    const qint64 diff = 90*24*60*60; // 90 суток
     const qint64 threshold = std::time(nullptr) - diff;
     _list.removeCond([threshold, this](data::SpamUser* su) -> bool
     {
