@@ -117,6 +117,7 @@ Application::Application(int& argc, char** argv)
     FUNC_REGISTRATION(UserJoinTimeSync)
     FUNC_REGISTRATION(WhiteUserSync)
     FUNC_REGISTRATION(SpamUserSync)
+    FUNC_REGISTRATION(AntiRaidUsersBan)
 
     #undef FUNC_REGISTRATION
 
@@ -645,9 +646,8 @@ void Application::timerEvent(QTimerEvent* event)
                 continue;
 
             qint64 chatId = antiRaid->chatId;
-            if (antiRaid->usersBan.count())
+            if (tbot::User* user = antiRaid->usersBan.first())
             {
-                tbot::User* user = antiRaid->usersBan.item(0);
                 antiRaid->skipUsersBan = true;
                 antiRaid->skipUsersBanTimer.reset();
 
@@ -659,6 +659,20 @@ void Application::timerEvent(QTimerEvent* event)
                 params->isAntiRaid = true;
                 //params->delay = 30*1000; Для отладки
                 sendTgCommand(params);
+            }
+            if ((antiRaid->usersBan.count() > 20) && _masterMode)
+            {
+                if (tbot::User* user = antiRaid->usersBan.last())
+                {
+                    data::AntiRaidUsersBan antiRaidUsersBan;
+                    antiRaidUsersBan.chatId = chatId;
+                    antiRaidUsersBan.user = tbot::User::Ptr(user);
+
+                    Message::Ptr m = createJsonMessage(antiRaidUsersBan);
+                    base::Socket::List sockets = tcp::listener().sockets();
+                    if (sockets.count())
+                        sockets.item(0)->send(m);
+                }
             }
         }
 
@@ -1259,6 +1273,82 @@ void Application::command_SpamUserSync(const Message::Ptr& message)
 
             writeToJsonMessage(spamUserSync, answer);
             _slaveSocket->send(answer);
+        }
+    }
+}
+
+void Application::command_AntiRaidUsersBan(const Message::Ptr& message)
+{
+    if ((message->type() == Message::Type::Command) && !_masterMode)
+    {
+        data::AntiRaidUsersBan antiRaidUsersBan;
+        readFromMessage(message, antiRaidUsersBan);
+
+        qint64  chatId = antiRaidUsersBan.chatId;
+        tbot::User::Ptr user = antiRaidUsersBan.user;
+
+        if (user.empty())
+            return;
+
+        tbot::GroupChat::List chats = tbot::groupChats();
+        if (tbot::GroupChat* chat = chats.findItem(&chatId))
+        {
+            AntiRaid* antiRaid = _antiRaidCache.findItem(&chatId);
+            if (!antiRaid)
+            {
+                antiRaid = _antiRaidCache.add();
+                antiRaid->chatId = chatId;
+                _antiRaidCache.sort();
+            }
+
+            if (antiRaid->usersBan.sortState() != lst::SortState::Up)
+                antiRaid->usersBan.sort();
+
+            lst::FindResult fr = antiRaid->usersBan.findRef(user->id);
+            if (fr.failed())
+            {
+                log_verbose_m << log_format(
+                    "Chat: %?. Anti-Raid mode slave, user %?/%?/@%?/%? added to slave-ban list",
+                    chat->name(), user->first_name, user->last_name, user->username, user->id);
+
+                user->add_ref();
+                antiRaid->usersBan.addInSort(user, fr);
+
+                if (_slaveSocket)
+                {
+                    Message::Ptr answer = message->cloneForAnswer();
+
+                    data::AntiRaidUsersBanA antiRaidUsersBanA;
+                    antiRaidUsersBanA.chatId = chatId;
+                    antiRaidUsersBanA.userId = user->id;
+
+                    writeToJsonMessage(antiRaidUsersBanA, answer);
+                    _slaveSocket->send(answer);
+                }
+            }
+        }
+    }
+    if ((message->type() == Message::Type::Answer) && _masterMode)
+    {
+        data::AntiRaidUsersBanA antiRaidUsersBanA;
+        readFromMessage(message, antiRaidUsersBanA);
+
+        qint64 chatId = antiRaidUsersBanA.chatId;
+        qint64 userId =  antiRaidUsersBanA.userId;
+
+        tbot::GroupChat::List chats = tbot::groupChats();
+        if (tbot::GroupChat* chat = chats.findItem(&chatId))
+        {
+            if (AntiRaid* antiRaid = _antiRaidCache.findItem(&chatId))
+                if (lst::FindResult fr = antiRaid->usersBan.findRef(userId))
+                {
+                    tbot::User* user = antiRaid->usersBan.item(fr.index());
+                    log_verbose_m << log_format(
+                        "Chat: %?. Anti-Raid mode, user %?/%?/@%?/%? moved to slave-ban list",
+                        chat->name(), user->first_name, user->last_name, user->username, user->id);
+
+                    antiRaid->usersBan.remove(fr.index());
+                }
         }
     }
 }

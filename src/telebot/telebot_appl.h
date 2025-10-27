@@ -128,6 +128,7 @@ private:
     void command_UserJoinTimeSync(const Message::Ptr&);
     void command_WhiteUserSync(const Message::Ptr&);
     void command_SpamUserSync(const Message::Ptr&);
+    void command_AntiRaidUsersBan(const Message::Ptr&);
 
     void loadReportSpam();
     void saveReportSpam();

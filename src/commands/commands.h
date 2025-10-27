@@ -58,6 +58,10 @@ extern const QUuidEx WhiteUserSync;
 */
 extern const QUuidEx SpamUserSync;
 
+/**
+  Использование бота дублера для ускорения очистки группы после raid-атаки
+*/
+extern const QUuidEx AntiRaidUsersBan;
 
 } // namespace command
 
@@ -226,8 +230,8 @@ struct WhiteUser : clife_base
 {
     typedef clife_ptr<WhiteUser> Ptr;
 
-    qint64  chatId = {0};
-    qint64  userId = {0};
+    qint64 chatId = {0};
+    qint64 userId = {0};
 
     // Краткая информация о пользователе
     QString info;
@@ -305,6 +309,30 @@ struct SpamUserSync : Data<&command::SpamUserSync,
     J_SERIALIZE_BEGIN
         J_SERIALIZE_MAP_ITEM( "timemark", timemark )
         J_SERIALIZE_MAP_ITEM( "items"   , items    )
+    J_SERIALIZE_END
+};
+
+struct AntiRaidUsersBan : Data<&command::AntiRaidUsersBan,
+                                Message::Type::Command>
+{
+    qint64 chatId = {0};
+    tbot::User::Ptr user;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "chat_id", chatId )
+        J_SERIALIZE_MAP_ITEM( "user",    user   )
+    J_SERIALIZE_END
+};
+
+struct AntiRaidUsersBanA : Data<&command::AntiRaidUsersBan,
+                                 Message::Type::Answer>
+{
+    qint64 chatId = {0};
+    qint64 userId = {0};
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "chat_id", chatId )
+        J_SERIALIZE_MAP_ITEM( "user_id", userId )
     J_SERIALIZE_END
 };
 
