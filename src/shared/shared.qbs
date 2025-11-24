@@ -1,5 +1,5 @@
 import qbs
-import QbsUtl
+import qbs.FileInfo
 
 Product {
     name: "SharedLib"
@@ -15,13 +15,9 @@ Product {
     cpp.cxxFlags: project.cxxFlags //.concat(["-fPIC"])
     cpp.cxxLanguageVersion: project.cxxLanguageVersion
 
-    property var includePaths: [
-        "./",
-        "./shared",
-    ]
-    cpp.includePaths: includePaths;
+    cpp.includePaths: [".", "shared"]
 
-    // Декларация нужна для подавления Qt warning-ов
+    // Декларация для подавления Qt warning-ов
     cpp.systemIncludePaths: Qt.core.cpp.includePaths
 
     files: [
@@ -72,6 +68,9 @@ Product {
 
     Export {
         Depends { name: "cpp" }
-        cpp.includePaths: exportingProduct.includePaths
+        cpp.includePaths: [
+            FileInfo.joinPaths(exportingProduct.sourceDirectory, "."),
+            FileInfo.joinPaths(exportingProduct.sourceDirectory, "shared")
+        ]
     }
 }

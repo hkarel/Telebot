@@ -1,5 +1,5 @@
 import qbs
-import QbsUtl
+import qbs.FileInfo
 
 Product {
     name: "Commands"
@@ -18,14 +18,10 @@ Product {
     cpp.cxxFlags: project.cxxFlags
     cpp.cxxLanguageVersion: project.cxxLanguageVersion
 
-    property var includePaths: [
-        "../",
-    ]
-    cpp.includePaths: includePaths
+    cpp.includePaths: [".."]
 
-    cpp.systemIncludePaths: QbsUtl.concatPaths(
-        Qt.core.cpp.includePaths // Декларация для подавления Qt warning-ов
-    )
+    // Декларация для подавления Qt warning-ов
+    cpp.systemIncludePaths: Qt.core.cpp.includePaths
 
     files: [
         "commands.cpp",
@@ -36,6 +32,8 @@ Product {
     ]
     Export {
         Depends { name: "cpp" }
-        cpp.includePaths: exportingProduct.includePaths
+        cpp.includePaths: [
+            FileInfo.joinPaths(exportingProduct.sourceDirectory, "..")
+        ]
     }
 }

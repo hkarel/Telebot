@@ -1,4 +1,5 @@
 import qbs
+import qbs.FileInfo
 import QbsUtl
 
 Product {
@@ -20,11 +21,7 @@ Product {
     cpp.cxxFlags: project.cxxFlags
     cpp.cxxLanguageVersion: project.cxxLanguageVersion
 
-    property var includePaths: [
-        "./",
-        "./pproto",
-    ]
-    cpp.includePaths: includePaths;
+    cpp.includePaths: [".", "pproto"]
 
     cpp.systemIncludePaths: QbsUtl.concatPaths(
         Qt.core.cpp.includePaths // Декларация для подавления Qt warning-ов
@@ -72,6 +69,9 @@ Product {
 
     Export {
         Depends { name: "cpp" }
-        cpp.includePaths: exportingProduct.includePaths
+        cpp.includePaths: [
+            FileInfo.joinPaths(exportingProduct.sourceDirectory, "."),
+            FileInfo.joinPaths(exportingProduct.sourceDirectory, "pproto"),
+        ]
     }
 }
