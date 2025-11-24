@@ -17,9 +17,6 @@ Product {
 
     cpp.includePaths: [".", "shared"]
 
-    // Декларация для подавления Qt warning-ов
-    cpp.systemIncludePaths: Qt.core.cpp.includePaths
-
     files: [
         "shared/config/appl_conf.cpp",
         "shared/config/appl_conf.h",

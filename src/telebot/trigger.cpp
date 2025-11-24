@@ -1528,8 +1528,8 @@ void printTriggers(Trigger::List& triggers)
 
                 nextCommaVal2 = false;
                 logLine << "{days: [";
-                QList<int> dayset = day.daysOfWeek.toList();
-                qSort(dayset.begin(), dayset.end());
+                QList<int> dayset = day.daysOfWeek.values();
+                std::sort(dayset.begin(), dayset.end());
                 for (int ds : dayset)
                     logLine << nextComma2() << ds;
                 logLine << "], ";

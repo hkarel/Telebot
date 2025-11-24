@@ -20,9 +20,6 @@ Product {
 
     cpp.includePaths: [".."]
 
-    // Декларация для подавления Qt warning-ов
-    cpp.systemIncludePaths: Qt.core.cpp.includePaths
-
     files: [
         "commands.cpp",
         "commands.h",
