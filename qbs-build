@@ -147,10 +147,10 @@ function check_need_package()
 }
 
 need_packages=
-check_need_package 'build-essential'
-#check_need_package 'libpq-dev'
 
+if [ "$os_id" = "ubuntu" -a "$os_ver" \< "23.10" ]; then
 check_need_package 'qt5-default'
+fi
 check_need_package 'qt5-qmake'
 check_need_package 'qtbase5-dev'
 check_need_package 'qtbase5-dev-tools'

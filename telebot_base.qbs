@@ -6,7 +6,7 @@ Project {
     qbsSearchPaths: ["qbs"]
 
     property bool useSodium: true
-    property string sodiumVersion: "1.0.18"
+    property string sodiumVersion: "1.0.20"
 
     readonly property var projectVersion: projectProbe.projectVersion
     readonly property string projectGitRevision: projectProbe.projectGitRevision

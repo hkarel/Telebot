@@ -37,8 +37,7 @@ Product {
     ]
 
     cpp.systemIncludePaths: QbsUtl.concatPaths(
-        Qt.core.cpp.includePaths // Декларация для подавления Qt warning-ов
-       ,lib.sodium.includePath
+        lib.sodium.includePath
     )
 
     cpp.dynamicLibraries: QbsUtl.concatPaths(

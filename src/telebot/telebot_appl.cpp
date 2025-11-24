@@ -1357,20 +1357,20 @@ void Application::webhook_newConnection()
 {
     QSslSocket* socket = qobject_cast<QSslSocket*>(_webhookServer->nextPendingConnection());
 
-    chk_connect_a(socket, &QSslSocket::readyRead,
-                  this,   &Application::webhook_readyRead);
+    chk_connect_a(socket, &QSslSocket::readyRead,    this, &Application::webhook_readyRead);
+    chk_connect_a(socket, &QSslSocket::disconnected, this, &Application::webhook_disconnected);
 
-    chk_connect_a(socket, &QSslSocket::disconnected,
-                  this,   &Application::webhook_disconnected);
-
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    chk_connect_a(socket, &QSslSocket::errorOccurred, this, &Application::webhook_socketError);
+#else
     chk_connect_a(socket, qOverload<QAbstractSocket::SocketError>(&QSslSocket::error),
                   this,   &Application::webhook_socketError);
+#endif
 
     chk_connect_a(socket, qOverload<const QList<QSslError>& >(&QSslSocket::sslErrors),
                   this,   &Application::webhook_sslSocketError);
 
-    chk_connect_a(socket, &QSslSocket::encrypted,
-                  this,   &Application::webhook_readyConnection);
+    chk_connect_a(socket, &QSslSocket::encrypted, this, &Application::webhook_readyConnection);
 
     if (!_localServer)
     {
@@ -2216,9 +2216,12 @@ void Application::sendTgCommand(const tbot::TgParams::Ptr& params)
         chk_connect_a(reply, &QIODevice::readyRead,    this, &Application::http_readyRead);
         chk_connect_a(reply, &QNetworkReply::finished, this, &Application::http_finished);
 
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+        chk_connect_a(reply, &QNetworkReply::errorOccurred, this, &Application::http_error);
+#else
         chk_connect_a(reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::error),
                       this,  &Application::http_error);
-
+#endif
         chk_connect_a(reply, &QNetworkReply::sslErrors, this, &Application::http_sslErrors);
         chk_connect_a(reply, &QNetworkReply::encrypted, this, &Application::http_encrypted);
 
@@ -3634,7 +3637,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     {
                         botMsg = u8"Слова <i>%1</i> зарезервированы, "
                                  u8"они используются для обозначения спам-сообщений";
-                        QStringList sl {spamNotify.toList()}; sl.sort();
+                        QStringList sl {spamNotify.values()}; sl.sort();
                         botMsg = botMsg.arg(sl.join(QChar(' ')));
 
                         auto params = tbot::tgfunction("sendMessage");
@@ -3775,8 +3778,11 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         static QRegularExpression reSpaces {"[\\s\\.]", patternOpt};
         actionLine.replace(reSpaces, QChar(' '));
 
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+        QStringList lines = actionLine.split(QChar(' '), Qt::SkipEmptyParts);
+#else
         QStringList lines = actionLine.split(QChar(' '), QString::SkipEmptyParts);
-
+#endif
         auto printCommandsInfo = [&]()
         {
             botMsg =
@@ -3947,9 +3953,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     bool first = true;
                     for (const tbot::TriggerTimeLimit::Day& day : trg->week)
                     {
-                        QList<int> dayset = day.daysOfWeek.toList();
-                        qSort(dayset.begin(), dayset.end());
-
+                        QList<int> dayset = day.daysOfWeek.values();
+                        std::sort(dayset.begin(), dayset.end());
                         botMsg += u8"\r\n    Дни:";
                         for (int ds : dayset)
                             botMsg += " " + QString::number(ds);
@@ -4202,7 +4207,11 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     return false;
                 }
 
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+                QStringList triggerKeys = actions[0].split(QChar(','), Qt::SkipEmptyParts);
+#else
                 QStringList triggerKeys = actions[0].split(QChar(','), QString::SkipEmptyParts);
+#endif
                 triggerKeys.sort(Qt::CaseInsensitive);
                 for (const QString& key : triggerKeys)
                 {
@@ -4210,7 +4219,7 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     {
                         botMsg = u8"Слова <i>%1</i> зарезервированы, "
                                  u8"их нельзя использоваться в качестве имени триггера";
-                        QStringList sl {vaCmdShorts.toList()}; sl.sort();
+                        QStringList sl {vaCmdShorts.values()}; sl.sort();
                         botMsg = botMsg.arg(sl.join(QChar(' ')));
 
                         sendMessage(botMsg);
