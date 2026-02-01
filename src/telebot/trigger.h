@@ -294,6 +294,36 @@ struct TriggerEmptyText : public Trigger
     void assign(const TriggerEmptyText&);
 };
 
+struct TriggerBigId : public Trigger
+{
+    typedef clife_ptr<TriggerBigId> Ptr;
+
+    TriggerBigId() = default;
+    DISABLE_DEFAULT_COPY(TriggerBigId)
+
+    struct UserLimit
+    {
+        // Запретить новому пользователю публиковать сообщения без текста на за-
+        // данное количество часов. Ограничение не накладывается  если  значение
+        // параметра меньше или равно 0
+        int time = {-1};
+
+        // Запретить пользователю публиковать сообщения  без  текста  если  его
+        // идентификатор  больше  или  равен  значению  thresh_id.  Ограничение
+        // не накладывается если значение параметра меньше или равно 0
+        qint64 threshId = {-1};
+
+        // // Запретить пользователю с преимум-аккаунтом публиковать сообщения без
+        // // текста. Значение параметра по умолчанию равно FALSE
+        // bool premium = {false};
+    };
+    UserLimit userLimit;
+
+    bool isActive(const tbot::Update&, GroupChat*, const Text&) const override;
+
+    void assign(const TriggerBigId&);
+};
+
 const char* yamlTypeName(YAML::NodeType::value type);
 
 bool loadTriggers(Trigger::List&, const YamlConfig&);

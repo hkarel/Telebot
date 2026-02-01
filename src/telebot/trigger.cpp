@@ -753,6 +753,61 @@ void TriggerEmptyText::assign(const TriggerEmptyText& trigger)
     userLimit = trigger.userLimit;
 }
 
+bool TriggerBigId::isActive(const Update& update, GroupChat* chat,
+                                const Text& text_) const
+{
+    activationReasonMessage.clear();
+
+    qint64 userId = text_[TextType::UserId].toLongLong();
+
+    if (userLimit.threshId > 0
+        && userId >= userLimit.threshId
+        && userLimit.time > 0)
+    {
+        data::UserJoinTime::Ptr ujt = userJoinTimes().find(tuple{chat->id, userId});
+        if (ujt.empty())
+            return false;
+
+        qint64 curTime = std::time(nullptr);
+        qint64 limitTime = ujt->time + userLimit.time * 60*60;
+        qint64 diffTime = limitTime - curTime;
+
+        if (diffTime > 0)
+        {
+            int remainHours = 0;
+            int remainMinutes = 0;
+            if (diffTime > 60*60)
+            {
+                remainHours   = diffTime / (60*60);
+                remainMinutes = diffTime % (60*60) / 60;
+            }
+            else
+                remainMinutes = diffTime / 60;
+
+            QString messageStr =
+                u8": идентификатор пользователя превышает пороговое значение %1."
+                u8"\r\nОграничения на публикацию %2 часа(ов), истекает через %3 час. %4 мин";
+            activationReasonMessage = messageStr.arg(userLimit.threshId)
+                                                .arg(userLimit.time)
+                                                .arg(remainHours)
+                                                .arg(remainMinutes);
+            log_verbose_m << log_format(
+                "\"update_id\":%?. Chat: %?. Trigger '%?' activated"
+                ". The user big id. User limits: time %?, thresh_id %?",
+                update.update_id, chat->name(), name, userLimit.time, userLimit.threshId);
+
+            return true;
+        }
+    }
+    return false;
+}
+
+void TriggerBigId::assign(const TriggerBigId& trigger)
+{
+    Trigger::assign(trigger);
+    userLimit = trigger.userLimit;
+}
+
 const char* yamlTypeName(YAML::NodeType::value type)
 {
     switch (int(type))
@@ -815,12 +870,13 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         && type != "regexp"
         && type != "timelimit"
         && type != "blackuser"
-        && type != "emptytext")
+        && type != "emptytext"
+        && type != "big_id")
     {
         throw trigger_logic_error(
             "In a 'trigger' node a field 'type' can take one of the following "
             "values: link_enable, link_disable/link, word, regexp, timelimit, "
-            "blackuser, emptytext. "
+            "blackuser, emptytext, big_id. "
             "Current value: " + type.toStdString());
     }
 
@@ -1201,6 +1257,30 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
         }
     }
 
+    optional<TriggerBigId::UserLimit> userLimitBigO;
+    if (ytrigger["user_limit"].IsDefined())
+    {
+        userLimitBigO = TriggerBigId::UserLimit();
+        checkFiedType(ytrigger, "user_limit", YAML::NodeType::Map);
+        const YAML::Node& yuserlimit = ytrigger["user_limit"];
+
+        if (yuserlimit["time"].IsDefined())
+        {
+            checkFiedType(yuserlimit, "time", YAML::NodeType::Scalar);
+            userLimitBigO->time = yuserlimit["time"].as<int>();
+        }
+        if (yuserlimit["thresh_id"].IsDefined())
+        {
+            checkFiedType(yuserlimit, "thresh_id", YAML::NodeType::Scalar);
+            userLimitBigO->threshId = yuserlimit["thresh_id"].as<int64_t>();
+        }
+        // if (yuserlimit["premium"].IsDefined())
+        // {
+        //     checkFiedType(yuserlimit, "premium", YAML::NodeType::Scalar);
+        //     userLimitO->premium = yuserlimit["premium"].as<bool>();
+        // }
+    }
+
     auto assignValue = [](auto& dest, const auto& source)
     {
         if (source) dest = source.value();
@@ -1337,6 +1417,16 @@ Trigger::Ptr createTrigger(const YAML::Node& ytrigger, Trigger::List& triggers)
 
         assignValue(triggerEmptyText->userLimit, userLimitO);
         trigger = triggerEmptyText;
+    }
+    else if (type == "big_id")
+    {
+        TriggerBigId::Ptr triggerBigId {new TriggerBigId};
+
+        if (TriggerBigId* t = dynamic_cast<TriggerBigId*>(baseTrigger))
+            triggerBigId->assign(*t);
+
+        assignValue(triggerBigId->userLimit, userLimitBigO);
+        trigger = triggerBigId;
     }
 
     if (trigger)
@@ -1608,6 +1698,15 @@ void printTriggers(Trigger::List& triggers)
                                   triggerEmptyTxt->userLimit.time,
                                   triggerEmptyTxt->userLimit.threshId,
                                   triggerEmptyTxt->userLimit.premium);
+        }
+        else if (TriggerBigId* triggerBigId = dynamic_cast<TriggerBigId*>(trigger))
+        {
+            logLine << "; type: big_id"
+                    << "; active: " << triggerBigId->active;
+
+            logLine << log_format("; user_limit: {time: %?, thresh_id: %?}",
+                                  triggerBigId->userLimit.time,
+                                  triggerBigId->userLimit.threshId);
         }
 
         logLine << "; skip_admins: " << trigger->skipAdmins;
