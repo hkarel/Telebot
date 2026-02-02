@@ -61,6 +61,18 @@ package_depends=$(cat <<-EOS
 EOS
 )
 
+if [ "$os_ver" = "24.04" ]; then
+	package_depends=$(cat <<-EOS
+		libc6, systemd, libqt5core5a, libqt5network5t64
+	EOS
+    )
+elif [ "$os_ver" = "20.04" ]; then
+	package_depends=$(cat <<-EOS
+		libc6, systemd, libqt5core5a, libqt5network5
+	EOS
+    )
+fi
+
 os_arch_control=$os_arch
 [ "${os_arch:0:3}" = "arm" ] && os_arch_control=armhf
 
