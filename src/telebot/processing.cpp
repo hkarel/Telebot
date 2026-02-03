@@ -1193,7 +1193,7 @@ void Processing::run()
                 return true;
             };
 
-            auto banUserTrg = [&](Trigger* trigger)
+            auto banUserTrg = [&](Trigger* trigger) -> bool
             {
                 if (isNewUser)
                 {
@@ -1250,6 +1250,8 @@ void Processing::run()
                         params2->api["parse_mode"] = "Markdown";
                         params2->delay = 500 /*0.5 сек*/;
                         emit sendTgCommand(params2);
+
+                        return true;
                     }
                     else
                     {
@@ -1271,6 +1273,8 @@ void Processing::run()
                         params->api["revoke_messages"] = true;
                         params->delay = 3*1000 /*3 сек*/;
                         emit sendTgCommand(params);
+
+                        return true;
                     }
                     else if (trigger->reportSpam)
                     {
@@ -1298,6 +1302,7 @@ void Processing::run()
                         }
                     }
                 }
+                return false;
             };
 
             bool messageDeleted = false;
@@ -1377,8 +1382,7 @@ void Processing::run()
 
                 if (botInfo && botInfo->can_restrict_members)
                 {
-                    banUserTrg(trigger);
-                    userBanned = true;
+                    userBanned = banUserTrg(trigger);
                 }
                 else
                 {
@@ -1427,9 +1431,6 @@ void Processing::run()
                             update.update_id, chat->name(),
                             user->first_name, user->last_name, user->username, user->id,
                             restrictTime / 60);
-
-                        // Отслеживаем время вступления пользователя в группу
-                        userJoinTimes().add(chatId, user->id, joinViaChatFolder);
 
                         ChatPermissions chatPermissions;
                         QByteArray permissions = chatPermissions.toJson();
