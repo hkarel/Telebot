@@ -3552,8 +3552,9 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         sendTgCommand(params);
     };
 
-    auto sendMessage = [this, chatId](QString msg, QString parseMode = "HTML",
-                                      bool messageDel = true, qint32 replyMsgId = -1)
+    auto sendMessage = [this, chatId] (QString msg, QString parseMode = "HTML",
+                                       bool messageDelete = true, qint32 replyMsgId = -1,
+                                       int messageDelay = 1.5*1000 /*1.5 сек*/)
     {
         // Исключаем из замены html-теги <b> </b> <i> </i> <s> </s> <u> </u>
         static QRegularExpression re1 {R"(<(?!([bisu]>|\/[bisu]>)))"};
@@ -3574,8 +3575,8 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
         params->api["chat_id"] = chatId;
         params->api["text"] = msg;
         params->api["parse_mode"] = parseMode;
-        params->delay = 1.5*1000 /*1.5 сек*/;
-        params->messageDel = (messageDel) ? 0 : -1;
+        params->delay = messageDelay;
+        params->messageDel = (messageDelete) ? 0 : -1;
 
         if (replyMsgId > 0)
             params->api["reply_to_message_id"] = replyMsgId;
@@ -4499,9 +4500,10 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                     botMsg += u8"\r\n-"
                               u8"\r\nПусто";
 
-                sendMessage(botMsg, "Markdown");
+                sendMessage(botMsg, "Markdown", true, -1, 1*1000 /*1 сек*/ );
 
-                botMsg = u8"Белый список пользователей группы (список админов)";
+                const char* botMsg0 = u8"Белый список пользователей группы (список админов)";
+                botMsg = botMsg0;
                 data::WhiteUser::List whiteUsers = tbot::whiteUsers().chatList(chatId);
                 if (whiteUsers.count())
                     for (int i = 0; i < whiteUsers.count(); ++i)
@@ -4518,6 +4520,13 @@ bool Application::botCommand(const tbot::MessageData::Ptr& msgData)
                                  .arg(stringUserInfo(wu->admin, true))
                                  .arg(time.toString("dd.MM.yy HH:mm:ss"));
                         botMsg += str;
+
+                        if (botMsg.length() > 3500)
+                        {
+                            sendMessage(botMsg, "Markdown");
+                            botMsg = botMsg0;
+                            QThread::msleep(100);
+                        }
                     }
                 else
                     botMsg += u8"\r\n-"
