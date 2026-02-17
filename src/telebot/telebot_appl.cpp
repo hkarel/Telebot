@@ -1957,13 +1957,13 @@ void Application::reloadGroups(const QString& configFile)
     if (tbot::globalConfigParceErrors == 0)
     {
         log_info_m << "---";
-        log_info_m << "Success parse groups config-file";
+        log_info_m << "Success parse groups from config-file";
         log_info_m << "---";
     }
     else
     {
         log_error_m << "---";
-        log_error_m << "Failed parse groups config-file"
+        log_error_m << "Failed parse groups from config-file"
                     << ". Error count: " << int(tbot::globalConfigParceErrors);
         log_error_m << "---";
     }
