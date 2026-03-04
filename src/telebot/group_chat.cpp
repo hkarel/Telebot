@@ -200,6 +200,11 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         checkFiedType(ychat, "join_via_chat_folder", YAML::NodeType::Map);
         const YAML::Node yjoin = ychat["join_via_chat_folder"];
 
+        if (yjoin["ban"].IsDefined())
+        {
+            checkFiedType(yjoin, "ban", YAML::NodeType::Scalar);
+            joinViaChatFolder.ban = yjoin["ban"].as<bool>();
+        }
         if (yjoin["restrict"].IsDefined())
         {
             checkFiedType(yjoin, "restrict", YAML::NodeType::Scalar);
@@ -377,8 +382,9 @@ void printGroupChats(GroupChat::List& chats)
         logLine << "; newuser_mute: " << chat->newUserMute;
         logLine << "; anonymous_as_admin: " << chat->anonymousAsAdmin;
 
-        logLine << log_format("; join_via_chat_folder: {restrict: %?, mute: %?"
-                              ", report_spam: %?}",
+        logLine << log_format("; join_via_chat_folder: {ban: %?, restrict: %?"
+                              ", mute: %?, report_spam: %?}",
+                              chat->joinViaChatFolder.ban,
                               chat->joinViaChatFolder.restrict_,
                               chat->joinViaChatFolder.mute,
                               chat->joinViaChatFolder.reportSpam);

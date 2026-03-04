@@ -882,7 +882,8 @@ void Processing::run()
 
             // Проверка присоединения нового пользователя к группе через ссылку
             // на папку с группами => via a chat folder invite link
-            if (isNewUser && joinViaChatFolder && chat->joinViaChatFolder.restrict_)
+            if (isNewUser && joinViaChatFolder
+                && (chat->joinViaChatFolder.ban || chat->joinViaChatFolder.restrict_))
             {
                 QString botMsg;
                 if (botInfo && botInfo->can_restrict_members)
@@ -897,16 +898,32 @@ void Processing::run()
                     auto params = tgfunction("banChatMember");
                     params->api["chat_id"] = chatId;
                     params->api["user_id"] = user->id;
-                    params->api["until_date"] = qint64(std::time(nullptr) + 6*60*60 /*6 часов*/);
                     params->api["revoke_messages"] = true;
+
+                    if (chat->joinViaChatFolder.ban)
+                        params->api["until_date"] = qint64(std::time(nullptr));
+                    else
+                        params->api["until_date"] = qint64(std::time(nullptr) + 6*60*60 /*6 часов*/);
+
                     emit sendTgCommand(params);
 
-                    botMsg =
-                        u8"Бот исключил пользователя из группы"
-                        u8"\r\n%1"
-                        u8"\r\nПричина: пользователям запрещено присоединяться к группе "
-                        u8"через ссылку на папку с группами (via a chat folder invite link) ➞ VCF."
-                        u8"\r\nПользователь сможет вновь присоединиться к группе через 6 часов";
+                    if (chat->joinViaChatFolder.ban)
+                    {
+                        botMsg =
+                            u8"Бот заблокировал пользователя"
+                            u8"\r\n%1"
+                            u8"\r\nПричина: пользователям запрещено присоединяться к группе "
+                            u8"через ссылку на папку с группами (via a chat folder invite link) ➞ VCF.";
+                    }
+                    else
+                    {
+                        botMsg =
+                            u8"Бот исключил пользователя из группы"
+                            u8"\r\n%1"
+                            u8"\r\nПричина: пользователям запрещено присоединяться к группе "
+                            u8"через ссылку на папку с группами (via a chat folder invite link) ➞ VCF."
+                            u8"\r\nПользователь сможет вновь присоединиться к группе через 6 часов";
+                    }
 
                     botMsg = botMsg.arg(stringUserInfo(user));
 

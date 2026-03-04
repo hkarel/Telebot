@@ -63,6 +63,9 @@ public:
 
     struct JoinViaChatFolder
     {
+        // Блокирует пользователя при присоединении к группе
+        bool ban = {false};
+
         // Запрещает присоединение к группе
         bool restrict_ = {false};
 
