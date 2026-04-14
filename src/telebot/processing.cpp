@@ -253,6 +253,26 @@ void Processing::run()
         }
         clearText = clearText.trimmed();
 
+        if (message->quote)
+        {
+            QString quoteText = message->quote->text;
+            for (int i = message->quote->entities.count() - 1; i >= 0; --i)
+            {
+                const MessageEntity& entity = message->quote->entities[i];
+                if (entity.type == "url")
+                    quoteText.remove(entity.offset, entity.length);
+            }
+            quoteText = quoteText.trimmed();
+
+            if (!quoteText.isEmpty())
+            {
+                if (clearText.isEmpty())
+                    clearText = quoteText;
+                else
+                    clearText = quoteText + '\n' + clearText;
+            }
+        }
+
         QString clearCaption = message->caption;
         for (int i = message->caption_entities.count() - 1; i >= 0; --i)
         {

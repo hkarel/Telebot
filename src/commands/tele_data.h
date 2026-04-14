@@ -367,6 +367,26 @@ struct ExternalReplyInfo : clife_base
     J_SERIALIZE_END
 };
 
+/**
+  This object contains information about the quoted part of a message that is replied to by the given message.
+*/
+struct TextQuote : clife_base
+{
+    typedef clife_ptr<TextQuote> Ptr;
+
+    QString               text;               // Text of the quoted part of a message that is replied to by the given message
+    QList<MessageEntity>  entities;           // Optional. Special entities that appear in the quote. Currently, only bold, italic, underline, strikethrough, spoiler, custom_emoji, and date_time entities are kept in quotes.
+    qint32                position  = {0};    // Approximate quote position in the original message in UTF-16 code units as specified by the sender
+    bool                  is_manual = {true}; // Optional. True, if the quote was chosen manually by the message sender. Otherwise, the quote was added automatically by the server.
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_ITEM( text      )
+        J_SERIALIZE_OPT ( entities  )
+        J_SERIALIZE_OPT ( position  )
+        J_SERIALIZE_OPT ( is_manual )
+    J_SERIALIZE_END
+};
+
 struct Message : clife_base
 {
     typedef MessagePtr Ptr;
@@ -389,6 +409,7 @@ struct Message : clife_base
     bool                   is_automatic_forward  = {false}; // Optional. True, if the message is a channel post that was automatically forwarded to the connected discussion group
     Message::Ptr           reply_to_message;                // Optional. For replies, the original message. Note that the Message object in this field will not contain further reply_to_message fields even if it itself is a reply.
     ExternalReplyInfo::Ptr external_reply;                  // Optional. Information about the message that is being replied to, which may come from another chat or forum topic
+    TextQuote::Ptr         quote;                           // Optional. For replies that quote part of the original message, the quoted part of the message
     User::Ptr              via_bot;                         // Optional. Bot through which the message was sent
     qint32                 edit_date             = {0};     // Optional. Date the message was last edited in Unix time
     bool                   has_protected_content = {false}; // Optional. True, if the message can't be forwarded
@@ -465,6 +486,7 @@ struct Message : clife_base
         J_SERIALIZE_OPT ( is_automatic_forward    )
         J_SERIALIZE_OPT ( reply_to_message        )
         J_SERIALIZE_OPT ( external_reply          )
+        J_SERIALIZE_OPT ( quote                   )
         J_SERIALIZE_OPT ( via_bot                 )
         J_SERIALIZE_OPT ( edit_date               )
         J_SERIALIZE_OPT ( has_protected_content   )
