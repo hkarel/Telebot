@@ -1040,7 +1040,7 @@ void Processing::run()
             triggerText[Trigger::TextType::IsPremium] = user->is_premium;
 
             //--- Trigger::TextType::UserName ---
-            QString usernameText = QString(" %1 %2 %3")
+            QString usernameText = QString(" %1 %2 @%3")
                                           .arg(user->first_name)
                                           .arg(user->last_name)
                                           .arg(user->username);
@@ -1052,7 +1052,7 @@ void Processing::run()
                 && !adminIds.contains(messageForwardOrigin->sender_user->id)
                 && !chat->whiteUsers.findRef(messageForwardOrigin->sender_user->id))
             {
-                usernameText += QString(" %1 %2 %3")
+                usernameText += QString(" %1 %2 @%3")
                                        .arg(messageForwardOrigin->sender_user->first_name)
                                        .arg(messageForwardOrigin->sender_user->last_name)
                                        .arg(messageForwardOrigin->sender_user->username);
@@ -1062,7 +1062,7 @@ void Processing::run()
                 && messageForwardOrigin->type == "chat"
                 && messageForwardOrigin->sender_chat)
             {
-                usernameText += QString(" %1 %2 %3 %4")
+                usernameText += QString(" %1 %2 %3 @%4")
                                        .arg(messageForwardOrigin->sender_chat->title)
                                        .arg(messageForwardOrigin->sender_chat->first_name)
                                        .arg(messageForwardOrigin->sender_chat->last_name)
@@ -1073,7 +1073,7 @@ void Processing::run()
                 && messageForwardOrigin->type == "channel"
                 && messageForwardOrigin->chat)
             {
-                usernameText += QString(" %1 %2 %3 %4")
+                usernameText += QString(" %1 %2 %3 @%4")
                                        .arg(messageForwardOrigin->chat->title)
                                        .arg(messageForwardOrigin->chat->first_name)
                                        .arg(messageForwardOrigin->chat->last_name)
@@ -1082,7 +1082,7 @@ void Processing::run()
             }
             if (message->sender_chat)
             {
-                usernameText += QString(" %1 %2 %3 %4")
+                usernameText += QString(" %1 %2 %3 @%4")
                                        .arg(message->sender_chat->title)
                                        .arg(message->sender_chat->first_name)
                                        .arg(message->sender_chat->last_name)
@@ -1091,7 +1091,7 @@ void Processing::run()
             }
             if (message->personal_chat)
             {
-                usernameText += QString(" %1 %2 %3 %4")
+                usernameText += QString(" %1 %2 %3 @%4")
                                        .arg(message->personal_chat->title)
                                        .arg(message->personal_chat->first_name)
                                        .arg(message->personal_chat->last_name)
@@ -1101,7 +1101,7 @@ void Processing::run()
             }
             if (message->via_bot)
             {
-                usernameText += QString(" %1 %2 %3")
+                usernameText += QString(" %1 %2 @%3")
                                        .arg(message->via_bot->first_name)
                                        .arg(message->via_bot->last_name)
                                        .arg(message->via_bot->username);
