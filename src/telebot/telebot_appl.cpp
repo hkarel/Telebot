@@ -2593,11 +2593,14 @@ void Application::httpResultHandler(const ReplyData& rd)
             if (rd.params->funcName == "banChatMember")
             {
                 if (httpResult.ok)
+                {
                     logLine << "User is banned";
+                    tbot::userJoinTimes().remove(chatId, userId);
+                }
                 else
                     logLine << "Failed ban user";
             }
-            else
+            else // restrictChatMember
             {
                 if (httpResult.ok)
                     logLine << "User is restricted";

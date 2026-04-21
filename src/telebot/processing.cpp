@@ -900,6 +900,10 @@ void Processing::run()
                 continue;
             }
 
+            // Отслеживаем время вступления пользователя в группу
+            if (isNewUser && !isBioMessage)
+                userJoinTimes().add(chatId, user->id, joinViaChatFolder);
+
             // Проверка присоединения нового пользователя к группе через ссылку
             // на папку с группами => via a chat folder invite link
             if (isNewUser && joinViaChatFolder
@@ -1356,9 +1360,10 @@ void Processing::run()
                 }
 
                 // Для анализа новых пользователей используются следующие триггеры:
-                // TriggerRegexp, TriggerBlackUser
+                // TriggerRegexp, TriggerBlackUser, TriggerBigId
                 bool newUserAllowedTrigger = dynamic_cast<TriggerRegexp*>(trigger)
-                                             || dynamic_cast<TriggerBlackUser*>(trigger);
+                                             || dynamic_cast<TriggerBlackUser*>(trigger)
+                                             || dynamic_cast<TriggerBigId*>(trigger);
                 if (isNewUser && !newUserAllowedTrigger)
                     continue;
 
@@ -1447,6 +1452,7 @@ void Processing::run()
                 emit sendTgCommand(params);
             }
 
+            // Ограничение нового пользователя по признаку VCF (via a chat folder invite link)
             if (isNewUser && !isBioMessage && !userBanned && joinViaChatFolder)
             {
                 QString botMsg;
@@ -1542,17 +1548,12 @@ void Processing::run()
                 }
             }
 
-            if (isNewUser && !isBioMessage && !userBanned)
+            if (isNewUser && !isBioMessage && !userBanned
+                && (!joinViaChatFolder || !chat->joinViaChatFolder.mute))
             {
-                if (!joinViaChatFolder || !chat->joinViaChatFolder.mute)
-                {
-                    // Ограничение пользователя на два и более  часа,  если  он
-                    // в течении одной минуты подключается к нескольким группам
-                    emit restrictNewUser(chatId, user->id, chat->newUserMute);
-                }
-
-                // Отслеживаем время вступления пользователя в группу
-                userJoinTimes().add(chatId, user->id, joinViaChatFolder);
+                // Ограничение пользователя на два и более  часа,  если  он
+                // в течении одной минуты подключается к нескольким группам
+                emit restrictNewUser(chatId, user->id, chat->newUserMute);
             }
 
             // Проверка на Anti-Raid режим

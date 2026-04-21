@@ -45,12 +45,12 @@ public:
         return {};
     }
 
-    void remove(int index)
-    {
-        QMutexLocker locker {&_mutex}; (void) locker;
-        _list.remove(index);
-        _changeFlag = false;
-    }
+    // void remove(int index)
+    // {
+    //     QMutexLocker locker {&_mutex}; (void) locker;
+    //     _list.remove(index);
+    //     _changeFlag = false;
+    // }
 
     bool changed()
     {
@@ -77,6 +77,7 @@ class UserJoinTimeList : public DataList<data::UserJoinTime>
 {
 public:
     void add(qint64 chatId, qint64 userId, bool joinViaChatFolder);
+    void remove(qint64 chatId, qint64 userId);
     void removeByTime();
 };
 

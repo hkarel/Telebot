@@ -53,6 +53,17 @@ void UserJoinTimeList::add(qint64 chatId, qint64 userId, bool joinViaChatFolder)
         ujt->chatId, ujt->userId, ujt->time, ujt->joinViaChatFolder);
 }
 
+void UserJoinTimeList::remove(qint64 chatId, qint64 userId)
+{
+    QMutexLocker locker {&_mutex}; (void) locker;
+
+    if (lst::FindResult fr = _list.findRef(tuple{chatId, userId}))
+    {
+        _list.remove(fr.index());
+        _changeFlag = true;
+    }
+}
+
 void UserJoinTimeList::removeByTime()
 {
     QMutexLocker locker {&_mutex}; (void) locker;
