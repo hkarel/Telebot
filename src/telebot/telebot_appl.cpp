@@ -223,7 +223,9 @@ bool Application::init()
     loadBotCommands();
     loadAntiRaidCache();
 
-    startRequest();
+    // Делаем небольшую задержку, чтобы telegram-bot-api сервис
+    // успел запуститься
+    QTimer::singleShot(5*1000 /*5 сек*/, [this](){startRequest();});
 
     _botStartTime = QDateTime::currentDateTimeUtc();
     return true;
