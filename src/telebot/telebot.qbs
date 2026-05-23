@@ -13,7 +13,7 @@ Product {
     }
 
     type: "application"
-    destinationDirectory: "./bin"
+    destinationDirectory: "bin"
 
     Depends { name: "cpp" }
     Depends { name: "lib.sodium" }
@@ -31,10 +31,7 @@ Product {
     cpp.cxxFlags: project.cxxFlags
     cpp.cxxLanguageVersion: project.cxxLanguageVersion
 
-    cpp.includePaths: [
-        "./",
-        "../",
-    ]
+    cpp.includePaths: [".", ".."]
 
     cpp.systemIncludePaths: QbsUtl.concatPaths(
         lib.sodium.includePath
