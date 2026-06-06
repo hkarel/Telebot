@@ -140,6 +140,7 @@ private:
         delete_delay,
         user_join_time,
         white_user,
+        fuzzy_text,
         spam_user,
     };
 
@@ -166,6 +167,7 @@ private:
     int _timelimitTimerId = {-1};
     int _userJoinTimerId = {-1};
     int _whiteUserTimerId = {-1};
+    int _fuzzyTextTimerId = {-1};
     int _spamUserTimerId = {-1};
     int _configStateTimerId = {-1};
     int _updateAdminsTimerId = {-1};

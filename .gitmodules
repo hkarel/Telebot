@@ -16,3 +16,6 @@
 [submodule "setup/scripts"]
 	path = setup/scripts
 	url = https://github.com/hkarel/InstallScripts.git
+[submodule "src/rapidfuzz/rapidfuzz"]
+	path = src/rapidfuzz/rapidfuzz
+	url = https://github.com/rapidfuzz/rapidfuzz-cpp.git

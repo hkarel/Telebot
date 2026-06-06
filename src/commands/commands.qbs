@@ -9,6 +9,7 @@ Product {
 
     Depends { name: "cpp" }
     Depends { name: "PProto" }
+    Depends { name: "RapidFuzz" }
     Depends { name: "RapidJson" }
     Depends { name: "SharedLib" }
     Depends { name: "Yaml" }

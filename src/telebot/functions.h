@@ -97,6 +97,19 @@ public:
 WhiteUserList& whiteUsers();
 
 /**
+    Класс для работы с идентичными сообщениями
+*/
+class FuzzyTextList : public DataList<data::FuzzyText>
+{
+public:
+    void add(const data::FuzzyText::Ptr&);
+    void removeByTime();
+    data::FuzzyText::List textSimilarity(const data::FuzzyText::Ptr&) const;
+};
+
+FuzzyTextList& fuzzyTexts();
+
+/**
   Класс для работы со списком спам-пользователей
 */
 class SpamUserList : public DataList<data::SpamUser>

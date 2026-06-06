@@ -19,6 +19,7 @@ Product {
     Depends { name: "lib.sodium" }
     Depends { name: "Commands" }
     Depends { name: "PProto" }
+    Depends { name: "RapidFuzz" }
     Depends { name: "RapidJson" }
     Depends { name: "SharedLib" }
     Depends { name: "Yaml" }
