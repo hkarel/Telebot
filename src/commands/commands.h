@@ -10,6 +10,7 @@
 #pragma once
 
 #include "pproto/commands/base.h"
+#include "rapidfuzz/fuzz.hpp"
 #include "compare.h"
 #include "tele_data.h"
 
@@ -68,6 +69,8 @@ extern const QUuidEx AntiRaidUsersBan;
 //---------------- Структуры данных используемые в сообщениях ----------------
 
 namespace data {
+
+using namespace std;
 
 struct ConfSync : Data<&command::ConfSync,
                         Message::Type::Answer,
@@ -310,6 +313,58 @@ struct SpamUserSync : Data<&command::SpamUserSync,
         J_SERIALIZE_MAP_ITEM( "timemark", timemark )
         J_SERIALIZE_MAP_ITEM( "items"   , items    )
     J_SERIALIZE_END
+};
+
+struct FuzzyText : clife_base
+{
+    typedef clife_ptr<FuzzyText> Ptr;
+
+    qint64 chatId = {0};
+    qint32 messageId = {0};
+
+    // Информация о пользователе
+    tbot::User::Ptr user;
+
+    // Текст сообщения
+    QString text;
+
+    // Признак спам-сообщения, устанавливается в TRUE если администратор
+    // отметил сообщение как спам
+    bool spam = {false};
+
+    // Время получения сообщения (в Unix time)
+    qint64 time = {0};
+
+    // Время жизни структуры FuzzyText в списке
+    atomic<qint64> timeLife = {0};
+
+    // Определяет, что телеграм-сообщение было удалено
+    atomic<bool> messageDel = {false};
+
+    typedef rapidfuzz::fuzz::CachedRatio<char32_t> FuzzyCache;
+    typedef simple_ptr<FuzzyCache> FuzzyCachePtr;
+
+    FuzzyCachePtr fuzzyCache;
+
+    typedef lst::List<FuzzyText, CompareChatMsg<FuzzyText>, clife_alloc_ref<FuzzyText>> List;
+
+    J_SERIALIZE_BEGIN
+        J_SERIALIZE_MAP_ITEM( "chat_id"     , chatId     )
+        J_SERIALIZE_MAP_ITEM( "message_id"  , messageId  )
+        J_SERIALIZE_MAP_ITEM( "user"        , user       )
+        J_SERIALIZE_MAP_ITEM( "text"        , text       )
+        J_SERIALIZE_MAP_ITEM( "spam"        , spam       )
+        J_SERIALIZE_MAP_ITEM( "time"        , time       )
+        J_SERIALIZE_MAP_ITEM( "time_life"   , timeLife   )
+        J_SERIALIZE_MAP_ITEM( "message_del" , messageDel )
+    J_SERIALIZE_END
+};
+
+// Вспомогательная структура для сериализации списка FuzzyText
+struct FuzzyTextSerialize
+{
+    FuzzyText::List items;
+    J_SERIALIZE_MAP_ONE( "items", items )
 };
 
 struct AntiRaidUsersBan : Data<&command::AntiRaidUsersBan,

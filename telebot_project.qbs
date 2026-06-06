@@ -10,6 +10,7 @@ TelebotBase {
         "src/commands/commands.qbs",
         "src/telebot/telebot.qbs",
         "src/pproto/pproto.qbs",
+        "src/rapidfuzz/rapidfuzz.qbs",
         "src/rapidjson/rapidjson.qbs",
         "src/shared/shared.qbs",
         "src/yaml/yaml.qbs",

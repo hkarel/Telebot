@@ -701,6 +701,27 @@ void Processing::run()
                     emit sendTgCommand(params);
                 }
 
+                // Добавляем сообщение в список идентичных сообщений
+                QString ftext = triggerText[Trigger::TextType::Content].toString();
+                if (lst::inRange(ftext.length(), 25, 500))
+                {
+                    auto fuzzyText = data::FuzzyText::Ptr::create();
+                    fuzzyText->chatId = chatId;
+                    fuzzyText->messageId = messageId;
+                    fuzzyText->user = user;
+                    fuzzyText->text = ftext;
+                    fuzzyText->spam = true;
+
+                    fuzzyText->time = std::time(nullptr);
+                    fuzzyText->timeLife = fuzzyText->time + 72*60*60 /*72 часа*/;
+                    fuzzyText->messageDel = true;
+
+                    const u32string text32 = fuzzyText->text.toLower().toStdU32String();
+                    fuzzyText->fuzzyCache = data::FuzzyText::FuzzyCachePtr::create(text32);
+
+                    fuzzyTexts().add(fuzzyText);
+                }
+
                 bool notWhiteUser = true;
                 if (chat->whiteUsers.findRef(user->id) || whiteUsers().find(tuple{chatId, user->id}))
                     notWhiteUser = false;
@@ -770,6 +791,7 @@ void Processing::run()
                 qint64 spamCollectorChatId = 0;
                 config::base().getValue("spam_collector.chat_id", spamCollectorChatId);
 
+                // Отправка сообщения в группу-коллектор
                 if (spamCollectorChatId)
                 {
                     QString botMsg =
@@ -1554,6 +1576,274 @@ void Processing::run()
                 // Ограничение пользователя на два и более  часа,  если  он
                 // в течении одной минуты подключается к нескольким группам
                 emit restrictNewUser(chatId, user->id, chat->newUserMute);
+            }
+
+            // Проверка на идентичные сообщения
+            if (!isNewUser && !isBioMessage && !messageDeleted /*&& !userBanned*/)
+            {
+                auto fuzzyFunc = [&]()
+                {
+                    qint64 spamCollectorChatId = 0;
+                    config::base().getValue("spam_collector.chat_id", spamCollectorChatId);
+
+                    QString text = triggerText[Trigger::TextType::Content].toString();
+                    if (!lst::inRange(text.length(), 25, 500))
+                        return;
+
+                    auto fuzzyText = data::FuzzyText::Ptr::create();
+                    fuzzyText->chatId = chatId;
+                    fuzzyText->messageId = messageId;
+                    fuzzyText->user = user;
+                    fuzzyText->text = text;
+
+                    fuzzyText->time = std::time(nullptr);
+                    fuzzyText->timeLife = fuzzyText->time + 1*60*60 /*1 час*/;
+
+                    const u32string text32 = fuzzyText->text.toLower().toStdU32String();
+                    fuzzyText->fuzzyCache = data::FuzzyText::FuzzyCachePtr::create(text32);
+
+                    // Получение списка идентичных сообщений
+                    data::FuzzyText::List list = fuzzyTexts().textSimilarity(fuzzyText);
+
+                    fuzzyTexts().add(fuzzyText);
+
+                    bool spamMessage = false;
+                    for (data::FuzzyText* ft : list)
+                        if (ft->spam)
+                        {
+                            spamMessage = true;
+                            break;
+                        }
+
+                    // Найдено идентичное сообщение отмеченное администратором как спам
+                    if (spamMessage)
+                    {
+                        if (botInfo && botInfo->can_delete_messages)
+                        {
+                            log_verbose_m << log_format(
+                                u8"Delete identical spam-message (message_id: %?)"
+                                u8". Chat: %?, user %?/%?/@%?/%?. Text: %?",
+                                messageId, chat->name(),
+                                user->first_name, user->last_name, user->username, user->id,
+                                fuzzyText->text);
+
+                            fuzzyText->timeLife = fuzzyText->time + 72*60*60 /*72 часа*/;
+                            fuzzyText->messageDel = true;
+
+                            auto params = tgfunction("deleteMessage");
+                            params->api["chat_id"] = chatId;
+                            params->api["message_id"] = messageId;
+                            params->delay = 100 /*мсек*/;
+                            emit sendTgCommand(params);
+
+                            QString botMsg =
+                                u8"Бот удалил сообщение"
+                                u8"\r\n---"
+                                u8"\r\n%1"
+                                u8"\r\n---"
+                                u8"\r\nПричина: подозрение на распространение спам-сообщений";
+
+                            botMsg = botMsg.arg(fuzzyText->text);
+
+                            botMsg.replace("+", "&#43;");
+                            botMsg.replace("<", "&#60;");
+                            botMsg.replace(">", "&#62;");
+
+                            auto params2 = tgfunction("sendMessage");
+                            params2->api["chat_id"] = chatId;
+                            params2->api["text"] = botMsg;
+                            params2->api["parse_mode"] = "HTML";
+                            params2->delay = 200 /*мсек*/;
+                            emit sendTgCommand(params2);
+                        }
+
+                        // Блокировка пользователя на 10 часов
+                        if (botInfo && botInfo->can_restrict_members)
+                        {
+                            auto params = tgfunction("banChatMember");
+                            params->api["chat_id"] = chatId;
+                            params->api["user_id"] = user->id;
+                            params->api["revoke_messages"] = true;
+                            params->api["until_date"] = qint64(std::time(nullptr) + 10*60*60 /*10 часов*/);
+                            emit sendTgCommand(params);
+                        }
+
+                        // Отправка сообщения в группу-коллектор
+                        if (spamCollectorChatId)
+                        {
+                            QString botMsg =
+                                u8"Подозрение на распространение спам-сообщений"
+                                u8"\r\nГруппа: %1 ➞ [%2](https://t.me/c/%3)"
+                                u8"\r\nСпаммер: %4";
+
+                            //QString chatName = chat->name();
+                            //chatName = chatName.replace("_", "\\_");
+
+                            QString chatIdStr = QString::number(chatId);
+                            chatIdStr.remove(0, 4);
+
+                            botMsg = botMsg.arg(chatId).arg(chat->name()).arg(chatIdStr)
+                                           .arg(stringUserInfo(user));
+
+                            // if (!message->media_group_id.isEmpty())
+                            // {
+                            //     botMsg += u8"\r\nСообщение-медиагруппа";
+                            // }
+
+                            auto params = tgfunction("sendMessage");
+                            params->api["chat_id"] = spamCollectorChatId;
+                            params->api["text"] = botMsg;
+                            params->api["parse_mode"] = "Markdown";
+                            params->delay = 100 /*мсек*/;
+                            params->messageDel = -1;
+                            emit sendTgCommand(params);
+
+                            auto params2 = tgfunction("sendMessage");
+                            params2->api["chat_id"] = spamCollectorChatId;
+                            params2->api["text"] = fuzzyText->text;
+                            params2->api["parse_mode"] = "HTML";
+                            params2->delay = 150 /*мсек*/;
+                            params2->messageDel = -1;
+                            emit sendTgCommand(params2);
+
+                            auto params3 = tgfunction("sendMessage");
+                            params3->api["chat_id"] = spamCollectorChatId;
+                            params3->api["text"] = "---";
+                            params3->api["parse_mode"] = "HTML";
+                            params3->delay = 200 /*мсек*/;
+                            params3->messageDel = -1;
+                            emit sendTgCommand(params3);
+                        }
+                    } // if (spamMessage)
+
+                    if (list.empty())
+                        return;
+
+                    fuzzyText->add_ref();
+                    list.add(fuzzyText);
+
+                    for (int k = 0; k < list.count(); ++k)
+                    {
+                        data::FuzzyText* ft = list.item(k);
+
+                        QString chatName;
+                        ChatMemberAdministrator::Ptr botInfoFt;
+                        if (GroupChat* chat = chats.findItem(&ft->chatId))
+                        {
+                            chatName = chat->name();
+                            botInfoFt = chat->botInfo();
+                        }
+
+                        if (chatName.isEmpty())
+                            chatName = QString::number(ft->chatId);
+
+                        // Увеличиваем время жизни текста
+                        qint64 newTimeLife = ft->time + 72*60*60 /*72 часа*/;
+                        ft->timeLife = std::max(newTimeLife, ft->timeLife.load());
+
+                        data::UserJoinTime::Ptr ujt =
+                            userJoinTimes().find(tuple{ft->chatId, ft->user->id});
+                         if (!ujt)
+                             continue;
+
+                         qint64 diffTime = std::abs(ujt->time - std::time(nullptr));
+
+                         // Если пользователь в группе более 72 часов, то не удаляем
+                         // идентичное сообщение
+                         if (diffTime > 72*60*60 /*72 часа*/)
+                             continue;
+
+                        if (!ft->messageDel)
+                        {
+                            ft->messageDel = true;
+                            if (botInfoFt && botInfoFt->can_delete_messages)
+                            {
+                                log_verbose_m << log_format(
+                                    u8"Delete identical message (message_id: %?). Chat: %?, user %?/%?/@%?/%?"
+                                    u8". Text: %?",
+                                    ft->messageId, chatName, ft->user->first_name, ft->user->last_name,
+                                    ft->user->username, ft->user->id, ft->text);
+
+                                auto params = tgfunction("deleteMessage");
+                                params->api["chat_id"] = ft->chatId;
+                                params->api["message_id"] = ft->messageId;
+                                params->delay = k * 200 /*мсек*/;
+                                emit sendTgCommand(params);
+
+                                QString botMsg =
+                                    u8"Бот удалил сообщение"
+                                    u8"\r\n---"
+                                    u8"\r\n%1"
+                                    u8"\r\n---"
+                                    u8"\r\nПричина: подозрение на распространение идентичных сообщений";
+
+                                botMsg = botMsg.arg(ft->text);
+
+                                botMsg.replace("+", "&#43;");
+                                botMsg.replace("<", "&#60;");
+                                botMsg.replace(">", "&#62;");
+
+                                auto params2 = tgfunction("sendMessage");
+                                params2->api["chat_id"] = ft->chatId;
+                                params2->api["text"] = botMsg;
+                                params2->api["parse_mode"] = "HTML";
+                                params2->delay = k * 200 + 100 /*мсек*/;
+                                emit sendTgCommand(params2);
+
+                                // Отправляем отчет о спаме
+                                emit reportSpam(ft->chatId, ft->user);
+                            }
+
+                            // Отправка сообщения в группу-коллектор
+                            if (spamCollectorChatId)
+                            {
+                                QString botMsg =
+                                    u8"Подозрение на распространение идентичных сообщений"
+                                    u8"\r\nГруппа: %1 ➞ [%2](https://t.me/c/%3)"
+                                    u8"\r\nСпаммер: %4";
+
+                                //QString chatName = chat->name();
+                                //chatName = chatName.replace("_", "\\_");
+
+                                QString chatIdStr = QString::number(ft->chatId);
+                                chatIdStr.remove(0, 4);
+
+                                botMsg = botMsg.arg(ft->chatId).arg(chatName).arg(chatIdStr)
+                                               .arg(stringUserInfo(ft->user));
+
+                                // if (!message->media_group_id.isEmpty())
+                                // {
+                                //     botMsg += u8"\r\nСообщение-медиагруппа";
+                                // }
+
+                                auto params = tgfunction("sendMessage");
+                                params->api["chat_id"] = spamCollectorChatId;
+                                params->api["text"] = botMsg;
+                                params->api["parse_mode"] = "Markdown";
+                                params->delay = 100 /*0.10 сек*/;
+                                params->messageDel = -1;
+                                emit sendTgCommand(params);
+
+                                auto params2 = tgfunction("sendMessage");
+                                params2->api["chat_id"] = spamCollectorChatId;
+                                params2->api["text"] = ft->text;
+                                params2->api["parse_mode"] = "HTML";
+                                params2->delay = 150 /*0.15 сек*/;
+                                params2->messageDel = -1;
+                                emit sendTgCommand(params2);
+
+                                auto params3 = tgfunction("sendMessage");
+                                params3->api["chat_id"] = spamCollectorChatId;
+                                params3->api["text"] = "---";
+                                params3->api["parse_mode"] = "HTML";
+                                params3->delay = 200 /*0.20 сек*/;
+                                params3->messageDel = -1;
+                                emit sendTgCommand(params3);
+                            }
+                        }
+                    } // for (int i = 0; i < list.count(); ++i)
+                };
+                fuzzyFunc();
             }
 
             // Проверка на Anti-Raid режим

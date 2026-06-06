@@ -98,6 +98,7 @@ Application::Application(int& argc, char** argv)
     _whiteUserTimerId    = startTimer(30*1000 /*30 сек*/);
     _spamUserTimerId     = startTimer(30*1000 /*30 сек*/);
     _configStateTimerId  = startTimer(10*1000 /*10 сек*/);
+    _fuzzyTextTimerId    = startTimer(5*60*1000 /*5 мин*/);
     _updateAdminsTimerId = startTimer(4*60*60*1000 /*4 часа*/);
 
     chk_connect_a(&config::observerBase(), &config::ObserverBase::changed,
@@ -278,6 +279,9 @@ void Application::deinit()
     if (tbot::whiteUsers().changed())
         saveBotCommands(white_user, timemark);
 
+    if (tbot::fuzzyTexts().changed())
+        saveBotCommands(fuzzy_text, timemark);
+
     if (tbot::spamUsers().changed())
         saveBotCommands(spam_user, timemark);
 }
@@ -302,6 +306,7 @@ void Application::timerEvent(QTimerEvent* event)
             KILL_TIMER(_timelimitTimerId)
             KILL_TIMER(_userJoinTimerId)
             KILL_TIMER(_whiteUserTimerId)
+            KILL_TIMER(_fuzzyTextTimerId)
             KILL_TIMER(_spamUserTimerId)
             KILL_TIMER(_configStateTimerId)
             KILL_TIMER(_updateAdminsTimerId)
@@ -713,6 +718,17 @@ void Application::timerEvent(QTimerEvent* event)
             updateBotCommands(white_user);
             tbot::whiteUsers().resetChangeFlag();
             config::state().saveFile();
+        }
+    }
+    else if (event->timerId() == _fuzzyTextTimerId)
+    {
+        tbot::fuzzyTexts().removeByTime();
+        if (tbot::fuzzyTexts().changed())
+        {
+            saveBotCommands(fuzzy_text, 0 /*временно*/);
+            //updateBotCommands(white_user);
+            tbot::fuzzyTexts().resetChangeFlag();
+            //config::state().saveFile();
         }
     }
     else if (event->timerId() == _spamUserTimerId)
@@ -3163,22 +3179,22 @@ void Application::loadBotCommands()
         QString stateFile;
         config::base().getValue("user_join_time.file", stateFile);
 
-        QFile userJoinFile {stateFile};
-        if (!userJoinFile.exists())
+        QFile file {stateFile};
+        if (!file.exists())
         {
             log_warn_m << "User-Join state file not exists " << stateFile;
             return;
         }
 
-        if (!userJoinFile.open(QIODevice::ReadOnly))
+        if (!file.open(QIODevice::ReadOnly))
         {
             log_error_m << "Failed open User-Join state file in read-only mode"
                         << ". File: " << stateFile;
             return;
         }
 
-        QByteArray ba = userJoinFile.readAll();
-        userJoinFile.close();
+        QByteArray ba = file.readAll();
+        file.close();
 
         data::UserJoinTimeSerialize serialize;
         if (!serialize.fromJson(ba))
@@ -3197,22 +3213,22 @@ void Application::loadBotCommands()
         QString stateFile;
         config::base().getValue("white_user.file", stateFile);
 
-        QFile whiteUserFile {stateFile};
-        if (!whiteUserFile.exists())
+        QFile file {stateFile};
+        if (!file.exists())
         {
             log_warn_m << "White-User state file not exists " << stateFile;
             return;
         }
 
-        if (!whiteUserFile.open(QIODevice::ReadOnly))
+        if (!file.open(QIODevice::ReadOnly))
         {
             log_error_m << "Failed open White-User state file in read-only mode"
                         << ". File: " << stateFile;
             return;
         }
 
-        QByteArray ba = whiteUserFile.readAll();
-        whiteUserFile.close();
+        QByteArray ba = file.readAll();
+        file.close();
 
         data::WhiteUserSerialize serialize;
         if (!serialize.fromJson(ba))
@@ -3225,28 +3241,68 @@ void Application::loadBotCommands()
     };
     loadFunc4();
 
-    // spam_user
+    // fuzzy_text
     auto loadFunc5 = []()
+    {
+        QString stateFile;
+        config::base().getValue("fuzzy_text.file", stateFile);
+
+        QFile file {stateFile};
+        if (!file.exists())
+        {
+            log_warn_m << "Fuzzy-Text state file not exists " << stateFile;
+            return;
+        }
+
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            log_error_m << "Failed open Fuzzy-Text state file in read-only mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        QByteArray ba = file.readAll();
+        file.close();
+
+        data::FuzzyTextSerialize serialize;
+        if (!serialize.fromJson(ba))
+        {
+            log_error_m << "Failed deserialize Fuzzy-Text data from file " << stateFile;
+            return;
+        }
+
+        for (data::FuzzyText* fuzzyText : serialize.items)
+        {
+            const u32string text32 = fuzzyText->text.toLower().toStdU32String();
+            fuzzyText->fuzzyCache = data::FuzzyText::FuzzyCachePtr::create(text32);
+        }
+        tbot::fuzzyTexts().listSwap(serialize.items);
+        tbot::fuzzyTexts().resetChangeFlag();
+    };
+    loadFunc5();
+
+    // spam_user
+    auto loadFunc6 = []()
     {
         QString stateFile;
         config::base().getValue("spam_user.file", stateFile);
 
-        QFile spamUserFile {stateFile};
-        if (!spamUserFile.exists())
+        QFile file {stateFile};
+        if (!file.exists())
         {
             log_warn_m << "Spam-User state file not exists " << stateFile;
             return;
         }
 
-        if (!spamUserFile.open(QIODevice::ReadOnly))
+        if (!file.open(QIODevice::ReadOnly))
         {
             log_error_m << "Failed open Spam-User state file in read-only mode"
                         << ". File: " << stateFile;
             return;
         }
 
-        QByteArray ba = spamUserFile.readAll();
-        spamUserFile.close();
+        QByteArray ba = file.readAll();
+        file.close();
 
         data::SpamUserSerialize serialize;
         if (!serialize.fromJson(ba))
@@ -3257,7 +3313,7 @@ void Application::loadBotCommands()
         tbot::spamUsers().listSwap(serialize.items);
         tbot::spamUsers().resetChangeFlag();
     };
-    loadFunc5();
+    loadFunc6();
 }
 
 void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
@@ -3370,6 +3426,35 @@ void Application::saveBotCommands(UpdateBotSection section, qint64 timemark)
 
         data::WhiteUserSerialize serialize;
         serialize.items = tbot::whiteUsers().list();
+        QByteArray ba = serialize.toJson();
+        file.write(ba);
+        file.close();
+    }
+    else if (section == fuzzy_text)
+    {
+        //config::state().setValue("fuzzy_text.timemark", timemark);
+
+        QString stateFile;
+        config::base().getValue("fuzzy_text.file", stateFile);
+
+        if (QFile::exists(stateFile))
+            if (!QFile::remove(stateFile))
+            {
+                log_error_m << "Failed remove old Fuzzy-Text state file: "
+                            << stateFile;
+                return;
+            }
+
+        QFile file {stateFile};
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            log_error_m << "Failed open Fuzzy-Text state file in write mode"
+                        << ". File: " << stateFile;
+            return;
+        }
+
+        data::FuzzyTextSerialize serialize;
+        serialize.items = tbot::fuzzyTexts().list();
         QByteArray ba = serialize.toJson();
         file.write(ba);
         file.close();

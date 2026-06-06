@@ -18,14 +18,14 @@ public:
         QMutexLocker locker {&_mutex}; (void) locker;
         return _list;
 
-//        List rlist;
-//        for (auto* t : _list)
-//        {
-//            t->add_ref();
-//            rlist.add(t);
-//        }
-//        rlist.sort();
-//        return rlist;
+        // List rlist;
+        // for (auto* t : _list)
+        // {
+        //     t->add_ref();
+        //     rlist.add(t);
+        // }
+        // rlist.sort();
+        // return rlist;
     }
 
     void listSwap(List& list)
@@ -95,6 +95,19 @@ public:
 };
 
 WhiteUserList& whiteUsers();
+
+/**
+    Класс для работы с идентичными сообщениями
+*/
+class FuzzyTextList : public DataList<data::FuzzyText>
+{
+public:
+    void add(const data::FuzzyText::Ptr&);
+    void removeByTime();
+    data::FuzzyText::List textSimilarity(const data::FuzzyText::Ptr&) const;
+};
+
+FuzzyTextList& fuzzyTexts();
 
 /**
   Класс для работы со списком спам-пользователей
