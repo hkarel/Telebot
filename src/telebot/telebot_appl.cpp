@@ -2090,7 +2090,18 @@ void Application::timelimitCheck()
                                     params->api["chat_id"] = chat->id;
                                     params->api["text"] = message;
                                     params->api["parse_mode"] = "HTML";
-                                    params->messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
+                                    //params->messageDel = trg->hideMessageBegin ? 0 : 6*60*60 /*6 часов*/;
+                                    params->messageDel = 0;
+                                    if (!trg->hideMessageBegin)
+                                    {
+                                        random_device rd;
+                                        mt19937 generator {rd()};
+                                        uniform_int_distribution<> distribution {5*60*60 /*5 часов*/,
+                                                                                 6*60*60 /*6 часов*/};
+
+                                        // Псевдослучайное время удаления сообщения (в секундах)
+                                        params->messageDel = distribution(generator);
+                                    }
                                     sendTgCommand(params);
                                 }
                             }
@@ -2135,7 +2146,18 @@ void Application::timelimitCheck()
                                     params->api["chat_id"] = chat->id;
                                     params->api["text"] = message;
                                     params->api["parse_mode"] = "HTML";
-                                    params->messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
+                                    //params->messageDel = trg->hideMessageEnd ? 0 : 1*60*60 /*1 час*/;
+                                    params->messageDel = 0;
+                                    if (!trg->hideMessageEnd)
+                                    {
+                                        random_device rd;
+                                        mt19937 generator {rd()};
+                                        uniform_int_distribution<> distribution (1.0*60*60 /*1 час*/,
+                                                                                 1.5*60*60 /*1.5 часа*/);
+
+                                        // Псевдослучайное время удаления сообщения (в секундах)
+                                        params->messageDel = distribution(generator);
+                                    }
                                     sendTgCommand(params);
                                 }
                             }
