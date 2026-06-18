@@ -551,6 +551,17 @@ void Processing::run()
         if (isNewUsersMessage || (isBioMessage && msgData->isNewUser))
             isNewUser = true;
 
+        if (chat->removeJoinMessage && isNewUsersMessage && !isBioMessage
+            && botInfo && botInfo->can_delete_messages && (messageId > 0))
+        {
+            // Удаляем сообщение о присоединении нового пользователя к группе
+            auto params = tgfunction("deleteMessage");
+            params->api["chat_id"] = chatId;
+            params->api["message_id"] = messageId;
+            params->delay = 100 /*мсек*/;
+            emit sendTgCommand(params);
+        }
+
         if (!isNewUsersMessage)
         {
             // Обрабатываем команду бота verifyadmin

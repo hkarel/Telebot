@@ -61,6 +61,9 @@ public:
     // Интерпретировать GroupAnonymousBot как администратора
     bool anonymousAsAdmin = {true};
 
+    // Удалять сообщение о присоединении нового пользователя к группе
+    bool removeJoinMessage = {false};
+
     struct JoinViaChatFolder
     {
         // Блокирует пользователя при присоединении к группе

@@ -194,6 +194,13 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
         anonymousAsAdmin = ychat["anonymous_as_admin"].as<bool>();
     }
 
+    bool removeJoinMessage = false;
+    if (ychat["remove_join_message"].IsDefined())
+    {
+        checkFiedType(ychat, "remove_join_message", YAML::NodeType::Scalar);
+        removeJoinMessage = ychat["remove_join_message"].as<bool>();
+    }
+
     GroupChat::JoinViaChatFolder joinViaChatFolder;
     if (ychat["join_via_chat_folder"].IsDefined())
     {
@@ -261,6 +268,7 @@ GroupChat::Ptr createGroupChat(const YAML::Node& ychat)
     chat->userRestricts = userRestricts;
     chat->newUserMute = newUserMute;
     chat->anonymousAsAdmin = anonymousAsAdmin;
+    chat->removeJoinMessage = removeJoinMessage;
     chat->joinViaChatFolder = joinViaChatFolder;
     chat->antiRaid = antiRaid;
 
@@ -381,6 +389,7 @@ void printGroupChats(GroupChat::List& chats)
 
         logLine << "; newuser_mute: " << chat->newUserMute;
         logLine << "; anonymous_as_admin: " << chat->anonymousAsAdmin;
+        logLine << "; remove_join_message: " << chat->removeJoinMessage;
 
         logLine << log_format("; join_via_chat_folder: {ban: %?, restrict: %?"
                               ", mute: %?, report_spam: %?}",
