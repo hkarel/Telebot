@@ -3568,7 +3568,8 @@ void Application::sendToProcessing(const tbot::MessageData::Ptr& msgData)
                                  ? msgData->update.message
                                  : msgData->update.edited_message;
 
-    if (message && message->chat && message->from)
+    bool isBioMessage = (msgData->bio.userId > 0);
+    if (message && message->chat && message->from && !isBioMessage)
     {
         //const qint64 chatId = message->chat->id;
         //const qint64 userId = message->from->id;
