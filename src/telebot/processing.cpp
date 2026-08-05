@@ -1767,6 +1767,8 @@ void Processing::run()
                         if (!ft->messageDel)
                         {
                             ft->messageDel = true;
+                            fuzzyTexts().setChangeFlag();
+
                             if (botInfoFt && botInfoFt->can_delete_messages)
                             {
                                 log_verbose_m << log_format(
@@ -1804,55 +1806,65 @@ void Processing::run()
                                 // Отправляем отчет о спаме
                                 emit reportSpam(ft->chatId, ft->user);
                             }
-
-                            // Отправка сообщения в группу-коллектор
-                            if (spamCollectorChatId)
-                            {
-                                QString botMsg =
-                                    u8"Подозрение на распространение идентичных сообщений"
-                                    u8"\r\nГруппа: %1 ➞ [%2](https://t.me/c/%3)"
-                                    u8"\r\nСпаммер: %4";
-
-                                //QString chatName = chat->name();
-                                //chatName = chatName.replace("_", "\\_");
-
-                                QString chatIdStr = QString::number(ft->chatId);
-                                chatIdStr.remove(0, 4);
-
-                                botMsg = botMsg.arg(ft->chatId).arg(chatName).arg(chatIdStr)
-                                               .arg(stringUserInfo(ft->user));
-
-                                // if (!message->media_group_id.isEmpty())
-                                // {
-                                //     botMsg += u8"\r\nСообщение-медиагруппа";
-                                // }
-
-                                auto params = tgfunction("sendMessage");
-                                params->api["chat_id"] = spamCollectorChatId;
-                                params->api["text"] = botMsg;
-                                params->api["parse_mode"] = "Markdown";
-                                params->delay = 100 /*0.10 сек*/;
-                                params->messageDel = -1;
-                                emit sendTgCommand(params);
-
-                                auto params2 = tgfunction("sendMessage");
-                                params2->api["chat_id"] = spamCollectorChatId;
-                                params2->api["text"] = ft->text;
-                                params2->api["parse_mode"] = "HTML";
-                                params2->delay = 150 /*0.15 сек*/;
-                                params2->messageDel = -1;
-                                emit sendTgCommand(params2);
-
-                                auto params3 = tgfunction("sendMessage");
-                                params3->api["chat_id"] = spamCollectorChatId;
-                                params3->api["text"] = "---";
-                                params3->api["parse_mode"] = "HTML";
-                                params3->delay = 200 /*0.20 сек*/;
-                                params3->messageDel = -1;
-                                emit sendTgCommand(params3);
-                            }
                         }
-                    } // for (int i = 0; i < list.count(); ++i)
+                    }
+
+                    if (data::FuzzyText* ft = list.last())
+                    {
+                        // Отправка сообщения в группу-коллектор
+                        if (spamCollectorChatId)
+                        {
+                            QString botMsg =
+                                u8"Подозрение на распространение идентичных сообщений"
+                                u8"\r\nГруппа: %1 ➞ [%2](https://t.me/c/%3)"
+                                u8"\r\nСпаммер: %4";
+
+                            QString chatName;
+                            if (GroupChat* chat = chats.findItem(&ft->chatId))
+                                chatName = chat->name();
+
+                            if (chatName.isEmpty())
+                                chatName = QString::number(ft->chatId);
+
+                            //QString chatName = chat->name();
+                            //chatName = chatName.replace("_", "\\_");
+
+                            QString chatIdStr = QString::number(ft->chatId);
+                            chatIdStr.remove(0, 4);
+
+                            botMsg = botMsg.arg(ft->chatId).arg(chatName).arg(chatIdStr)
+                                           .arg(stringUserInfo(ft->user));
+
+                            // if (!message->media_group_id.isEmpty())
+                            // {
+                            //     botMsg += u8"\r\nСообщение-медиагруппа";
+                            // }
+
+                            auto params = tgfunction("sendMessage");
+                            params->api["chat_id"] = spamCollectorChatId;
+                            params->api["text"] = botMsg;
+                            params->api["parse_mode"] = "Markdown";
+                            params->delay = 100 /*0.10 сек*/;
+                            params->messageDel = -1;
+                            emit sendTgCommand(params);
+
+                            auto params2 = tgfunction("sendMessage");
+                            params2->api["chat_id"] = spamCollectorChatId;
+                            params2->api["text"] = ft->text;
+                            params2->api["parse_mode"] = "HTML";
+                            params2->delay = 150 /*0.15 сек*/;
+                            params2->messageDel = -1;
+                            emit sendTgCommand(params2);
+
+                            auto params3 = tgfunction("sendMessage");
+                            params3->api["chat_id"] = spamCollectorChatId;
+                            params3->api["text"] = "---";
+                            params3->api["parse_mode"] = "HTML";
+                            params3->delay = 200 /*0.20 сек*/;
+                            params3->messageDel = -1;
+                            emit sendTgCommand(params3);
+                        }
+                    }
                 };
                 fuzzyFunc();
             }

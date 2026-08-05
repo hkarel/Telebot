@@ -58,6 +58,12 @@ public:
         return _changeFlag;
     }
 
+    void setChangeFlag()
+    {
+        QMutexLocker locker {&_mutex}; (void) locker;
+        _changeFlag = true;
+    }
+
     void resetChangeFlag()
     {
         QMutexLocker locker {&_mutex}; (void) locker;
