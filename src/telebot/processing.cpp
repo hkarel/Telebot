@@ -1638,8 +1638,9 @@ void Processing::run()
                                 user->first_name, user->last_name, user->username, user->id,
                                 fuzzyText->text);
 
-                            fuzzyText->timeLife = fuzzyText->time + 72*60*60 /*72 часа*/;
+                            fuzzyText->timeLife = fuzzyText->time + 15*24*60*60 /*15 суток*/;
                             fuzzyText->messageDel = true;
+                            fuzzyTexts().setChangeFlag();
 
                             auto params = tgfunction("deleteMessage");
                             params->api["chat_id"] = chatId;
