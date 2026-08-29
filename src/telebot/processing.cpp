@@ -803,7 +803,7 @@ void Processing::run()
                 config::base().getValue("spam_collector.chat_id", spamCollectorChatId);
 
                 // Отправка сообщения в группу-коллектор
-                if (spamCollectorChatId > 0)
+                if (spamCollectorChatId)
                 {
                     QString botMsg =
                         u8"Группа: %1 ➞ [%2](https://t.me/c/%3)"
@@ -1681,7 +1681,7 @@ void Processing::run()
                         }
 
                         // Отправка сообщения в группу-коллектор
-                        if (spamCollectorChatId > 0)
+                        if (spamCollectorChatId)
                         {
                             QString botMsg =
                                 u8"Подозрение на распространение спам-сообщений"
@@ -1813,7 +1813,7 @@ void Processing::run()
                     if (data::FuzzyText* ft = list.last())
                     {
                         // Отправка сообщения в группу-коллектор
-                        if (spamCollectorChatId > 0)
+                        if (spamCollectorChatId)
                         {
                             QString botMsg =
                                 u8"Подозрение на распространение идентичных сообщений"
