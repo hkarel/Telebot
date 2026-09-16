@@ -19,15 +19,20 @@ if [ -z "$res" ]; then
     echo "The group $group_name is created"
 fi
 
-res=$(groups $SUDO_USER | grep "$group_name")
+sudo_usr=root
+if [ -n "$SUDO_USER" ]; then
+    sudo_usr=$SUDO_USER
+fi
+
+res=$(groups $sudo_usr | grep "$group_name")
 if [ -z "$res" ]; then
-    usermod -aG $group_name $SUDO_USER
+    usermod -aG $group_name $sudo_usr
     need_reboot=yes
 fi
 
 if [ "$need_reboot" = "yes" ]; then
     echo "====================================================== "
-    echo "! The user $SUDO_USER added to groups: ${group_name}.  "
+    echo "! The user $sudo_usr added to groups: ${group_name}.   "
     echo "! Need relogin user and repeat installation.           "
     echo "====================================================== "
     exit 1
@@ -45,13 +50,13 @@ chmod -R ug=rwX,o=rX             /var/opt/$product_dir/log
 chown    root:$group_name        /var/opt/$product_dir/state
 chmod    ug=rwX,o=rX             /var/opt/$product_dir/state
 
-chown    $SUDO_USER:$group_name  /var/opt/$product_dir/state/*
+chown    $sudo_usr:$group_name   /var/opt/$product_dir/state/*
 chmod    u=rwX,og=rX             /var/opt/$product_dir/state/*
 
 #
 # Регистрация systemd-сервиса
 #
-sed -e "s/%TARGET_USER%/$SUDO_USER/" \
+sed -e "s/%TARGET_USER%/$sudo_usr/" \
     -i /etc/systemd/system/$service_name
 
 # sed -e "s/%TARGET_USER%/root/" \
